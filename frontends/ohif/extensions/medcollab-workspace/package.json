@@ -1,0 +1,18 @@
+{
+  "name": "@medcollab/extension-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "module": "src/index.ts",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "peerDependencies": {
+    "@ohif/core": "workspace:*",
+    "@ohif/i18n": "workspace:*",
+    "@ohif/ui-next": "workspace:*",
+    "@ohif/extension-default": "workspace:*",
+    "react": "18.3.1"
+  },
+  "dependencies": {
+    "dcmjs": "0.52.0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "Name": "MedCollab local development",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory": "/var/lib/orthanc/db",
+  "HttpServerEnabled": true,
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": false,
+  "DicomServerEnabled": false,
+  "DefaultEncoding": "Utf8",
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": true,
+    "StudiesMetadata": "Full",
+    "SeriesMetadata": "Full"
+  }
+}

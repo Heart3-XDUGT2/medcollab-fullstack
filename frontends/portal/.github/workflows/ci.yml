@@ -1,0 +1,40 @@
+name: Portal Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Start portal
+        run: |
+          pnpm dev > /tmp/medcollab-portal.log 2>&1 &
+          node --input-type=module -e "for(let n=0;n<60;n++){try{if((await fetch('http://127.0.0.1:5173')).ok)process.exit(0)}catch{}await new Promise(r=>setTimeout(r,1000))}process.exit(1)"
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: portal-browser-diagnostics
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7

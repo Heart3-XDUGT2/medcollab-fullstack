@@ -1,0 +1,348 @@
+{
+  "version": "2026-11-01",
+  "description": "从当前 Java 映射声明核对的路由索引；字段、返回类型及使用限制见开发维护指南；不是 Swagger 服务。",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/datasets",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/api/datasets",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/metadata",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series/{series}/instances",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series/{series}/instances/{sop}",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series/{series}/instances/{sop}/bulk/{*bulk}",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "受限 tagPath"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series/{series}/instances/{sop}/frames/{frames}",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "当前仅 frames=1"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series/{series}/instances/{sop}/metadata",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/dicomweb/studies/{study}/series/{series}/metadata",
+      "source": "DicomWebController.java",
+      "group": "DICOMweb",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentation/sources",
+      "source": "SegmentationController.java",
+      "group": "掩码",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}",
+      "source": "SegmentationController.java",
+      "group": "旧兼容/迁移",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "仅旧单标签/迁移使用；不要用于新 OHIF"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/draft",
+      "source": "SegmentationController.java",
+      "group": "旧兼容/迁移",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "410；禁止新增 Java 草稿"
+    },
+    {
+      "method": "POST",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/export-labelmap",
+      "source": "SegmentationController.java",
+      "group": "掩码",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/file",
+      "source": "SegmentationController.java",
+      "group": "掩码",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/labelmap",
+      "source": "SegmentationController.java",
+      "group": "掩码",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/legacy-draft",
+      "source": "SegmentationController.java",
+      "group": "旧兼容/迁移",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "revision 查询参数；成功 204"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/legacy-draft",
+      "source": "SegmentationController.java",
+      "group": "旧兼容/迁移",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "仅旧单标签/迁移使用；不要用于新 OHIF"
+    },
+    {
+      "method": "POST",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/publish",
+      "source": "SegmentationController.java",
+      "group": "旧兼容/迁移",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "仅旧单标签/迁移使用；不要用于新 OHIF"
+    },
+    {
+      "method": "POST",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/publish-labelmap",
+      "source": "SegmentationController.java",
+      "group": "掩码",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/status",
+      "source": "SegmentationController.java",
+      "group": "掩码",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/workspace",
+      "source": "DicomWebController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/datasets/{id}",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{id}/instances",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{id}/instances/{instanceId}/file",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{id}/instances/{instanceId}/preview",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{id}/shares",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "PUT",
+      "path": "/api/datasets/{id}/shares",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/datasets/{id}/shares/{subject}",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "source": "HealthController.java",
+      "group": "Portal/启动",
+      "loginRequired": false,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/api/import",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": ""
+    },
+    {
+      "method": "POST",
+      "path": "/api/logout",
+      "source": "SecurityConfiguration.java",
+      "group": "认证退出",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "返回 logoutUrl，继续受信任的 SSO 退出导航"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orthanc/status",
+      "source": "ImagingController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/session",
+      "source": "SessionController.java",
+      "group": "Portal/启动",
+      "loginRequired": false,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "source": "UserDirectoryController.java",
+      "group": "Portal/启动",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/auth/login",
+      "source": "AuthenticationController.java",
+      "group": "认证导航",
+      "loginRequired": false,
+      "csrfRequired": false,
+      "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/auth/register",
+      "source": "AuthenticationController.java",
+      "group": "认证导航",
+      "loginRequired": false,
+      "csrfRequired": false,
+      "note": ""
+    }
+  ]
+}

@@ -1,0 +1,755 @@
+openapi: 3.1.0
+info:
+  title: MedCollab Portal Backend Contract
+  version: 0.1.0
+  description: |
+    登录、数据集首页、单文件导入及共享的协议描述，整理于 2026-11-01。
+    当前 Portal 子集已在统一 8080 入口接入真实 Java/Keycloak/Orthanc。
+    本文件不表示 Java 部署了 OpenAPI/Swagger；完整 OHIF、DICOMweb、Labelmap
+    与维护契约见 docs/handoff/current-server/前端开发维护与兼容性指南.md。
+    业务 JSON 成功仅为 200；当前前端不接受 201/204 作为兼容成功。
+    业务请求走同源 /api，Cookie 由浏览器管理，cache=no-store、redirect=error。
+    写请求必须先从 /api/session 获取 csrfHeaderName 和 csrfToken，
+    使用返回的动态头名。x-csrf-required 只是文档扩展，不会让生成工具自动处理 CSRF。
+    未定义密码登录、Bearer JWT、标注编辑、训练、导出、分页或未来 launch 接口。
+servers:
+  - url: /
+    description: 部署者提供的同源网关，业务 API 不经过 SPA HTML fallback
+  - url: http://127.0.0.1:8080
+    description: 当前本机统一网关（Java 内部 8082）；不是其他电脑的远程服务地址
+tags:
+  - name: Session
+    description: Java Cookie 会话与退出
+  - name: Navigation
+    description: 浏览器导航入口，不用 JSON fetch 处理
+  - name: Datasets
+    description: 当前可访问的业务影像集
+  - name: Sharing
+    description: 账号搜索与当前全权共享规则
+  - name: Import
+    description: 非原子、逐文件 DICOM 导入
+security:
+  - cookieSession: []
+x-source:
+  handoffDate: 2026-10-31
+  frontendCommit: abe5bc8a4
+  independentJavaRuntimeVerification: false
+paths:
+  /api/session:
+    get:
+      tags: [Session]
+      operationId: getSession
+      summary: 读取登录状态、稳定身份和动态 CSRF
+      security: []
+      description: |
+        未登录也返回 200，包含非空 csrfHeaderName 和 csrfToken。
+        登录时 issuer/subject 非空，username 仅用于展示。
+        登录、退出、账号切换后重新读取；不得记录令牌或 Cookie。
+      responses:
+        '200':
+          description: 当前 Java 会话
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+              examples:
+                anonymous:
+                  value:
+                    loggedIn: false
+                    username: null
+                    issuer: null
+                    subject: null
+                    csrfToken: EXAMPLE_ONLY_NOT_A_REAL_TOKEN
+                    csrfHeaderName: X-CSRF-TOKEN
+        default:
+          $ref: '#/components/responses/ApiError'
+  /auth/login:
+    get:
+      tags: [Navigation]
+      operationId: navigateToLogin
+      summary: 浏览器导航开始 Java 托管的 Keycloak 登录
+      security: []
+      description: |
+        使用页面导航，不提交用户名密码，不把返回 HTML 当作 JSON。
+        目的 origin 来自受控部署配置。当前后端成功后固定回 Java 站点 /，
+        失败回 /?authError=1，不可用回 /?authError=unavailable。
+        Portal 登录回跳尚需部署对齐；不自行构造 OIDC code/state。
+      responses:
+        '302':
+          description: Java/OIDC 登录导航；失败情形也可能重定向错误落地页
+          headers:
+            Location:
+              description: 服务端提供的下一页面位置
+              schema:
+                type: string
+        default:
+          description: 认证页面或框架响应；此入口不是业务 JSON API
+  /auth/register:
+    get:
+      tags: [Navigation]
+      operationId: navigateToRegistration
+      summary: 浏览器导航开始平台注册
+      security: []
+      description: |
+        与登录使用同一 Java/OIDC 会话体系，不是 JSON 注册接口。
+        当前回调及成功落地固定在原 Java 站点，正式 Portal 回跳需要后端配置。
+      responses:
+        '302':
+          description: Java/OIDC 注册导航
+          headers:
+            Location:
+              description: 服务端提供的下一页面位置
+              schema:
+                type: string
+        default:
+          description: 认证页面或框架响应；不按 JSON 解析
+  /api/logout:
+    post:
+      tags: [Session]
+      operationId: logout
+      summary: 清除 Java 会话并取得 SSO 退出地址
+      x-csrf-required: true
+      description: |
+        无请求体，附本次 session 返回头名和令牌。
+        收到 200 后 Java 会话可能已清除，应清理 Portal 的账号数据及待用 CSRF。
+        只导航到受控允许 origin 上的 HTTP(S) logoutUrl，禁止嵌入用户名密码。
+        不能只隐藏头像，也不能记录完整退出 URL 查询参数。
+      responses:
+        '200':
+          description: Java 已处理退出；仍需浏览器完成受信任的 SSO 导航
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/datasets:
+    get:
+      tags: [Datasets]
+      operationId: listDatasets
+      summary: 返回本人可访问的全部影像集
+      description: |
+        无 page/size/filter 查询参数；只返回公共、本人和共享给本人的集合。
+        total 等于 items.length，不是分页总量。前端搜索、分类和排序仅在该数组内执行。
+        public 是所有登录用户可访问，不是匿名访问。
+      responses:
+        '200':
+          description: 当前账号可访问列表
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetItems'
+              examples:
+                empty:
+                  value: { items: [], total: 0 }
+                example:
+                  value:
+                    items:
+                      - id: example-dataset
+                        name: 演示数据集
+                        access: owner
+                        ownerUsername: example-user
+                        instanceCount: 0
+                        createdAt: '2026-11-01T00:00:00Z'
+                    total: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ApiError'
+    post:
+      tags: [Datasets]
+      operationId: createDataset
+      summary: 为当前账号创建空的私有影像集
+      x-csrf-required: true
+      description: |
+        名称 trim 后为 1-200 字符；不接受由客户端指定 owner/public/共享规则。
+        成功是 200 Dataset，不是 201。当前适配器每次显式写入前刷新 session 并比较 issuer+subject。
+        网络结果未知时不要直接重复创建，先核对列表。服务端仍须逐次授权。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NameRequest'
+      responses:
+        '200':
+          description: 新集合，access=owner、instanceCount=0
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/datasets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+    patch:
+      tags: [Datasets]
+      operationId: renameDataset
+      summary: 重命名一个可访问影像集
+      x-csrf-required: true
+      description: |
+        只修改名称。owner、shared 和有权访问公共集的登录用户均可执行当前操作；
+        shared 不是只读。没有对应 GET /api/datasets/{id}，详情使用列表项。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NameRequest'
+      responses:
+        '200':
+          description: 更新后的 Dataset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/datasets/{id}/instances:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+    get:
+      tags: [Datasets]
+      operationId: listInstances
+      summary: 读取影像集实例成员清单
+      x-portal-usage: adapter-only-not-currently-called-by-page
+      description: |
+        已由旧前端适配器提供并测试，但当前首页/面板没有直接调用。
+        不代表像素浏览已接入。id 是 Orthanc 实例资源 ID；
+        instanceNumber 可为空、不保证连续/唯一；列表顺序不是完整三维几何顺序。
+        total 等于 items.length；发布 SEG 另行管理，不增加这里的原 CT 成员数。
+      responses:
+        '200':
+          description: 实例清单
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstanceItems'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/users:
+    get:
+      tags: [Sharing]
+      operationId: searchUsers
+      summary: 按用户名模糊搜索启用的普通账号
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: 首尾空白去除后为 2-100 字符，不是 username 参数
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+      description: |
+        最多返回 20 个启用的普通账号，不包括服务账号。
+        total 是本次返回条数，不是总命中数，没有分页。
+        没有结果是 200 空列表。共享选择 subject 而非 username。
+      responses:
+        '200':
+          description: 可供明确选择的账号
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSearchItems'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/datasets/{id}/shares:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+    get:
+      tags: [Sharing]
+      operationId: listShares
+      summary: 返回私有影像集的显式共享名单
+      description: |
+        不包含所有者；按 username 和 subject 排序。
+        公共集返回 400，因为已经对所有登录用户开放。
+        shared 成员有现有全部共享管理能力，不只 owner 能读取名单。
+      responses:
+        '200':
+          description: 显式共享者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserItems'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        default:
+          $ref: '#/components/responses/ApiError'
+    put:
+      tags: [Sharing]
+      operationId: addShare
+      summary: 添加一个明确选择的共享账号
+      x-csrf-required: true
+      description: |
+        方法为 PUT，不是 POST。同一用户重复添加是幂等更新，
+        但当前客户端不自动重发结果未知的请求。公共集、无效 UUID 或所有者目标返回 400。
+        404 既可能是集合不存在/失权，也可能是目标账号不存在/停用；
+        不能一律关闭整个数据集。成功后重新读取共享名单。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareRequest'
+      responses:
+        '200':
+          description: 已确认共享
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 集合不存在/不可访问，或目标账号不存在/停用；按当前操作核对，不靠错误文案判断
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/datasets/{id}/shares/{subject}:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+      - name: subject
+        in: path
+        required: true
+        description: 被移除的 Keycloak 稳定用户 ID，路径编码；不是用户名
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [Sharing]
+      operationId: removeShare
+      summary: 撤销一个显式共享账号
+      x-csrf-required: true
+      description: |
+        无请求体。不存在的共享记录也可返回 success=true。
+        不能移除所有者。当前 shared 成员可以移除自己或其他 shared 成员；
+        移除自己后退出对应资源并刷新列表。取消 fetch 不保证撤销服务器已完成的删除。
+      responses:
+        '200':
+          description: 已确认撤销或原本没有该共享记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/import:
+    post:
+      tags: [Import]
+      operationId: importDicomFile
+      summary: 导入单个 DICOM 并关联可访问的影像集
+      x-csrf-required: true
+      x-required-one-of: [multipart.datasetId, query.datasetId]
+      description: |
+        每请求一个非空有效 DICOM，file 最大 67108864 字节（64 MiB），
+        multipart 总请求上限 65 MiB。datasetId 至少从 multipart 或 query 提供一个，
+        当前客户端固定发送 multipart 字段；不要重复给出冲突值。
+        不手工设置 Content-Type，浏览器生成 boundary。不靠文件后缀判断 CT。
+        Success 和 AlreadyStored 都是成功；同 UID 不同字节是 409。
+        逐文件导入非整批事务，没有 ZIP/文件夹路径参数/服务器进度 API。
+        取消、网络或 5xx 可能使本次结果未知，不自动回滚已完成项，也不盲目重试。
+        导入外部 SEG 不会自动登记为标注工作区的共享发布版本。
+      parameters:
+        - name: datasetId
+          in: query
+          required: false
+          description: multipart 未提供时可使用；必须至少在这两个位置之一提供
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 非空、有效 DICOM；最大字节数见 x-max-bytes，非字符长度约束
+                  x-max-bytes: 67108864
+                datasetId:
+                  type: string
+                  minLength: 1
+                  description: 当前客户端使用的业务集合 ID；不是 DICOM UID
+      responses:
+        '200':
+          description: 新对象已导入，或相同对象字节一致并已关联该集
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        '409':
+          description: 同一 DICOM 标识已存在但字节不同，本次未关联到当前集合
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '413':
+          description: 单文件或 multipart 请求过大
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '415':
+          description: 请求媒体类型不受支持
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+        default:
+          $ref: '#/components/responses/ApiError'
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: MEDICAL_DEMO_SESSION
+      description: |
+        Java 登录后的 HttpOnly、SameSite=Lax Cookie，由浏览器管理。
+        当前交接空闲超时 30 分钟；前端不读写 Cookie、不持有 Bearer JWT。
+        所有写操作另需 /api/session 返回动态头名的 CSRF，见 x-csrf-required。
+  parameters:
+    DatasetId:
+      name: id
+      in: path
+      required: true
+      description: Java 业务集合 ID，URL 编码；公共集可为固定文本，不统一假设 UUID 或 DICOM UID
+      schema:
+        type: string
+        minLength: 1
+  headers:
+    NoStore:
+      description: 会话/业务数据不由共享缓存存储
+      schema:
+        type: string
+        examples: [no-store]
+  schemas:
+    Session:
+      type: object
+      required: [loggedIn, username, issuer, subject, csrfToken, csrfHeaderName]
+      description: 登录时 issuer/subject 非空；未登录也有 CSRF 字段，不记录示例外的真实值
+      properties:
+        loggedIn:
+          type: boolean
+        username:
+          type: [string, 'null']
+          description: 展示名，不是稳定身份
+        issuer:
+          type: [string, 'null']
+        subject:
+          type: [string, 'null']
+        csrfToken:
+          type: string
+          minLength: 1
+          description: 只用于当前请求流程，不持久化，不写 URL 或日志
+        csrfHeaderName:
+          type: string
+          minLength: 1
+          description: 实际 CSRF 请求头名，X-CSRF-TOKEN 只是示例，不写死
+      allOf:
+        - if:
+            required: [loggedIn]
+            properties:
+              loggedIn:
+                const: true
+          then:
+            properties:
+              issuer:
+                type: string
+                minLength: 1
+              subject:
+                type: string
+                minLength: 1
+    Dataset:
+      type: object
+      required: [id, name, access, ownerUsername, instanceCount, createdAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: 业务集合 ID，不能替代 DICOM Study/Series/SOP UID
+        name:
+          type: string
+          minLength: 1
+        access:
+          type: string
+          enum: [owner, shared, public]
+          description: |
+            owner 是归属而非仅本人可见；shared 拥有当前全部操作，含继续共享/撤销成员；
+            public 是所有登录用户可访问，不是匿名全网公开。没有细分只读权限。
+        ownerUsername:
+          type: string
+          description: 显示值，不是授权依据，不表明全部实例由该人上传
+        instanceCount:
+          type: integer
+          minimum: 0
+          description: 集合实例数量，不是样本/序列/已标数量或完整性
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间，不是最近修改/访问/保存
+    DatasetItems:
+      type: object
+      required: [items, total]
+      description: total 必须等于 items.length；当前不分页
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dataset'
+        total:
+          type: integer
+          minimum: 0
+    User:
+      type: object
+      required: [subject, username]
+      properties:
+        subject:
+          type: string
+          format: uuid
+          description: 当前 Keycloak 稳定用户 ID，共享传此值而非 username
+        username:
+          type: string
+          minLength: 1
+    UserItems:
+      type: object
+      required: [items, total]
+      description: total 等于本次 items.length，不包含所有者隐式权限
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        total:
+          type: integer
+          minimum: 0
+    UserSearchItems:
+      type: object
+      required: [items, total]
+      description: 最多 20 个启用普通账号；total 等于返回条数，不是全库总命中
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/User'
+        total:
+          type: integer
+          minimum: 0
+          maximum: 20
+    Instance:
+      type: object
+      required: [id, instanceNumber]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Orthanc 实例资源 ID，不是 SOPInstanceUID
+        instanceNumber:
+          type: string
+          description: 可为空，不保证连续/唯一，也不是数组下标
+    InstanceItems:
+      type: object
+      required: [items, total]
+      description: 当前列表顺序不是完整三维空间顺序，total 等于 items.length
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Instance'
+        total:
+          type: integer
+          minimum: 0
+    NameRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 去首尾空白后校验；不由此请求指定 owner/public/共享规则
+          examples: [演示数据集]
+    ShareRequest:
+      type: object
+      required: [subject]
+      properties:
+        subject:
+          type: string
+          format: uuid
+          description: 来自用户明确选择的账号搜索结果
+          examples: [11111111-1111-4111-8111-111111111111]
+    SuccessResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ImportResult:
+      type: object
+      required: [status, id]
+      properties:
+        status:
+          type: string
+          enum: [Success, AlreadyStored]
+          description: AlreadyStored 经字节核对并关联成功，不能计为失败
+        id:
+          type: string
+          minLength: 1
+          description: Orthanc 实例资源 ID
+    LogoutResult:
+      type: object
+      required: [logoutUrl]
+      properties:
+        logoutUrl:
+          type: string
+          description: |
+            服务端给出的 SSO 下一导航地址。客户端解析后只允许 HTTP(S)、无内嵌凭证、
+            origin 在部署允许列表内；实际查询参数含敏感内容，不给真实示例或记录日志。
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: 可展示中文原因，无统一机器 code；不要按完整文案匹配业务逻辑
+  responses:
+    ApiError:
+      description: |
+        未列出的业务错误。原交接声明通常返回 {error:string}；
+        网关/网络错误可能无 JSON，客户端不能一律解析为该结构。
+        status=0 是客户端网络/取消/协议状态，不是 HTTP 状态码。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    BadRequest:
+      description: 参数、名称、文件、UUID 或当前共享规则不合法
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unauthorized:
+      description: 未登录、会话过期或身份不属于当前服务器；停止写入并恢复会话
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Forbidden:
+      description: CSRF 或授权/安全配置拒绝；保留内容、核对会话，不自动重试写入
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    ResourceNotFound:
+      description: 资源不存在或当前账号不可访问，二者不通过此状态向外区分
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    BadGateway:
+      description: 影像服务返回异常；写入结果可能需进一步核对
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    ServiceUnavailable:
+      description: Orthanc 或账号目录等所需服务不可用，不丢弃待提交内容
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    GatewayTimeout:
+      description: 上游处理超时，先核对实际结果再决定是否重试
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'

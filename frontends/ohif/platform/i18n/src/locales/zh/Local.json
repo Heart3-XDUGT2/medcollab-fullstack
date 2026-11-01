@@ -1,0 +1,8 @@
+{
+  "Load files": "加载文件",
+  "Load folders": "加载文件夹",
+  "Drag and drop your DICOM files & folders here": "将 DICOM 文件或文件夹拖放到此处",
+  "to load them locally.": "即可在本地加载。",
+  "Your data remains locally within your browser": "注意：数据仅保留在当前浏览器本地，",
+  "and is never uploaded to any server.": "不会上传到服务器。"
+}

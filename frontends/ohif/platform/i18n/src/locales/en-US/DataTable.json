@@ -1,0 +1,11 @@
+{
+  "No results.": "No results.",
+  "Not enough room to display this column": "Not enough room to display this column",
+  "View": "View",
+  "Sort {{column}}": "Sort {{column}}",
+  "Rows per page": "Rows per page",
+  "{{start}}-{{end}} of {{total}}": "{{start}}-{{end}} of {{total}}",
+  "{{count}} per page": "{{count}} per page",
+  "Previous page": "Previous page",
+  "Next page": "Next page"
+}

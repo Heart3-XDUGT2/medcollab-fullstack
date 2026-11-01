@@ -1,0 +1,61 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  line-height: 1.5;
+  font-family: Inter, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 16px;
+  color: #182524;
+  background: #f6f8f7;
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button,
+input {
+  margin: 0;
+}
+button {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+a {
+  color: inherit;
+}
+img,
+svg {
+  display: block;
+  vertical-align: middle;
+}
+img {
+  max-width: 100%;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

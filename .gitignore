@@ -1,0 +1,57 @@
+# Local credentials and generated infrastructure configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+deploy/generated/
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+storage-state.json
+
+# Dependencies, build output and caches
+node_modules/
+.pnpm-store/
+.m2/
+.venv/
+venv/
+__pycache__/
+*.pyc
+target/
+dist/
+build/
+.cache/
+.turbo/
+.nyc_output/
+coverage/
+*.tsbuildinfo
+
+# Runtime data, medical images and local verification output
+.runtime/
+runtime/
+test-results/
+playwright-report/
+blob-report/
+testdata/
+*.log
+*.mv.db
+*.trace.db
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+*.nrrd
+*.mha
+*.mhd
+
+# Local machine/editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*.local.json
+.claude/
+.codex/
+CLAUDE.md

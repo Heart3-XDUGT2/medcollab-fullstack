@@ -1,0 +1,11 @@
+{
+  "No results.": "没有结果。",
+  "Not enough room to display this column": "空间不足，无法显示此列",
+  "View": "显示列",
+  "Sort {{column}}": "按{{column}}排序",
+  "Rows per page": "每页条数",
+  "{{start}}-{{end}} of {{total}}": "{{start}}-{{end}}，共 {{total}} 条",
+  "{{count}} per page": "每页 {{count}} 条",
+  "Previous page": "上一页",
+  "Next page": "下一页"
+}

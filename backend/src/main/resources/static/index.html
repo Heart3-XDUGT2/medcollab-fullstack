@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>医学影像存储与共享演示</title>
+  <style>
+    img { display: block; width: 512px; max-width: 100%; height: auto; }
+    #mask-canvas-stack { position: relative; width: 512px; max-width: 100%; }
+    #mask-base-canvas { display: block; width: 100%; height: auto; }
+    #mask-overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>医学影像存储与共享演示</h1>
+  <section id="login-section" aria-labelledby="login-title">
+    <h2 id="login-title">登录</h2>
+    <p>点击登录或注册后将前往 Keycloak 账号页面，完成后返回这里。</p>
+    <p>
+      <button id="login-button" type="button">登录</button>
+      <button id="register-button" type="button">注册</button>
+    </p>
+    <p id="login-message" role="status" aria-live="polite">正在检查登录状态…</p>
+  </section>
+
+  <section id="app-section" hidden aria-labelledby="app-title">
+    <h2 id="app-title">影像浏览</h2>
+    <p>当前用户：<span id="current-user"></span> <button id="logout-button" type="button">退出登录</button></p>
+    <p>原有两套 CT 是公共影像，所有登录用户都能使用和修改。新导入的影像默认仅自己可见，可以按账号共享。</p>
+    <p id="java-status" aria-live="polite">Java：等待检查</p>
+    <p id="orthanc-status" aria-live="polite">Orthanc：等待检查</p>
+    <button id="check-button" type="button">检查连接</button>
+    <p id="app-message" role="status" aria-live="polite"></p>
+    <hr>
+    <p>
+      <button id="show-import" type="button">导入</button>
+      <button id="browse-button" type="button">浏览</button>
+    </p>
+
+    <section id="import-section" hidden aria-labelledby="import-title">
+      <h3 id="import-title">导入 DICOM</h3>
+      <p>选择整个文件夹（含子文件夹）或多个文件。每批导入会新建一个属于你的私有影像集，按所选文件逐张上传。每个文件不超过 64 MB。</p>
+      <form id="import-form">
+        <p>
+          <label for="dicom-folder">选择文件夹</label>
+          <input id="dicom-folder" type="file" webkitdirectory directory multiple>
+        </p>
+        <p>
+          <label for="dicom-files">选择文件</label>
+          <input id="dicom-files" name="file" type="file" multiple>
+        </p>
+        <p>
+          <label for="dataset-name">影像集名称</label>
+          <input id="dataset-name" type="text" maxlength="120" autocomplete="off" placeholder="例如：胸部 CT 标注项目" required>
+        </p>
+        <p>文件夹中的 DICOM 可以没有扩展名，普通图片、说明文件和 DICOMDIR 索引会自动跳过。少数未识别的文件可用“选择文件”手动尝试，由服务器检查。</p>
+        <p id="selection-summary" role="status" aria-live="polite">尚未选择文件夹或文件。</p>
+        <details id="skipped-details" hidden>
+          <summary>查看跳过的文件</summary>
+          <ul id="skipped-files"></ul>
+        </details>
+        <button id="import-button" type="submit" disabled>开始导入</button>
+      </form>
+      <p id="import-message" role="status" aria-live="polite"></p>
+      <p id="import-dataset" hidden></p>
+      <ul id="import-results"></ul>
+    </section>
+
+    <section id="browse-section" hidden aria-labelledby="browse-title">
+      <h3 id="browse-title">我能访问的影像</h3>
+      <p>
+        <label for="dataset-filter">显示</label>
+        <select id="dataset-filter">
+          <option value="all">全部可访问影像</option>
+          <option value="public">公共影像</option>
+          <option value="owner">我的影像</option>
+          <option value="shared">共享给我的影像</option>
+        </select>
+        <button id="refresh-button" type="button">刷新列表</button>
+      </p>
+      <p id="browse-message" role="status" aria-live="polite">点击“浏览”读取影像列表。</p>
+      <ul id="dataset-list"></ul>
+      <section id="dataset-section" hidden aria-labelledby="dataset-title">
+        <h4 id="dataset-title">影像集</h4>
+        <p id="dataset-description"></p>
+        <form id="rename-form">
+          <label for="rename-name">名称</label>
+          <input id="rename-name" type="text" maxlength="120" autocomplete="off" required>
+          <button type="submit">保存名称</button>
+        </form>
+        <p id="dataset-message" role="status" aria-live="polite"></p>
+        <section id="share-section" hidden aria-labelledby="share-title">
+          <h5 id="share-title">共享管理</h5>
+          <p>共享后，对方拥有该影像集的全部现有操作权限，包括绘制并上传掩码、重命名、下载和继续共享，也能取消共享。只有点击“保存并上传”的掩码会同步给其他人。</p>
+          <p id="owner-description"></p>
+          <form id="user-search-form">
+            <label for="user-query">搜索注册账号</label>
+            <input id="user-query" type="search" minlength="2" maxlength="100" autocomplete="off" required>
+            <button type="submit">搜索用户</button>
+          </form>
+          <p id="user-search-message" role="status" aria-live="polite">输入至少 2 个字符，搜索要共享给的账号。</p>
+          <ul id="user-results"></ul>
+          <p>已共享给：</p>
+          <ul id="share-list"></ul>
+          <p id="share-message" role="status" aria-live="polite"></p>
+        </section>
+        <p id="public-message" hidden>公共影像：所有登录用户都可访问和修改，无需单独共享。</p>
+        <h5>切片预览</h5>
+        <p>
+          <label for="slice-select">切片</label>
+          <select id="slice-select" disabled></select>
+          <button id="previous-button" type="button" disabled>上一张</button>
+          <button id="next-button" type="button" disabled>下一张</button>
+          <span id="slice-position"></span>
+          <a id="download-file" hidden>下载当前切片原始 DICOM</a>
+        </p>
+        <p id="preview-message" role="status" aria-live="polite"></p>
+        <div id="preview-image"></div>
+        <section id="mask-editor" hidden aria-labelledby="mask-editor-title">
+          <h5 id="mask-editor-title">极简掩码绘制器</h5>
+          <p>在下方 CT 上拖动画笔，红色区域就是掩码。可切换切片继续绘制，目前支持一个区域标签。绘制进度自动保存到此浏览器的 IndexedDB（换设备或清除浏览器数据无法恢复）；点击“保存并上传”才会生成 DICOM SEG 并同步给可访问此影像集的人。</p>
+          <p>
+            <label for="mask-series">CT 序列</label>
+            <select id="mask-series"></select>
+            <label for="mask-label">区域名称</label>
+            <input id="mask-label" type="text" maxlength="64" value="手绘区域">
+          </p>
+          <p>
+            <label for="mask-tool">工具</label>
+            <select id="mask-tool"><option value="brush">画笔</option><option value="eraser">橡皮擦</option></select>
+            <label for="mask-brush-size">画笔半径（像素）</label>
+            <input id="mask-brush-size" type="number" min="1" max="80" step="1" value="10">
+            <button id="mask-undo" type="button">撤销当前切片上一笔</button>
+            <button id="mask-clear" type="button">清空当前切片掩码</button>
+          </p>
+          <p>
+            <button id="mask-save-draft" type="button">保存私有草稿</button>
+            <button id="mask-publish" type="button">保存并上传</button>
+            <button id="mask-reload" type="button">放弃草稿并载入最新</button>
+            <a id="mask-download" hidden>下载最新 DICOM SEG</a>
+          </p>
+          <p id="mask-draft-status" role="status" aria-live="polite"></p>
+          <p id="mask-shared-status" role="status" aria-live="polite"></p>
+          <p id="mask-conflict-status" role="status" aria-live="polite"></p>
+          <p id="mask-reauth" hidden>
+            已保留本页未保存的掩码，暂时停止编辑。请在新标签页登录原账号
+            <strong id="mask-original-account"></strong>，回到本页重试保存。
+            <a href="/auth/login" target="_blank" rel="noopener">在新标签页重新登录</a>
+            <button id="mask-resume-save" type="button">登录后重试保存</button>
+          </p>
+          <p id="mask-message" role="status" aria-live="polite"></p>
+          <p id="mask-slice-description"></p>
+          <div id="mask-canvas-stack">
+            <canvas id="mask-base-canvas" width="512" height="512" aria-label="当前 CT 切片"></canvas>
+            <canvas id="mask-overlay-canvas" width="512" height="512" aria-label="掩码绘制区域"></canvas>
+          </div>
+        </section>
+      </section>
+    </section>
+  </section>
+</main>
+<script>
+'use strict';
+
+const byId = (id) => document.getElementById(id);
+const loginSection = byId('login-section');
+const appSection = byId('app-section');
+const loginMessage = byId('login-message');
+const appMessage = byId('app-message');
+const importSection = byId('import-section');
+const importMessage = byId('import-message');
+const importResults = byId('import-results');
+const selectionSummary = byId('selection-summary');
+const skippedFiles = byId('skipped-files');
+const browseSection = byId('browse-section');
+const browseMessage = byId('browse-message');
+const datasetList = byId('dataset-list');
+const datasetSection = byId('dataset-section');
+const datasetMessage = byId('dataset-message');
+const shareMessage = byId('share-message');
+const previewMessage = byId('preview-message');
+const previewContainer = byId('preview-image');
+const sliceSelect = byId('slice-select');
+let busy = false;
+let sessionEpoch = 0;
+let datasetSequence = 0;
+let previewSequence = 0;
+let datasets = [];
+let activeDataset = null;
+let instances = [];
+let currentIndex = 0;
+let selectedImports = [];
+let selectedSkipped = 0;
+let importDataset = null;
+const completedImports = new Set();
+let csrfToken = '';
+let csrfHeaderName = '';
+const pendingRequests = new Set();
+const accessNames = {public: '公共影像', owner: '我的影像', shared: '共享给我的影像'};
+const datasetPath = (id) => '/api/datasets/' + encodeURIComponent(id);
+
+class ApiError extends Error {
+  constructor(message, status = 0) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function updateControls() {
+  appSection.querySelectorAll('button, input, select').forEach((element) => { element.disabled = busy; });
+  sliceSelect.disabled = busy || instances.length === 0;
+  byId('previous-button').disabled = busy || instances.length === 0 || currentIndex <= 0;
+  byId('next-button').disabled = busy || instances.length === 0 || currentIndex >= instances.length - 1;
+  byId('dataset-name').disabled = busy || importDataset !== null;
+  const remaining = selectedImports.length - completedImports.size;
+  byId('import-button').disabled = busy || remaining <= 0;
+  byId('import-button').textContent = importDataset ? '重试未完成文件' : '开始导入';
+  byId('download-file').setAttribute('aria-disabled', String(busy));
+  byId('download-file').tabIndex = busy ? -1 : 0;
+  window.maskEditor?.updateControls();
+}
+
+function setBusy(value) {
+  busy = value;
+  updateControls();
+}
+
+function clearDataset() {
+  window.maskEditor?.close();
+  datasetSequence += 1;
+  previewSequence += 1;
+  activeDataset = null;
+  instances = [];
+  currentIndex = 0;
+  previewContainer.replaceChildren();
+  sliceSelect.replaceChildren();
+  byId('slice-position').textContent = '';
+  byId('dataset-description').textContent = '';
+  byId('rename-name').value = '';
+  byId('download-file').hidden = true;
+  byId('download-file').removeAttribute('href');
+  byId('share-list').replaceChildren();
+  byId('user-results').replaceChildren();
+  byId('user-query').value = '';
+  byId('user-search-message').textContent = '输入至少 2 个字符，搜索要共享给的账号。';
+  shareMessage.textContent = '';
+  datasetMessage.textContent = '';
+  previewMessage.textContent = '';
+  datasetSection.hidden = true;
+  updateControls();
+}
+
+function resetImport() {
+  selectedImports = [];
+  selectedSkipped = 0;
+  importDataset = null;
+  completedImports.clear();
+  byId('dataset-name').value = '';
+  byId('import-dataset').replaceChildren();
+  byId('import-dataset').hidden = true;
+  selectionSummary.textContent = '尚未选择文件夹或文件。';
+  skippedFiles.replaceChildren();
+  byId('skipped-details').hidden = true;
+  importResults.replaceChildren();
+  importMessage.textContent = '';
+}
+
+function showLogin(message = '') {
+  sessionEpoch += 1;
+  for (const controller of pendingRequests) controller.abort();
+  appSection.hidden = true;
+  loginSection.hidden = false;
+  byId('current-user').textContent = '';
+  byId('dicom-files').value = '';
+  byId('dicom-folder').value = '';
+  resetImport();
+  datasets = [];
+  datasetList.replaceChildren();
+  byId('dataset-filter').value = 'all';
+  appMessage.textContent = '';
+  importSection.hidden = true;
+  browseSection.hidden = true;
+  clearDataset();
+  loginMessage.textContent = message;
+  setBusy(false);
+}
+
+function showApp(username) {
+  loginSection.hidden = true;
+  appSection.hidden = false;
+  byId('current-user').textContent = username;
+  appMessage.textContent = '已登录。新导入的影像仅自己可见；在“浏览”中打开影像集可以共享。';
+}
+
+async function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const headers = new Headers(options.headers || {});
+  if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
+    if (!csrfToken || !csrfHeaderName) await request('/api/session');
+    if (!csrfToken || !csrfHeaderName) throw new ApiError('无法获取操作校验信息，请刷新页面后重试。');
+    headers.set(csrfHeaderName, csrfToken);
+  }
+  const controller = new AbortController();
+  pendingRequests.add(controller);
+  const timeout = setTimeout(() => controller.abort(), path.endsWith('/publish') ? 180000 : 90000);
+  try {
+    const response = await fetch(path, {
+      ...options,
+      headers,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    let data = null;
+    if (response.status !== 204) {
+      const text = await response.text();
+      if (text) {
+        try { data = JSON.parse(text); }
+        catch { throw new ApiError('服务器返回了无法识别的内容，请查看服务器日志。', response.status); }
+      }
+    }
+    if (!response.ok) {
+      if (response.status === 401) {
+        csrfToken = '';
+        csrfHeaderName = '';
+        if (!window.maskEditor?.handleUnauthorized()) showLogin('登录已失效，请重新登录。');
+      }
+      if (response.status === 403 && path !== '/api/session') {
+        csrfToken = '';
+        csrfHeaderName = '';
+        try {
+          const session = await request('/api/session');
+          if (!session?.loggedIn && !window.maskEditor?.handleUnauthorized()) showLogin('登录已失效，请重新登录。');
+        } catch { /* Keep the original operation error if the session check also fails. */ }
+      }
+      throw new ApiError(data?.error || '请求失败（HTTP ' + response.status + '）。', response.status);
+    }
+    if (path === '/api/session') {
+      csrfToken = typeof data?.csrfToken === 'string' ? data.csrfToken : '';
+      csrfHeaderName = typeof data?.csrfHeaderName === 'string' ? data.csrfHeaderName : '';
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error.name === 'AbortError') throw new ApiError('请求已取消或超时，请重试。');
+    throw new ApiError('无法连接 Java 服务器，请确认它仍在运行。');
+  } finally {
+    clearTimeout(timeout);
+    pendingRequests.delete(controller);
+  }
+}
+
+function sendJson(path, method, data) {
+  return request(path, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+}
+
+async function run(action, messageElement = appMessage) {
+  if (busy) return;
+  const epoch = sessionEpoch;
+  setBusy(true);
+  try {
+    await window.maskEditor?.flush();
+    if (epoch === sessionEpoch) await action(epoch);
+  }
+  catch (error) {
+    if (epoch === sessionEpoch) messageElement.textContent = error.message;
+  } finally {
+    if (epoch === sessionEpoch) setBusy(false);
+  }
+}
+
+async function checkConnections(epoch) {
+  byId('java-status').textContent = 'Java：正在检查…';
+  byId('orthanc-status').textContent = 'Orthanc：正在检查…';
+  const [java, orthanc] = await Promise.allSettled([
+    request('/api/health'), request('/api/orthanc/status')
+  ]);
+  if (epoch !== sessionEpoch) return;
+  byId('java-status').textContent = java.status === 'fulfilled' && java.value?.status === 'UP'
+    ? 'Java：已连接'
+    : 'Java：' + (java.status === 'rejected' ? java.reason.message : '返回状态异常');
+  byId('orthanc-status').textContent = orthanc.status === 'fulfilled' && orthanc.value?.connected
+    ? 'Orthanc：已连接；仓库：' + orthanc.value.name + '；版本：' + orthanc.value.version + '；当前账号可访问的切片数：' + orthanc.value.instanceCount
+    : 'Orthanc：' + (orthanc.status === 'rejected' ? orthanc.reason.message : '尚未连接');
+}
+
+byId('login-button').addEventListener('click', () => window.location.assign('/auth/login'));
+byId('register-button').addEventListener('click', () => window.location.assign('/auth/register'));
+byId('logout-button').addEventListener('click', () => run(async () => {
+  const data = await request('/api/logout', {method: 'POST'});
+  csrfToken = '';
+  csrfHeaderName = '';
+  if (typeof data?.logoutUrl !== 'string' || !data.logoutUrl) {
+    showLogin('本机登录已结束，请刷新页面后确认登录状态。');
+    return;
+  }
+  showLogin('正在退出登录…');
+  window.location.assign(data.logoutUrl);
+}));
+byId('check-button').addEventListener('click', () => run(checkConnections));
+byId('show-import').addEventListener('click', () => run(async () => {
+  importSection.hidden = false;
+  browseSection.hidden = true;
+  window.maskEditor?.pause();
+  appMessage.textContent = '';
+}));
+
+function importPath(file) {
+  return file.webkitRelativePath || file.name;
+}
+
+async function inspectImportFile(file, fromFolder) {
+  const path = importPath(file);
+  const parts = path.split(/[\\/]/);
+  const filename = parts[parts.length - 1];
+  if (parts.some((part) => part.startsWith('.'))) return '隐藏文件或隐藏目录';
+  if (/^(dicomdir(?:\..*)?|readme(?:\..*)?|license(?:\..*)?|index\.(html?|json|xml))$/i.test(filename)) return '索引或说明文件';
+  if (/\.(dcm|dicom)$/i.test(filename) || file.type.toLowerCase() === 'application/dicom') return '';
+  if (file.size >= 132) {
+    const header = new Uint8Array(await file.slice(0, 132).arrayBuffer());
+    if (header[128] === 68 && header[129] === 73 && header[130] === 67 && header[131] === 77) return '';
+  }
+  if (/\.(txt|md|csv|json|xml|html?|pdf|jpe?g|png|gif|bmp|webp|tiff?|zip|gz|rar|7z|exe|dll)$/i.test(filename)) return '普通图片、文档或压缩文件';
+  return fromFolder ? '未识别为 DICOM，可用“选择文件”手动尝试' : '';
+}
+
+function prepareImportSelection(inputId, fromFolder) {
+  if (busy) return;
+  const files = Array.from(byId(inputId).files || []).sort((left, right) =>
+    importPath(left).localeCompare(importPath(right), 'zh-CN', {numeric: true}));
+  byId(fromFolder ? 'dicom-files' : 'dicom-folder').value = '';
+  resetImport();
+  if (!files.length) { updateControls(); return; }
+  const folderName = fromFolder ? importPath(files[0]).split(/[\\/]/)[0] : '';
+  byId('dataset-name').value = (folderName || files[0].name.replace(/\.(dcm|dicom)$/i, '') || '新影像集').slice(0, 120);
+  run(async (epoch) => {
+    for (let index = 0; index < files.length; index += 1) {
+      if (epoch !== sessionEpoch) return;
+      const file = files[index];
+      if (index % 25 === 0) {
+        selectionSummary.textContent = '正在检查' + (fromFolder ? '文件夹“' + folderName + '”' : '所选文件')
+          + '：' + (index + 1) + ' / ' + files.length + '。尚未上传。';
+      }
+      let skipReason = '';
+      try { skipReason = await inspectImportFile(file, fromFolder); }
+      catch { skipReason = '无法读取文件'; }
+      if (epoch !== sessionEpoch) return;
+      if (skipReason) {
+        selectedSkipped += 1;
+        const item = document.createElement('li');
+        item.textContent = importPath(file) + '：' + skipReason;
+        skippedFiles.append(item);
+      } else selectedImports.push(file);
+    }
+    if (epoch !== sessionEpoch) return;
+    byId('skipped-details').hidden = selectedSkipped === 0;
+    selectionSummary.textContent = (fromFolder ? '已选择文件夹“' + folderName + '”' : '已选择文件')
+      + '：发现 ' + files.length + ' 个文件，待导入 ' + selectedImports.length + '，跳过 ' + selectedSkipped
+      + '。' + (selectedImports.length ? '尚未上传，请点击“开始导入”。' : '没有可导入的文件。');
+  }, selectionSummary);
+}
+byId('dicom-folder').addEventListener('change', () => prepareImportSelection('dicom-folder', true));
+byId('dicom-files').addEventListener('change', () => prepareImportSelection('dicom-files', false));
+
+byId('import-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const pending = selectedImports.map((file, index) => ({file, index})).filter((item) => !completedImports.has(item.index));
+  if (!pending.length) { importMessage.textContent = '没有待导入的文件。请选择新的文件夹或文件。'; return; }
+  const name = byId('dataset-name').value.trim();
+  if (!name) { importMessage.textContent = '请填写影像集名称。'; return; }
+  run(async (epoch) => {
+    if (!importDataset) {
+      importMessage.textContent = '正在创建私有影像集…';
+      const created = await sendJson('/api/datasets', 'POST', {name});
+      if (epoch !== sessionEpoch) return;
+      if (!created?.id) throw new ApiError('服务器没有返回新影像集编号。');
+      importDataset = created;
+    }
+    updateControls();
+    const batchDataset = importDataset;
+    const batchInfo = byId('import-dataset');
+    batchInfo.hidden = false;
+    batchInfo.replaceChildren(document.createTextNode('本批影像集：' + batchDataset.name + '（仅自己可见）。'));
+    const openButton = document.createElement('button');
+    openButton.type = 'button';
+    openButton.textContent = '打开影像集并共享';
+    openButton.disabled = busy;
+    openButton.addEventListener('click', () => run(async (epoch) => {
+      importSection.hidden = true;
+      browseSection.hidden = false;
+      byId('dataset-filter').value = 'all';
+      await loadDatasets(epoch, batchDataset.id);
+    }, browseMessage));
+    batchInfo.append(document.createTextNode(' '), openButton);
+    importResults.replaceChildren();
+    let added = 0;
+    let existing = 0;
+    let failed = 0;
+    let processed = 0;
+    let halted = false;
+    for (const {file, index} of pending) {
+      if (epoch !== sessionEpoch) return;
+      importMessage.textContent = '正在导入 ' + (processed + 1) + ' / ' + pending.length + '：' + importPath(file);
+      const result = document.createElement('li');
+      try {
+        if (file.size === 0) throw new ApiError('文件为空。', 400);
+        if (file.size > 64 * 1024 * 1024) throw new ApiError('文件超过 64 MB。', 400);
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('datasetId', batchDataset.id);
+        const data = await request('/api/import', {method: 'POST', body: form});
+        if (epoch !== sessionEpoch) return;
+        if (data?.status === 'AlreadyStored') {
+          existing += 1;
+          result.textContent = importPath(file) + '：仓库已存在，已关联到本私有影像集。';
+        } else if (data?.status === 'Success') {
+          added += 1;
+          result.textContent = importPath(file) + '：导入成功。';
+        } else throw new ApiError('服务器没有返回预期的保存结果。', 502);
+        completedImports.add(index);
+      } catch (error) {
+        if (epoch !== sessionEpoch) return;
+        failed += 1;
+        result.textContent = importPath(file) + '：失败。' + error.message;
+        halted = !error.status || error.status >= 500 || error.status === 403 || error.status === 404;
+      }
+      processed += 1;
+      importResults.append(result);
+      if (halted) break;
+    }
+    if (epoch !== sessionEpoch) return;
+    const remaining = selectedImports.length - completedImports.size;
+    importMessage.textContent = (halted ? '导入已中止。' : '本次导入完成。') + '新增 ' + added + '，仓库已存在 ' + existing + '，失败 ' + failed
+      + (selectedSkipped ? '，选择时跳过 ' + selectedSkipped : '')
+      + '。本批已完成 ' + completedImports.size + ' / ' + selectedImports.length + ' 张。'
+      + (remaining ? '可点击“重试未完成文件”，继续导入到同一个影像集。' : '可以打开影像集预览或共享。');
+    await checkConnections(epoch);
+  }, importMessage);
+});
+
+function renderDatasetList() {
+  datasetList.replaceChildren();
+  const filter = byId('dataset-filter').value;
+  const visible = datasets.filter((dataset) => filter === 'all' || dataset.access === filter);
+  browseMessage.textContent = visible.length
+    ? '共 ' + visible.length + ' 个影像集，点击名称查看切片和共享设置。'
+    : '当前分类暂无影像。可以导入自己的 DICOM，或让其他账号共享给你。';
+  visible.forEach((dataset) => {
+    const row = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.disabled = busy;
+    button.textContent = dataset.name + '；' + (accessNames[dataset.access] || '可访问影像') + '；' + dataset.instanceCount + ' 张';
+    button.addEventListener('click', () => run((epoch) => openDataset(dataset, epoch), datasetMessage));
+    row.append(button);
+    datasetList.append(row);
+  });
+}
+
+async function loadDatasets(epoch, selectedId = null) {
+  clearDataset();
+  datasetList.replaceChildren();
+  browseMessage.textContent = '正在读取当前账号可访问的影像…';
+  const data = await request('/api/datasets');
+  if (epoch !== sessionEpoch) return;
+  if (!Array.isArray(data?.items)) throw new ApiError('服务器返回的影像集列表格式不正确。');
+  datasets = data.items;
+  renderDatasetList();
+  if (selectedId) {
+    const selected = datasets.find((dataset) => dataset.id === selectedId);
+    if (selected) await openDataset(selected, epoch);
+  }
+}
+
+function renderPreview() {
+  previewSequence += 1;
+  const sequence = previewSequence;
+  const epoch = sessionEpoch;
+  const datasetId = activeDataset?.id;
+  previewContainer.replaceChildren();
+  byId('download-file').hidden = true;
+  if (!instances.length || !datasetId) return;
+  const instance = instances[currentIndex];
+  sliceSelect.value = String(currentIndex);
+  byId('slice-position').textContent = '第 ' + (currentIndex + 1) + ' / ' + instances.length + ' 张';
+  const instancePath = datasetPath(datasetId) + '/instances/' + encodeURIComponent(instance.id);
+  const download = byId('download-file');
+  download.href = instancePath + '/file';
+  download.hidden = false;
+  previewMessage.textContent = '正在加载切片…';
+  const image = document.createElement('img');
+  image.alt = 'CT / 医学影像切片，实例编号 ' + instance.instanceNumber;
+  image.addEventListener('load', () => {
+    if (epoch === sessionEpoch && sequence === previewSequence) previewMessage.textContent = '切片已加载。这里显示 PNG 预览，下载得到原始 DICOM 文件。';
+  });
+  image.addEventListener('error', async () => {
+    if (epoch !== sessionEpoch || sequence !== previewSequence) return;
+    previewMessage.textContent = '切片预览失败。共享可能已取消，也可检查服务器连接后刷新影像列表。';
+    try {
+      const session = await request('/api/session');
+      if (epoch === sessionEpoch && sequence === previewSequence && !session.loggedIn
+          && !window.maskEditor?.handleUnauthorized()) showLogin('登录已失效，请重新登录。');
+    } catch { /* The visible preview error already explains the failed load. */ }
+  });
+  image.src = instancePath + '/preview';
+  previewContainer.append(image);
+  window.maskEditor?.showSlice(instance, image);
+  updateControls();
+}
+
+async function loadShares(datasetId, epoch, sequence) {
+  const data = await request(datasetPath(datasetId) + '/shares');
+  if (epoch !== sessionEpoch || sequence !== datasetSequence || activeDataset?.id !== datasetId) return;
+  if (!Array.isArray(data?.items)) throw new ApiError('服务器返回的共享列表格式不正确。');
+  const list = byId('share-list');
+  list.replaceChildren();
+  if (!data.items.length) {
+    const item = document.createElement('li');
+    item.textContent = '暂未共享给其他账号。';
+    list.append(item);
+  }
+  data.items.forEach((user) => {
+    const row = document.createElement('li');
+    row.append(document.createTextNode(user.username + '（全部权限） '));
+    const revoke = document.createElement('button');
+    revoke.type = 'button';
+    revoke.disabled = busy;
+    revoke.textContent = '取消共享';
+    revoke.addEventListener('click', () => run(async (epoch) => {
+      if (activeDataset?.id !== datasetId) return;
+      await request(datasetPath(datasetId) + '/shares/' + encodeURIComponent(user.subject), {method: 'DELETE'});
+      if (epoch !== sessionEpoch) return;
+      await loadDatasets(epoch, datasetId);
+      if (epoch !== sessionEpoch) return;
+      appMessage.textContent = '已取消对 ' + user.username + ' 的共享。如取消的是自己的共享，该影像集会从列表中移除。';
+    }, shareMessage));
+    row.append(revoke);
+    list.append(row);
+  });
+}
+
+async function openDataset(dataset, epoch) {
+  clearDataset();
+  activeDataset = dataset;
+  const sequence = datasetSequence;
+  datasetSection.hidden = false;
+  byId('dataset-title').textContent = dataset.name;
+  byId('dataset-description').textContent = (accessNames[dataset.access] || '可访问影像') + '；' + dataset.instanceCount + ' 张切片。';
+  byId('rename-name').value = dataset.name;
+  const isPublic = dataset.access === 'public';
+  byId('share-section').hidden = isPublic;
+  byId('public-message').hidden = !isPublic;
+  byId('owner-description').textContent = '创建者：' + (dataset.ownerUsername || '未知账号') + '。创建者始终保留访问权限。';
+  previewMessage.textContent = '正在读取切片列表…';
+  if (!isPublic) shareMessage.textContent = '正在读取共享列表…';
+  const [imageResult, shareResult] = await Promise.allSettled([
+    request(datasetPath(dataset.id) + '/instances'),
+    isPublic ? Promise.resolve(null) : loadShares(dataset.id, epoch, sequence)
+  ]);
+  if (epoch !== sessionEpoch || sequence !== datasetSequence || activeDataset?.id !== dataset.id) return;
+  if (!isPublic) shareMessage.textContent = shareResult.status === 'rejected' ? shareResult.reason.message : '';
+  if (imageResult.status === 'rejected') { previewMessage.textContent = imageResult.reason.message; return; }
+  if (!Array.isArray(imageResult.value?.items)) throw new ApiError('服务器返回的切片列表格式不正确。');
+  instances = imageResult.value.items;
+  if (!instances.length) { previewMessage.textContent = '这个影像集暂时没有切片。'; return; }
+  try { await window.maskEditor?.openDataset(dataset, epoch); }
+  catch (error) {
+    if (epoch === sessionEpoch) previewMessage.textContent = '绘制器加载失败：' + error.message;
+  }
+  if (epoch !== sessionEpoch || sequence !== datasetSequence || activeDataset?.id !== dataset.id) return;
+  instances.forEach((instance, index) => {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = '实例 ' + (instance.instanceNumber || '未知') + '（第 ' + (index + 1) + ' 张）';
+    sliceSelect.append(option);
+  });
+  currentIndex = Math.floor(instances.length / 2);
+  renderPreview();
+}
+
+byId('browse-button').addEventListener('click', () => run(async (epoch) => {
+  importSection.hidden = true;
+  browseSection.hidden = false;
+  appMessage.textContent = '';
+  await loadDatasets(epoch);
+}, browseMessage));
+byId('refresh-button').addEventListener('click', () => run((epoch) => loadDatasets(epoch, activeDataset?.id), browseMessage));
+byId('dataset-filter').addEventListener('change', () => run(async () => {
+  clearDataset();
+  renderDatasetList();
+}, browseMessage));
+byId('rename-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const dataset = activeDataset;
+  const name = byId('rename-name').value.trim();
+  if (!dataset || !name) { datasetMessage.textContent = '请填写影像集名称。'; return; }
+  run(async (epoch) => {
+    await sendJson(datasetPath(dataset.id), 'PATCH', {name});
+    if (epoch !== sessionEpoch) return;
+    await loadDatasets(epoch, dataset.id);
+    if (epoch === sessionEpoch) datasetMessage.textContent = '名称已保存。';
+  }, datasetMessage);
+});
+byId('user-search-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const datasetId = activeDataset?.id;
+  const query = byId('user-query').value.trim();
+  if (!datasetId || query.length < 2) { byId('user-search-message').textContent = '请输入至少 2 个字符。'; return; }
+  run(async (epoch) => {
+    const sequence = datasetSequence;
+    byId('user-results').replaceChildren();
+    byId('user-search-message').textContent = '正在搜索注册账号…';
+    const data = await request('/api/users?q=' + encodeURIComponent(query));
+    if (epoch !== sessionEpoch || sequence !== datasetSequence || activeDataset?.id !== datasetId) return;
+    if (!Array.isArray(data?.items)) throw new ApiError('服务器返回的用户列表格式不正确。');
+    byId('user-search-message').textContent = data.items.length
+      ? '找到 ' + data.items.length + ' 个账号。点击“共享”授予全部权限。'
+      : '未找到匹配账号。请确认对方已注册，或尝试输入完整用户名。';
+    data.items.forEach((user) => {
+      const row = document.createElement('li');
+      row.append(document.createTextNode(user.username + ' '));
+      const share = document.createElement('button');
+      share.type = 'button';
+      share.disabled = busy;
+      share.textContent = '共享';
+      share.addEventListener('click', () => run(async (epoch) => {
+        if (activeDataset?.id !== datasetId) return;
+        await sendJson(datasetPath(datasetId) + '/shares', 'PUT', {subject: user.subject});
+        if (epoch !== sessionEpoch || activeDataset?.id !== datasetId) return;
+        await loadShares(datasetId, epoch, datasetSequence);
+        if (epoch === sessionEpoch && activeDataset?.id === datasetId) shareMessage.textContent = '已共享给 ' + user.username + '，对方拥有全部现有操作权限。';
+      }, shareMessage));
+      row.append(share);
+      byId('user-results').append(row);
+    });
+  }, byId('user-search-message'));
+});
+
+byId('download-file').addEventListener('click', (event) => { if (busy) event.preventDefault(); });
+sliceSelect.addEventListener('change', () => {
+  if (busy) return;
+  currentIndex = Number(sliceSelect.value);
+  renderPreview();
+});
+byId('previous-button').addEventListener('click', () => {
+  if (busy || currentIndex <= 0) return;
+  currentIndex -= 1;
+  renderPreview();
+});
+byId('next-button').addEventListener('click', () => {
+  if (busy || currentIndex >= instances.length - 1) return;
+  currentIndex += 1;
+  renderPreview();
+});
+
+const entryUrl = new URL(window.location.href);
+const entryAuthError = entryUrl.searchParams.get('authError');
+const entryMessage = entryAuthError === 'unavailable'
+  ? '账号服务暂时无法连接，请确认 Keycloak 已启动后重试。'
+  : entryAuthError ? '登录未完成，请重新登录或注册。'
+    : entryUrl.searchParams.get('logout') === '1' ? '已退出登录。' : '';
+if (entryUrl.searchParams.has('authError') || entryUrl.searchParams.has('logout')) {
+  entryUrl.searchParams.delete('authError');
+  entryUrl.searchParams.delete('logout');
+  window.history.replaceState(null, '', entryUrl.pathname + entryUrl.search + entryUrl.hash);
+}
+run(async (epoch) => {
+  const session = await request('/api/session');
+  if (epoch !== sessionEpoch) return;
+  if (session?.loggedIn) {
+    showApp(session.username);
+    if (entryMessage) appMessage.textContent = entryMessage;
+    await checkConnections(epoch);
+  } else showLogin(entryMessage);
+}, loginMessage);
+</script>
+<script src="/mask-drafts.js"></script>
+<script src="/segmentation.js"></script>
+</body>
+</html>

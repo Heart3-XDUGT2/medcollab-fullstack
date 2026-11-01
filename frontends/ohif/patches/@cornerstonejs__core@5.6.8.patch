@@ -1,0 +1,140 @@
+diff --git a/dist/esm/utilities/historyMemo/index.js b/dist/esm/utilities/historyMemo/index.js
+--- a/dist/esm/utilities/historyMemo/index.js
++++ b/dist/esm/utilities/historyMemo/index.js
+@@ -11,6 +11,8 @@ export class HistoryMemo {
+         this.undoAvailable = 0;
+         this.ring = new Array();
+         this.isRecordingGrouped = false;
++        this.groupOwners = [];
++        this.groupItemInitialized = false;
+         this.label = label;
+         this._size = size;
+     }
+@@ -18,6 +20,7 @@ export class HistoryMemo {
+         return this._size;
+     }
+     set size(newSize) {
++        this.closeGroupRecording(true);
+         this.ring = new Array(newSize);
+         this._size = newSize;
+         this.position = -1;
+@@ -25,12 +28,15 @@ export class HistoryMemo {
+         this.undoAvailable = 0;
+     }
+     get canUndo() {
+-        return this.undoAvailable > 0;
++        return this.isRecordingGrouped || this.undoAvailable > 0;
+     }
+     get canRedo() {
+         return this.redoAvailable > 0;
+     }
+     undo(items = 1) {
++        if (items > 0 && this.closeGroupRecording(true)) {
++            return;
++        }
+         while (items > 0 && this.undoAvailable > 0) {
+             const item = this.ring[this.position];
+             for (const subitem of asArray(item).reverse()) {
+@@ -63,6 +69,9 @@ export class HistoryMemo {
+         }
+     }
+     redo(items = 1) {
++        if (items > 0 && this.closeGroupRecording(true)) {
++            return;
++        }
+         while (items > 0 && this.redoAvailable > 0) {
+             const newPosition = (this.position + 1) % this.size;
+             const item = this.ring[newPosition];
+@@ -84,24 +93,45 @@ export class HistoryMemo {
+         this.position = (this.position + 1) % this._size;
+         this.ring[this.position] = [];
+     }
+-    startGroupRecording() {
++    startGroupRecording(onCancel) {
++        const owner = { active: true, onCancel };
++        this.groupOwners.push(owner);
+         this.isRecordingGrouped = true;
+-        this.initializeGroupItem();
+-    }
+-    rollbackUnusedGroupItem() {
+-        this.ring[this.position] = undefined;
+-        this.position = (this.position - 1) % this._size;
+-        this.undoAvailable--;
++        return owner;
+     }
+-    endGroupRecording() {
++    closeGroupRecording(cancel = false) {
++        const wasEmpty = this.isRecordingGrouped && !this.groupItemInitialized;
++        const owners = this.groupOwners;
++        for (const owner of owners) {
++            owner.active = false;
++        }
++        this.groupOwners = [];
+         this.isRecordingGrouped = false;
+-        const lastItem = this.ring[this.position];
+-        const lastItemIsEmpty = Array.isArray(lastItem) && lastItem.length === 0;
+-        if (lastItemIsEmpty) {
+-            this.rollbackUnusedGroupItem();
++        this.groupItemInitialized = false;
++        if (cancel) {
++            for (const owner of owners) {
++                owner.onCancel?.();
++            }
++        }
++        return wasEmpty;
++    }
++    endGroupRecording(owner = this.groupOwners[this.groupOwners.length - 1]) {
++        const index = this.groupOwners.indexOf(owner);
++        if (index === -1) {
++            return;
++        }
++        owner.active = false;
++        this.groupOwners.splice(index, 1);
++        if (!this.groupOwners.length) {
++            this.closeGroupRecording();
+         }
+     }
+     pushGrouped(memo) {
++        // Empty groups must not reserve a slot or destroy the redo branch.
++        if (!this.groupItemInitialized) {
++            this.initializeGroupItem();
++            this.groupItemInitialized = true;
++        }
+         const lastMemo = this.ring[this.position];
+         if (Array.isArray(lastMemo)) {
+             lastMemo.push(memo);
+diff --git a/dist/esm/utilities/historyMemo/index.d.ts b/dist/esm/utilities/historyMemo/index.d.ts
+--- a/dist/esm/utilities/historyMemo/index.d.ts
++++ b/dist/esm/utilities/historyMemo/index.d.ts
+@@ -7,6 +7,9 @@ export type Memo = {
+ export type Memoable = {
+     createMemo: () => Memo;
+ };
++export type HistoryGroupOwner = {
++    readonly active: boolean;
++};
+ export declare class HistoryMemo {
+     readonly label: any;
+     private _size;
+@@ -15,6 +18,8 @@ export declare class HistoryMemo {
+     private undoAvailable;
+     private ring;
+     private isRecordingGrouped;
++    private groupOwners;
++    private groupItemInitialized;
+     constructor(label?: string, size?: number);
+     get size(): number;
+     set size(newSize: number);
+@@ -25,9 +30,9 @@ export declare class HistoryMemo {
+     private dispatchHistoryEvent;
+     redo(items?: number): void;
+     private initializeGroupItem;
+-    startGroupRecording(): void;
+-    private rollbackUnusedGroupItem;
+-    endGroupRecording(): void;
++    startGroupRecording(onCancel?: () => void): HistoryGroupOwner;
++    private closeGroupRecording;
++    endGroupRecording(owner?: HistoryGroupOwner): void;
+     private pushGrouped;
+     push(item: Memo | Memoable): Memo;
+     replaceCurrentMemo(item: Memo | Memoable, condition: (memo: Memo) => boolean): boolean;

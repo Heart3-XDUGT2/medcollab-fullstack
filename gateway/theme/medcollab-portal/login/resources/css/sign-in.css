@@ -1,0 +1,307 @@
+.medcollab-sign-in,
+.medcollab-auth-dialog {
+  --mc-ink: #182524;
+  --mc-muted: #586563;
+  --mc-accent: #146b5d;
+  --mc-accent-hover: #0d554a;
+  --mc-border: #b5c1be;
+  --mc-error: #a52d34;
+  color: var(--mc-ink);
+  font-family: Inter, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0;
+  line-height: 1.5;
+  color-scheme: light;
+}
+.medcollab-sign-in {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: #f6f8f7;
+}
+.medcollab-sign-in *,
+.medcollab-auth-dialog * {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+.medcollab-sign-in ::selection,
+.medcollab-auth-dialog ::selection {
+  background: #cce5de;
+  color: var(--mc-ink);
+}
+.medcollab-sign-in__header {
+  width: 100%;
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.medcollab-sign-in__brand {
+  color: var(--mc-ink);
+  font-size: 23px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.medcollab-sign-in__back {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mc-muted);
+  text-decoration: none;
+}
+.medcollab-sign-in__back svg {
+  width: 16px;
+  height: 16px;
+}
+.medcollab-sign-in__back:hover {
+  color: var(--mc-accent);
+}
+.medcollab-sign-in__layout {
+  width: 100%;
+  max-width: 432px;
+  flex: 1;
+  margin: 0 auto;
+  padding: 48px 24px 112px;
+  display: grid;
+  grid-template-columns: minmax(0, 384px);
+  gap: 0;
+  align-content: center;
+  align-items: center;
+}
+.medcollab-sign-in__form-region {
+  min-width: 0;
+}
+.medcollab-sign-in__intro {
+  margin-bottom: 22px;
+}
+.medcollab-sign-in__intro h1 {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--mc-ink);
+}
+.medcollab-sign-in__intro p {
+  margin: 0;
+  color: var(--mc-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.medcollab-sign-in__label-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.medcollab-sign-in__label-row label {
+  color: var(--mc-ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.medcollab-sign-in .medcollab-sign-in__input {
+  height: 46px;
+  padding: 11px 13px;
+  color: var(--mc-ink);
+  background: #fff;
+  border: 1px solid var(--mc-border);
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: 15px;
+  line-height: 22px;
+  caret-color: var(--mc-accent);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+.medcollab-sign-in .medcollab-sign-in__input::placeholder {
+  color: #66716e;
+}
+.medcollab-sign-in .medcollab-sign-in__input:hover {
+  background: #fff;
+  border-color: #7c9590;
+}
+.medcollab-sign-in .medcollab-sign-in__input[aria-invalid='true'] {
+  border-color: var(--mc-error);
+}
+.medcollab-sign-in .medcollab-sign-in__input:focus-visible {
+  outline: 2px solid var(--mc-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.medcollab-sign-in__password {
+  position: relative;
+}
+.medcollab-sign-in__password .medcollab-sign-in__input {
+  padding-right: 50px;
+}
+.medcollab-sign-in .medcollab-sign-in__password-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+  border-radius: 5px;
+  color: var(--mc-muted);
+  background: transparent;
+}
+.medcollab-sign-in__password-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+.medcollab-sign-in .medcollab-sign-in__password-toggle:hover {
+  background: #edf3f0;
+  color: var(--mc-accent);
+}
+.medcollab-sign-in__field-error {
+  min-height: 22px;
+  margin: 5px 0 0;
+  color: var(--mc-error);
+  font-size: 13px;
+  line-height: 20px;
+}
+.medcollab-sign-in .medcollab-sign-in__text-action {
+  min-height: 44px;
+  height: auto;
+  padding: 8px 0;
+  color: var(--mc-accent);
+  background: transparent;
+  font-size: 14px;
+  line-height: 20px;
+  text-decoration: none;
+  border-radius: 3px;
+}
+.medcollab-sign-in .medcollab-sign-in__text-action:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.medcollab-sign-in .medcollab-sign-in__submit,
+.medcollab-auth-dialog .medcollab-auth-dialog__close {
+  min-height: 46px;
+  width: 100%;
+  margin-top: 14px;
+  border-radius: 6px;
+  color: #fff;
+  background: var(--mc-accent);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.medcollab-sign-in .medcollab-sign-in__submit:hover,
+.medcollab-auth-dialog .medcollab-auth-dialog__close:hover {
+  background: var(--mc-accent-hover);
+}
+.medcollab-sign-in .medcollab-sign-in__submit:active {
+  background: #0b483f;
+}
+.medcollab-sign-in .medcollab-sign-in__submit:disabled {
+  opacity: 1;
+  color: #fff;
+  background: #586e68;
+}
+.medcollab-sign-in__service-error {
+  min-height: 24px;
+  margin: 10px 0 0;
+  color: var(--mc-error);
+  font-size: 13px;
+  line-height: 20px;
+}
+.medcollab-sign-in__field-error:empty,
+.medcollab-sign-in__service-error:empty {
+  visibility: hidden;
+}
+.medcollab-sign-in__register {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mc-muted);
+}
+.medcollab-sign-in a:focus-visible,
+.medcollab-sign-in button:focus-visible,
+.medcollab-auth-dialog button:focus-visible {
+  outline: 2px solid var(--mc-accent);
+  outline-offset: 4px;
+  box-shadow: none;
+}
+.medcollab-auth-dialog {
+  width: calc(100% - 40px);
+  max-width: 380px;
+  padding: 28px;
+  border: 1px solid #d9e0dd;
+  border-radius: 8px;
+  background: #fff;
+}
+.medcollab-auth-dialog h2 {
+  margin: 0;
+  color: var(--mc-ink);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.medcollab-auth-dialog p {
+  margin-top: 10px;
+  color: var(--mc-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.medcollab-auth-dialog > button[data-cy='dialog-close-button'] {
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mc-muted);
+}
+@media (max-width: 860px) {
+  .medcollab-sign-in__header {
+    padding: 20px 24px;
+  }
+  .medcollab-sign-in__layout {
+    max-width: 432px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-top: 32px;
+    padding-bottom: 64px;
+  }
+}
+@media (max-width: 480px) {
+  .medcollab-sign-in__header {
+    padding: 18px 24px;
+    gap: 16px;
+  }
+  .medcollab-sign-in__brand {
+    font-size: 22px;
+  }
+  .medcollab-sign-in__back {
+    font-size: 13px;
+  }
+  .medcollab-sign-in__layout {
+    align-content: start;
+    padding-top: 38px;
+    padding-bottom: 40px;
+  }
+  .medcollab-sign-in__intro {
+    margin-bottom: 18px;
+  }
+  .medcollab-sign-in .medcollab-sign-in__input {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .medcollab-sign-in,
+  .medcollab-sign-in *,
+  .medcollab-auth-dialog[role='dialog'][data-state],
+  .medcollab-auth-dialog * {
+    animation: none;
+    transition: none;
+  }
+}

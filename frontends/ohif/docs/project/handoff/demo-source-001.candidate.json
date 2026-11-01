@@ -1,0 +1,874 @@
+{
+  "schemaVersion": "source-manifest-candidate-v0.1",
+  "proposedSourceManifestId": "demo-source-001",
+  "status": "candidate-pending-owner3-confirmation",
+  "source": {
+    "kind": "read-only-public-DICOMweb",
+    "dataSourceId": "ohif",
+    "metadataURL": "https://d14fa38qiwhyfd.cloudfront.net/dicomweb/studies/1.3.6.1.4.1.25403.345050719074.3824.20170125095438.5/series/1.3.6.1.4.1.25403.345050719074.3824.20170125095438.11/metadata",
+    "metadataSha256": "ed90532b143cb2e545c1df77813c90e928d1097d174a4b8a6f246e07206106fa",
+    "retrievedDate": "2026-10-31",
+    "redistributionPermission": "not-verified-no-pixel-data-mirrored"
+  },
+  "studyInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095438.5",
+  "seriesInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095438.11",
+  "frameOfReferenceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095438.9",
+  "modality": "CT",
+  "seriesDescription": "Body 3.0 CE",
+  "seriesNumber": 2,
+  "geometry": {
+    "coordinateSystem": "DICOM patient LPS",
+    "units": "mm",
+    "rows": 512,
+    "columns": 512,
+    "pixelSpacing": [0.781, 0.781],
+    "imageOrientationPatient": [1, 0, 0, 0, 1, 0],
+    "sliceNormal": [0, 0, 1],
+    "spatialOrder": "ascending projection on sliceNormal",
+    "minimumAdjacentPlaneDistance": 3,
+    "maximumAdjacentPlaneDistance": 3
+  },
+  "frameCount": 120,
+  "frames": [
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 120,
+      "imagePositionPatient": [-199.6093, -199.6093, 1432.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 119,
+      "imagePositionPatient": [-199.6093, -199.6093, 1435.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 118,
+      "imagePositionPatient": [-199.6093, -199.6093, 1438.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 117,
+      "imagePositionPatient": [-199.6093, -199.6093, 1441.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 116,
+      "imagePositionPatient": [-199.6093, -199.6093, 1444.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 115,
+      "imagePositionPatient": [-199.6093, -199.6093, 1447.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 114,
+      "imagePositionPatient": [-199.6093, -199.6093, 1450.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 113,
+      "imagePositionPatient": [-199.6093, -199.6093, 1453.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 112,
+      "imagePositionPatient": [-199.6093, -199.6093, 1456.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 111,
+      "imagePositionPatient": [-199.6093, -199.6093, 1459.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 110,
+      "imagePositionPatient": [-199.6093, -199.6093, 1462.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 109,
+      "imagePositionPatient": [-199.6093, -199.6093, 1465.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 108,
+      "imagePositionPatient": [-199.6093, -199.6093, 1468.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 107,
+      "imagePositionPatient": [-199.6093, -199.6093, 1471.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 106,
+      "imagePositionPatient": [-199.6093, -199.6093, 1474.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 105,
+      "imagePositionPatient": [-199.6093, -199.6093, 1477.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 104,
+      "imagePositionPatient": [-199.6093, -199.6093, 1480.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 103,
+      "imagePositionPatient": [-199.6093, -199.6093, 1483.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 102,
+      "imagePositionPatient": [-199.6093, -199.6093, 1486.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 101,
+      "imagePositionPatient": [-199.6093, -199.6093, 1489.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 100,
+      "imagePositionPatient": [-199.6093, -199.6093, 1492.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 99,
+      "imagePositionPatient": [-199.6093, -199.6093, 1495.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 98,
+      "imagePositionPatient": [-199.6093, -199.6093, 1498.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 97,
+      "imagePositionPatient": [-199.6093, -199.6093, 1501.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095444.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 96,
+      "imagePositionPatient": [-199.6093, -199.6093, 1504.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 95,
+      "imagePositionPatient": [-199.6093, -199.6093, 1507.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 94,
+      "imagePositionPatient": [-199.6093, -199.6093, 1510.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 93,
+      "imagePositionPatient": [-199.6093, -199.6093, 1513.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095443.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 92,
+      "imagePositionPatient": [-199.6093, -199.6093, 1516.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095443.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 91,
+      "imagePositionPatient": [-199.6093, -199.6093, 1519.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 90,
+      "imagePositionPatient": [-199.6093, -199.6093, 1522.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095443.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 89,
+      "imagePositionPatient": [-199.6093, -199.6093, 1525.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095443.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 88,
+      "imagePositionPatient": [-199.6093, -199.6093, 1528.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 87,
+      "imagePositionPatient": [-199.6093, -199.6093, 1531.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095443.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 86,
+      "imagePositionPatient": [-199.6093, -199.6093, 1534.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095449.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 85,
+      "imagePositionPatient": [-199.6093, -199.6093, 1537.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 84,
+      "imagePositionPatient": [-199.6093, -199.6093, 1540.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 83,
+      "imagePositionPatient": [-199.6093, -199.6093, 1543.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.11",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 82,
+      "imagePositionPatient": [-199.6093, -199.6093, 1546.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 81,
+      "imagePositionPatient": [-199.6093, -199.6093, 1549.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 80,
+      "imagePositionPatient": [-199.6093, -199.6093, 1552.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 79,
+      "imagePositionPatient": [-199.6093, -199.6093, 1555.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 78,
+      "imagePositionPatient": [-199.6093, -199.6093, 1558.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 77,
+      "imagePositionPatient": [-199.6093, -199.6093, 1561.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 76,
+      "imagePositionPatient": [-199.6093, -199.6093, 1564.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 75,
+      "imagePositionPatient": [-199.6093, -199.6093, 1567.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 74,
+      "imagePositionPatient": [-199.6093, -199.6093, 1570.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 73,
+      "imagePositionPatient": [-199.6093, -199.6093, 1573.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 72,
+      "imagePositionPatient": [-199.6093, -199.6093, 1576.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095442.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 71,
+      "imagePositionPatient": [-199.6093, -199.6093, 1579.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 70,
+      "imagePositionPatient": [-199.6093, -199.6093, 1582.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 69,
+      "imagePositionPatient": [-199.6093, -199.6093, 1585.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 68,
+      "imagePositionPatient": [-199.6093, -199.6093, 1588.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 67,
+      "imagePositionPatient": [-199.6093, -199.6093, 1591.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 66,
+      "imagePositionPatient": [-199.6093, -199.6093, 1594.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 65,
+      "imagePositionPatient": [-199.6093, -199.6093, 1597.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 64,
+      "imagePositionPatient": [-199.6093, -199.6093, 1600.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 63,
+      "imagePositionPatient": [-199.6093, -199.6093, 1603.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 62,
+      "imagePositionPatient": [-199.6093, -199.6093, 1606.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 61,
+      "imagePositionPatient": [-199.6093, -199.6093, 1609.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 60,
+      "imagePositionPatient": [-199.6093, -199.6093, 1612.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 59,
+      "imagePositionPatient": [-199.6093, -199.6093, 1615.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.14",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 58,
+      "imagePositionPatient": [-199.6093, -199.6093, 1618.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 57,
+      "imagePositionPatient": [-199.6093, -199.6093, 1621.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 56,
+      "imagePositionPatient": [-199.6093, -199.6093, 1624.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 55,
+      "imagePositionPatient": [-199.6093, -199.6093, 1627.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.13",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 54,
+      "imagePositionPatient": [-199.6093, -199.6093, 1630.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095441.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 53,
+      "imagePositionPatient": [-199.6093, -199.6093, 1633.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.14",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 52,
+      "imagePositionPatient": [-199.6093, -199.6093, 1636.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 51,
+      "imagePositionPatient": [-199.6093, -199.6093, 1639.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.12",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 50,
+      "imagePositionPatient": [-199.6093, -199.6093, 1642.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.13",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 49,
+      "imagePositionPatient": [-199.6093, -199.6093, 1645.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.12",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 48,
+      "imagePositionPatient": [-199.6093, -199.6093, 1648.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.11",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 47,
+      "imagePositionPatient": [-199.6093, -199.6093, 1651.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 46,
+      "imagePositionPatient": [-199.6093, -199.6093, 1654.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 45,
+      "imagePositionPatient": [-199.6093, -199.6093, 1657.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 44,
+      "imagePositionPatient": [-199.6093, -199.6093, 1660.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 43,
+      "imagePositionPatient": [-199.6093, -199.6093, 1663.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095448.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 42,
+      "imagePositionPatient": [-199.6093, -199.6093, 1666.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 41,
+      "imagePositionPatient": [-199.6093, -199.6093, 1669.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 40,
+      "imagePositionPatient": [-199.6093, -199.6093, 1672.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 39,
+      "imagePositionPatient": [-199.6093, -199.6093, 1675.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 38,
+      "imagePositionPatient": [-199.6093, -199.6093, 1678.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 37,
+      "imagePositionPatient": [-199.6093, -199.6093, 1681.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 36,
+      "imagePositionPatient": [-199.6093, -199.6093, 1684.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 35,
+      "imagePositionPatient": [-199.6093, -199.6093, 1687.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 34,
+      "imagePositionPatient": [-199.6093, -199.6093, 1690.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 33,
+      "imagePositionPatient": [-199.6093, -199.6093, 1693.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 32,
+      "imagePositionPatient": [-199.6093, -199.6093, 1696.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 31,
+      "imagePositionPatient": [-199.6093, -199.6093, 1699.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 30,
+      "imagePositionPatient": [-199.6093, -199.6093, 1702.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 29,
+      "imagePositionPatient": [-199.6093, -199.6093, 1705.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.11",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 28,
+      "imagePositionPatient": [-199.6093, -199.6093, 1708.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095440.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 27,
+      "imagePositionPatient": [-199.6093, -199.6093, 1711.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 26,
+      "imagePositionPatient": [-199.6093, -199.6093, 1714.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.16",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 25,
+      "imagePositionPatient": [-199.6093, -199.6093, 1717.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.15",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 24,
+      "imagePositionPatient": [-199.6093, -199.6093, 1720.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 23,
+      "imagePositionPatient": [-199.6093, -199.6093, 1723.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.14",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 22,
+      "imagePositionPatient": [-199.6093, -199.6093, 1726.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.13",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 21,
+      "imagePositionPatient": [-199.6093, -199.6093, 1729.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 20,
+      "imagePositionPatient": [-199.6093, -199.6093, 1732.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 19,
+      "imagePositionPatient": [-199.6093, -199.6093, 1735.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.12",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 18,
+      "imagePositionPatient": [-199.6093, -199.6093, 1738.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095445.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 17,
+      "imagePositionPatient": [-199.6093, -199.6093, 1741.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 16,
+      "imagePositionPatient": [-199.6093, -199.6093, 1744.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095447.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 15,
+      "imagePositionPatient": [-199.6093, -199.6093, 1747.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.11",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 14,
+      "imagePositionPatient": [-199.6093, -199.6093, 1750.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.10",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 13,
+      "imagePositionPatient": [-199.6093, -199.6093, 1753.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.9",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 12,
+      "imagePositionPatient": [-199.6093, -199.6093, 1756.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095446.11",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 11,
+      "imagePositionPatient": [-199.6093, -199.6093, 1759.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.8",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 10,
+      "imagePositionPatient": [-199.6093, -199.6093, 1762.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.7",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 9,
+      "imagePositionPatient": [-199.6093, -199.6093, 1765.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.6",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 8,
+      "imagePositionPatient": [-199.6093, -199.6093, 1768.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.5",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 7,
+      "imagePositionPatient": [-199.6093, -199.6093, 1771.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.4",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 6,
+      "imagePositionPatient": [-199.6093, -199.6093, 1774.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.3",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 5,
+      "imagePositionPatient": [-199.6093, -199.6093, 1777.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.2",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 4,
+      "imagePositionPatient": [-199.6093, -199.6093, 1780.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095439.1",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 3,
+      "imagePositionPatient": [-199.6093, -199.6093, 1783.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095438.13",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 2,
+      "imagePositionPatient": [-199.6093, -199.6093, 1786.5]
+    },
+    {
+      "sopInstanceUID": "1.3.6.1.4.1.25403.345050719074.3824.20170125095438.12",
+      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+      "frameNumber": 1,
+      "instanceNumber": 1,
+      "imagePositionPatient": [-199.6093, -199.6093, 1789.5]
+    }
+  ]
+}

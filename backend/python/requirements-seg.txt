@@ -1,0 +1,2 @@
+highdicom==0.27.0
+pydicom==3.0.2

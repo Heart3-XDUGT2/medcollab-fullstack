@@ -1,0 +1,209 @@
+diff --git a/dist/esm/tools/annotation/ArrowAnnotateTool.js b/dist/esm/tools/annotation/ArrowAnnotateTool.js
+--- a/dist/esm/tools/annotation/ArrowAnnotateTool.js
++++ b/dist/esm/tools/annotation/ArrowAnnotateTool.js
+@@ -28,7 +28,9 @@ class ArrowAnnotateTool extends AnnotationTool {
+     }) {
+         super(toolProps, defaultToolProps);
+         this.addNewAnnotation = (evt) => {
+-            this.startGroupRecording();
++            if (this._annotationGroup) {
++                this.cancel(this._annotationGroup.element);
++            }
+             const eventDetail = evt.detail;
+             const { currentPoints, element } = eventDetail;
+             const worldPos = currentPoints.world;
+@@ -44,7 +46,11 @@ class ArrowAnnotateTool extends AnnotationTool {
+             });
+             addAnnotation(annotation, element);
+             const viewportIdsToRender = getViewportIdsWithToolToRender(element, this.getToolName());
++            const group = { element, annotation, viewportIdsToRender };
++            group.owner = csUtils.HistoryMemo.DefaultHistoryMemo.startGroupRecording(() => this._cancelAnnotationGroup(group));
++            this._annotationGroup = group;
+             this.editData = {
++                element,
+                 annotation,
+                 viewportIdsToRender,
+                 handleIndex: 1,
+@@ -86,6 +92,7 @@ class ArrowAnnotateTool extends AnnotationTool {
+             annotation.highlighted = true;
+             const viewportIdsToRender = getViewportIdsWithToolToRender(element, this.getToolName());
+             this.editData = {
++                element,
+                 annotation,
+                 viewportIdsToRender,
+                 movingTextBox: false,
+@@ -98,6 +105,9 @@ class ArrowAnnotateTool extends AnnotationTool {
+             evt.preventDefault();
+         };
+         this._endCallback = (evt) => {
++            if (!this.editData) {
++                return;
++            }
+             const eventDetail = evt.detail;
+             const { element } = eventDetail;
+             const { annotation, viewportIdsToRender, newAnnotation, hasMoved, movingTextBox, } = this.editData;
+@@ -111,26 +121,51 @@ class ArrowAnnotateTool extends AnnotationTool {
+             resetElementCursor(element);
+             if (this.isHandleOutsideImage &&
+                 this.configuration.preventHandleOutsideImage) {
++                if (newAnnotation) {
++                    this._cancelAnnotationGroup(this._annotationGroup);
++                    return;
++                }
+                 removeAnnotation(annotation.annotationUID);
+             }
+             if (newAnnotation) {
+-                this.configuration.getTextCallback((label) => {
+-                    if (!label) {
+-                        removeAnnotation(annotation.annotationUID);
+-                        triggerAnnotationRenderForViewportIds(viewportIdsToRender);
+-                        this.editData = null;
+-                        this.isDrawing = false;
+-                        return;
++                const group = this._annotationGroup;
++                this.editData = null;
++                this.isDrawing = false;
++                try {
++                    this.configuration.getTextCallback((label) => {
++                        if (!group.owner.active || this._annotationGroup !== group) {
++                            return;
++                        }
++                        try {
++                            if (!label) {
++                                removeAnnotation(annotation.annotationUID);
++                                return;
++                            }
++                            annotation.data.label = label;
++                            // Commit a new arrow only after text is accepted, so cancellation
++                            // cannot leave a creation memo that redo could resurrect.
++                            this.createMemo(element, annotation, { newAnnotation: true });
++                            this.doneEditMemo();
++                            triggerAnnotationModified(annotation, element, ChangeTypes.HandlesUpdated);
++                            triggerAnnotationCompleted(annotation);
++                            setAnnotationLabel(annotation, element, label);
++                        }
++                        finally {
++                            csUtils.HistoryMemo.DefaultHistoryMemo.endGroupRecording(group.owner);
++                            if (this._annotationGroup === group) {
++                                this._annotationGroup = null;
++                            }
++                            triggerAnnotationRenderForViewportIds(viewportIdsToRender);
++                        }
++                    });
++                }
++                catch (error) {
++                    if (this._annotationGroup === group) {
++                        this._cancelAnnotationGroup(group);
+                     }
+-                    annotation.data.label = label;
+-                    triggerAnnotationModified(annotation, element, ChangeTypes.HandlesUpdated);
+-                    triggerAnnotationCompleted(annotation);
+-                    this.createMemo(element, annotation, { newAnnotation: !!this.memo });
+-                    setAnnotationLabel(annotation, element, label);
+-                    this.endGroupRecording();
+-                    this.doneEditMemo();
+-                    triggerAnnotationRenderForViewportIds(viewportIdsToRender);
+-                });
++                    throw error;
++                }
++                return;
+             }
+             else if (!movingTextBox) {
+                 triggerAnnotationModified(annotation, element, ChangeTypes.HandlesUpdated);
+@@ -144,7 +179,9 @@ class ArrowAnnotateTool extends AnnotationTool {
+             const eventDetail = evt.detail;
+             const { element } = eventDetail;
+             const { annotation, viewportIdsToRender, handleIndex, movingTextBox, newAnnotation, } = this.editData;
+-            this.createMemo(element, annotation, { newAnnotation });
++            if (!newAnnotation) {
++                this.createMemo(element, annotation, { newAnnotation });
++            }
+             const { data } = annotation;
+             if (movingTextBox) {
+                 const { deltaPoints } = eventDetail;
+@@ -204,6 +241,9 @@ class ArrowAnnotateTool extends AnnotationTool {
+             evt.preventDefault();
+         };
+         this.cancel = (element) => {
++            if (this._annotationGroup) {
++                return this._cancelAnnotationGroup(this._annotationGroup);
++            }
+             if (this.isDrawing) {
+                 this.isDrawing = false;
+                 this._deactivateDraw(element);
+@@ -218,6 +258,7 @@ class ArrowAnnotateTool extends AnnotationTool {
+                     triggerAnnotationCompleted(annotation);
+                 }
+                 this.editData = null;
++                this.doneEditMemo();
+                 return annotation.annotationUID;
+             }
+         };
+@@ -345,6 +386,37 @@ class ArrowAnnotateTool extends AnnotationTool {
+             return renderStatus;
+         };
+     }
++    _cancelAnnotationGroup(group) {
++        if (!group || this._annotationGroup !== group) {
++            return;
++        }
++        const { element, annotation, viewportIdsToRender, owner } = group;
++        try {
++            this._deactivateDraw(element);
++            this._deactivateModify(element);
++            resetElementCursor(element);
++            removeAnnotation(annotation.annotationUID);
++        }
++        finally {
++            csUtils.HistoryMemo.DefaultHistoryMemo.endGroupRecording(owner);
++            this._annotationGroup = null;
++            if (this.editData?.annotation === annotation) {
++                this.editData = null;
++            }
++            this.isDrawing = false;
++            triggerAnnotationRenderForViewportIds(viewportIdsToRender);
++        }
++        return annotation.annotationUID;
++    }
++    onSetToolPassive() {
++        const element = this._annotationGroup?.element || this.editData?.element;
++        if (element) {
++            this.cancel(element);
++        }
++    }
++    onSetToolDisabled() {
++        this.onSetToolPassive();
++    }
+     handleSelectedCallback(evt, annotation, handle) {
+         const eventDetail = evt.detail;
+         const { element } = eventDetail;
+@@ -360,6 +432,7 @@ class ArrowAnnotateTool extends AnnotationTool {
+         }
+         const viewportIdsToRender = getViewportIdsWithToolToRender(element, this.getToolName());
+         this.editData = {
++            element,
+             annotation,
+             viewportIdsToRender,
+             handleIndex,
+diff --git a/dist/esm/tools/annotation/ArrowAnnotateTool.d.ts b/dist/esm/tools/annotation/ArrowAnnotateTool.d.ts
+--- a/dist/esm/tools/annotation/ArrowAnnotateTool.d.ts
++++ b/dist/esm/tools/annotation/ArrowAnnotateTool.d.ts
+@@ -6,6 +6,7 @@ declare class ArrowAnnotateTool extends AnnotationTool {
+     static toolName: string;
+     _throttledCalculateCachedStats: Function;
+     editData: {
++        element: HTMLDivElement;
+         annotation: Annotation;
+         viewportIdsToRender: string[];
+         handleIndex?: number;
+@@ -15,6 +16,10 @@ declare class ArrowAnnotateTool extends AnnotationTool {
+     } | null;
+     isDrawing: boolean;
+     isHandleOutsideImage: boolean;
++    private _annotationGroup;
++    private _cancelAnnotationGroup;
++    onSetToolPassive(): void;
++    onSetToolDisabled(): void;
+     constructor(toolProps?: PublicToolProps, defaultToolProps?: ToolProps);
+     static hydrate: (viewportId: string, points: Types.Point3[], label?: string, options?: {
+         annotationUID?: string;

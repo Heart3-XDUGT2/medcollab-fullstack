@@ -1,0 +1,31 @@
+name: medcollab-local
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?Run node scripts/setup.mjs first}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Run node scripts/setup.mjs first}
+      KC_HOSTNAME: http://127.0.0.1:8081
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./generated/medical-demo-realm.json:/opt/keycloak/data/import/medical-demo-realm.json:ro
+      - ../gateway/theme/medcollab-portal:/opt/keycloak/themes/medcollab-portal:ro
+    restart: unless-stopped
+  orthanc:
+    image: ${ORTHANC_IMAGE:-orthancteam/orthanc:latest}
+    environment:
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8042:8042"
+    volumes:
+      - ./orthanc.json:/etc/orthanc/medcollab.json:ro
+      - orthanc-data:/var/lib/orthanc/db
+    restart: unless-stopped
+volumes:
+  keycloak-data:
+  orthanc-data:

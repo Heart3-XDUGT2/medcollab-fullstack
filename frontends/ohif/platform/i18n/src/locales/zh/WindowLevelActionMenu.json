@@ -1,0 +1,19 @@
+{
+  "Display Color bar": "显示颜色条",
+  "Color LUT": "颜色查找表",
+  "Modality Window Presets": "模态窗宽/窗位预设",
+  "Rendering Options": "渲染选项",
+  "Preview in viewport": "在视图中预览",
+  "Grayscale": "灰度",
+  "Back to Display Options": "返回显示选项",
+  "Modality Presets": "模态预设",
+  "Rendering Presets": "渲染预设",
+  "Search all": "搜索全部",
+  "Quality": "质量",
+  "Lighting": "光照",
+  "Shade": "启用明暗处理",
+  "Ambient": "环境光",
+  "Diffuse": "漫反射",
+  "Specular": "镜面反射",
+  "Shift": "偏移"
+}

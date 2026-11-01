@@ -1,0 +1,11 @@
+/* Login layout and controls use Portal's unchanged CSS. These rules cover Keycloak-only states. */
+[hidden] { display: none !important; }
+.mc-eye-hidden { display: none; }
+[aria-pressed='true'] > .mc-eye-visible { display: none; }
+[aria-pressed='true'] > .mc-eye-hidden { display: block; }
+.mc-profile-field { margin-bottom: 12px; }
+.mc-profile-field .medcollab-sign-in__label-row { justify-content: flex-start; gap: 6px; }
+.mc-profile-field .medcollab-sign-in__field-error { display: block; }
+.mc-profile-input:has(> input) { min-height: 46px; }
+.required { color: var(--mc-error); }
+.medcollab-sign-in__form-region > .medcollab-sign-in__service-error { margin-bottom: 18px; }

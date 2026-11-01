@@ -1,0 +1,8 @@
+{
+  "Loading document...": "正在加载文档...",
+  "This document type cannot be displayed": "无法显示此文档类型",
+  "Document content does not match its declared type": "文档内容与声明的类型不一致",
+  "Unable to retrieve this document": "无法获取此文档",
+  "No viewer installed for {{mimeType}}": "未安装支持 {{mimeType}} 的查看器",
+  "Encapsulated document": "封装文档"
+}
