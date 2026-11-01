@@ -52,6 +52,7 @@ export default {
       },
     })),
     onModeEnter(ctx) {
+      document.body.classList.add('medcollab-mode');
       if (new URLSearchParams(window.location.search).has('datasetId')) {
         this.initToolGroups = segmentationInstance.initToolGroups;
         segmentationInstance.onModeEnter.call(this, ctx);
@@ -82,6 +83,7 @@ export default {
         .exports.bindMode(new URLSearchParams(window.location.search).get('workspaceSessionId'));
     },
     onModeExit(ctx) {
+      document.body.classList.remove('medcollab-mode');
       ctx.extensionManager.getModuleEntry(utilityId).exports.getDatasetWorkspace().close();
       segmentationInstance.onModeExit.call(this, ctx);
     },

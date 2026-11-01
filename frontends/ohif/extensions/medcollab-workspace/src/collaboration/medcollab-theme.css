@@ -1,0 +1,61 @@
+/*
+ * MedCollab workspace chrome follows the Portal palette.
+ * The image viewport stays black: only the surrounding UI is re-themed.
+ */
+body.medcollab-mode {
+  --highlight: 170 55% 36%;
+  --neutral: 170 9% 45%;
+  --neutral-light: 150 12% 80%;
+  --neutral-dark: 170 18% 22%;
+  --background: 150 12% 97%;
+  --foreground: 175 21% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 175 21% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 175 21% 12%;
+  --primary: 170 69% 25%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 150 15% 90%;
+  --secondary-foreground: 175 21% 15%;
+  --muted: 150 17% 95%;
+  --muted-foreground: 171 7% 37%;
+  --accent: 150 15% 92%;
+  --accent-foreground: 175 21% 15%;
+  --destructive: 356 57% 41%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 146 11% 88%;
+  --input: 165 9% 73%;
+  --ring: 170 69% 25%;
+  --chart-1: 170 60% 35%;
+  --chart-2: 150 55% 42%;
+  --chart-3: 35 70% 48%;
+  --chart-4: 200 55% 43%;
+  --chart-5: 340 55% 45%;
+  color-scheme: light;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: Inter, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+}
+
+/* Portal uses a white content card on a soft green page. */
+body.medcollab-mode .bg-background {
+  background-color: hsl(var(--background));
+}
+
+/* Keep the diagnostic viewport neutral; do not tint the pixels. */
+body.medcollab-mode .cornerstone-viewport-element,
+body.medcollab-mode .viewport-element {
+  background-color: #000;
+}
+
+/* The bottom bar is a floating portal-style card. */
+body.medcollab-mode [data-cy='dataset-workspace-bar'] {
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(24 37 36 / 14%);
+}
+
+/* Soften OHIF's default dark-theme separators in the light chrome. */
+body.medcollab-mode hr,
+body.medcollab-mode [role='separator'] {
+  border-color: hsl(var(--border));
+}

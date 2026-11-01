@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 import { Badge, Button, Icons } from '@ohif/ui-next';
 import { DatasetBar } from './DatasetBar';
+import { Collaborators } from './Collaborators';
+import './medcollab-theme.css';
 
 import type { DraftReceipt, EditState, WorkspaceEvent } from '../types';
 import {
@@ -96,7 +98,12 @@ const errorText = (action: '保存' | '发布', error: unknown): string => {
 export function CollaborationBar(props: CollaborationBarProps) {
   if (new URLSearchParams(window.location.search).has('datasetId')) {
     const workspace = (props.servicesManager.services as any).datasetWorkspaceService;
-    return workspace ? <DatasetBar workspace={workspace} /> : null;
+    return workspace ? (
+      <>
+        <Collaborators workspace={workspace} />
+        <DatasetBar workspace={workspace} />
+      </>
+    ) : null;
   }
   return <LegacyCollaborationBar {...props} />;
 }

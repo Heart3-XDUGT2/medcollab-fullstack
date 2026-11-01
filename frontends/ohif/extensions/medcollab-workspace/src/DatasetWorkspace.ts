@@ -3,6 +3,12 @@ import { OHIFWorkspaceDriver } from './OHIFWorkspaceDriver';
 type Segment = { number: number; label: string; color: number[] };
 type Mask = { instanceId: string; runs: number[] };
 type Labelmap = { segments: Segment[]; masks: Mask[] };
+type Collaborator = {
+  username: string;
+  role: 'owner' | 'editor' | 'public';
+  isSelf: boolean;
+};
+
 type Draft = {
   data: Labelmap;
   label: string;
@@ -28,6 +34,8 @@ export class DatasetWorkspace {
     message: '正在读取影像与账户…',
     error: '',
     newerVersion: 0,
+    collaborators: [] as Collaborator[],
+    datasetAccess: '',
   };
   private listeners = new Set<() => void>();
   private subscriptions: (() => void)[] = [];
@@ -115,6 +123,60 @@ export class DatasetWorkspace {
   setReadOnly(value: boolean) {
     this.guard.setReadOnly(value);
   }
+
+  /**
+   * Load the accounts that can access this dataset (owner + explicit shares).
+   * This is not a presence feed: the backend has no online/editing status yet.
+   */
+  private async loadCollaborators(generation: number) {
+    try {
+      const datasets = await this.json('/api/datasets');
+      if (this.stopped || generation !== this.generation) return;
+      const dataset = (datasets.items || []).find(item => item.id === this.state.datasetId);
+      const self = this.identity?.username || this.state.username;
+      const list: Collaborator[] = [];
+
+      if (dataset?.access === 'public') {
+        list.push({ username: '所有登录用户', role: 'public', isSelf: false });
+      } else if (dataset?.ownerUsername) {
+        list.push({
+          username: dataset.ownerUsername,
+          role: 'owner',
+          isSelf: dataset.access === 'owner',
+        });
+      }
+
+      if (dataset?.access !== 'public') {
+        const shares = await this.json(this.api('/shares'));
+        for (const item of shares.items || []) {
+          if (!list.some(existing => existing.username === item.username)) {
+            list.push({
+              username: item.username,
+              role: 'editor',
+              isSelf: item.username === self,
+            });
+          }
+        }
+      }
+
+      if (self && !list.some(existing => existing.username === self)) {
+        list.push({
+          username: self,
+          role: dataset?.access === 'owner' ? 'owner' : 'editor',
+          isSelf: true,
+        });
+      }
+
+      if (!this.stopped && generation === this.generation) {
+        this.update({ collaborators: list, datasetAccess: dataset?.access || '' });
+      }
+    } catch {
+      // Collaborator display is non-critical; never block the workspace on it.
+      if (!this.stopped && generation === this.generation) {
+        this.update({ collaborators: [] });
+      }
+    }
+  }
   installCommands() {
     const manager = this.runtime.commandsManager;
     for (const [name, action] of [
@@ -145,6 +207,8 @@ export class DatasetWorkspace {
     this.state.ready = false;
     this.state.local = false;
     this.state.dirty = false;
+    this.state.collaborators = [];
+    this.state.datasetAccess = '';
     this.emit();
     this.setReadOnly(true);
     try {
@@ -213,6 +277,7 @@ export class DatasetWorkspace {
           published.status.publishedVersion > base ? published.status.publishedVersion : 0,
         message: this.currentDraft ? '已恢复本机草稿，尚未发布' : '已加载共享版本',
       });
+      this.loadCollaborators(generation).catch(() => {});
       this.setReadOnly(!!this.currentDraft?.publishAttempted);
       const { segmentationService, cornerstoneViewportService } =
         this.runtime.servicesManager.services;

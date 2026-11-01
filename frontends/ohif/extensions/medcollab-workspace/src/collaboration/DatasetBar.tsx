@@ -37,7 +37,7 @@ export function DatasetBar({ workspace }) {
       onKeyDown={event => event.stopPropagation()}
       onKeyUp={event => event.stopPropagation()}
       onKeyPress={event => event.stopPropagation()}
-      className="border-border bg-background/95 text-foreground fixed bottom-3 left-1/2 z-50 flex max-w-[96vw] -translate-x-1/2 flex-col gap-2 rounded-lg border px-3 py-2 text-xs shadow-xl"
+      className="border-border bg-card/95 text-foreground fixed bottom-3 left-1/2 z-50 flex max-w-[96vw] -translate-x-1/2 flex-col gap-2 rounded-lg border px-3 py-2 text-xs shadow-xl backdrop-blur"
     >
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-medium">保存与同步</span>
@@ -58,7 +58,7 @@ export function DatasetBar({ workspace }) {
           <Button
             size="sm"
             variant="ghost"
-            className="text-red-300"
+            className="text-destructive"
             data-cy="dataset-error-details"
             onClick={() => setExpanded(true)}
           >
@@ -133,7 +133,7 @@ export function DatasetBar({ workspace }) {
           {state.error && (
             <p
               role="alert"
-              className="break-words text-red-300"
+              className="text-destructive break-words"
             >
               {state.error}
             </p>
