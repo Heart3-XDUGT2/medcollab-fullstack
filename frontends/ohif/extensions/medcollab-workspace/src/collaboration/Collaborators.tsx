@@ -67,7 +67,7 @@ export function Collaborators({ workspace }) {
   return (
     <div
       ref={rootRef}
-      className="pointer-events-auto fixed right-3 top-14 z-50"
+      className="pointer-events-auto fixed right-[19.5rem] top-14 z-50"
       data-cy="dataset-collaborators"
     >
       <button
