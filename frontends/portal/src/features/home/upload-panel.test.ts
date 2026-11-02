@@ -144,6 +144,37 @@ describe('upload panel operation isolation', () => {
     expect(props.onCompleted).toHaveBeenCalledTimes(1);
   });
 
+  test('appends to an existing target and displays the destination without a creation field', async () => {
+    await render({ targetDataset: dataset, destinationLabel: '研究团队' });
+    expect(nameInput()).toBeNull();
+    expect(container.textContent).toContain('研究团队');
+    expect(container.textContent).toContain(dataset.name);
+    select();
+    await submit();
+    expect(api.createDataset).not.toHaveBeenCalled();
+    expect(api.importFile).toHaveBeenCalledWith(
+      dataset.id,
+      expect.any(File),
+      identity,
+      expect.any(AbortSignal)
+    );
+  });
+
+  test('changing append target cancels in-flight work and rejects its late response', async () => {
+    const request = deferred<{ status: string; id: string }>();
+    api.importFile.mockReturnValueOnce(request.promise);
+    await render({ targetDataset: dataset });
+    select([file('one.dcm'), file('two.dcm')]);
+    await submit();
+    const signal = api.importFile.mock.calls[0][3] as AbortSignal;
+    await render({ targetDataset: { ...dataset, id: 'another-target' } });
+    expect(signal.aborted).toBe(true);
+    await act(async () => request.resolve(stored()));
+    expect(api.importFile).toHaveBeenCalledTimes(1);
+    expect(props.onCompleted).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('one.dcm');
+  });
+
   test('preserves same-account fields on an idle scope replacement without replaying', async () => {
     await render();
     const selected = file('preserved.dcm');

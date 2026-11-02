@@ -41,6 +41,84 @@ const response = (value: unknown, status = 200) => ({
 });
 const client = (mock: Mock, options = config) => createHomeApi(options, mock as any);
 
+describe('team library additive contract', () => {
+  const team = { id: 'TM-A', name: '研究组', leaderSubject: identity.subject, leaderUsername: 'account-a',
+    memberCount: 1, role: 'leader', createdAt: '2026-11-02T00:00:00Z' };
+  const teamDataset = { ...dataset, access: 'owner', scope: 'team', teamId: team.id,
+    uploaderSubject: identity.subject, canDelete: true };
+  test('reads only dedicated team endpoints and encodes literal searches', async () => {
+    const mock = vi.fn().mockResolvedValueOnce(response({ items: [team], total: 1 }))
+      .mockResolvedValueOnce(response({ items: [{ ...team, role: 'none' }], total: 1 }))
+      .mockResolvedValueOnce(response({ items: [teamDataset], total: 1 }));
+    const api = client(mock);
+    expect(await api.listTeams()).toHaveLength(1);
+    expect(await api.searchTeams('  a+b  ')).toHaveLength(1);
+    expect(await api.listTeamDatasets(team.id)).toHaveLength(1);
+    expect(mock.mock.calls.map(c => c[0])).toEqual(['/api/teams', '/api/teams/search?q=a%2Bb', '/api/teams/TM-A/datasets']);
+    expect(mock.mock.calls.every(c => c[1].credentials === 'same-origin' && c[1].redirect === 'error' && c[1].cache === 'no-store')).toBe(true);
+  });
+  test.each([
+    { ...team, role: 'creator' }, { ...team, memberCount: -1 }, { ...team, createdAt: 'yesterday' },
+  ])('rejects malformed team fields', async invalid => {
+    await expect(client(vi.fn().mockResolvedValue(response({ items: [invalid], total: 1 }))).listTeams()).rejects.toMatchObject({ kind: 'protocol' });
+  });
+  test('rejects wrong-team data and a team public access response', async () => {
+    for (const invalid of [{ ...teamDataset, teamId: 'TM-OTHER' }, { ...teamDataset, access: 'public' }, { ...teamDataset, canDelete: 'true' }]) {
+      await expect(client(vi.fn().mockResolvedValue(response({ items: [invalid], total: 1 }))).listTeamDatasets(team.id)).rejects.toMatchObject({ kind: 'protocol' });
+    }
+  });
+  test('validates create, join, and search before fetching without disclosing codes', async () => {
+    const mock = vi.fn(); const api = client(mock);
+    await expect(api.createTeam('x'.repeat(101), identity)).rejects.toMatchObject({ kind: 'validation' });
+    await expect(api.searchTeams('a')).rejects.toMatchObject({ kind: 'validation' });
+    await expect(api.joinTeam('TM-A', ' ', identity)).rejects.toMatchObject({ kind: 'validation' });
+    expect(mock).not.toHaveBeenCalled();
+  });
+  test('invite is returned only as a validated create/rotation result, never in the URL', async () => {
+    const code = 'fixture-invite-not-real-01';
+    const mock = vi.fn().mockResolvedValueOnce(response(session())).mockResolvedValueOnce(response({ team, inviteCode: code }))
+      .mockResolvedValueOnce(response(session('fresh-two'))).mockResolvedValueOnce(response(team));
+    const api = client(mock);
+    expect((await api.createTeam('  研究组  ', identity)).inviteCode).toBe(code);
+    await api.joinTeam('tm-a', code, identity);
+    expect(mock.mock.calls[1][1].body).toBe('{"name":"研究组"}');
+    expect(mock.mock.calls[3][1].body).toBe(JSON.stringify({ teamId: 'TM-A', inviteCode: code }));
+    expect(mock.mock.calls.every(c => !String(c[0]).includes(code))).toBe(true);
+    expect(mock.mock.calls[3][1].headers['X-REQUEST-CSRF']).toBe('fresh-two');
+  });
+  test('every team mutation uses the shared fresh-session boundary', async () => {
+    const calls = [
+      (api: ReturnType<typeof createHomeApi>) => api.createTeam('研究组', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.renameTeam('TM-A', '名称', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.addTeamMember('TM-A', 'person', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.removeTeamMember('TM-A', 'person', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.leaveTeam('TM-A', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.transferTeam('TM-A', 'person', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.rotateTeamInvite('TM-A', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.createTeamDataset('TM-A', '资料', identity),
+      (api: ReturnType<typeof createHomeApi>) => api.deleteTeamDataset('TM-A', 'data/id', identity),
+    ];
+    for (const call of calls) {
+      const mock = vi.fn().mockResolvedValue(response({ ...session(), subject: 'changed-account' }));
+      await expect(call(client(mock))).rejects.toMatchObject({ kind: 'identity-changed' });
+      expect(mock).toHaveBeenCalledTimes(1);
+    }
+  });
+  test('cancelled preflight cannot send a late team write', async () => {
+    const controller = new AbortController();
+    const mock = vi.fn().mockImplementation(async () => {
+      controller.abort(); return response(session());
+    });
+    await expect(client(mock).rotateTeamInvite('TM-A', identity, controller.signal)).rejects.toMatchObject({ kind: 'aborted' });
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+  test('unknown create result is never retried; error response does not echo a secret', async () => {
+    const mock = vi.fn().mockResolvedValueOnce(response(session())).mockRejectedValueOnce(new Error('private invite code'));
+    await expect(client(mock).createTeam('名称', identity)).rejects.toMatchObject({ kind: 'network', message: '无法连接服务，请保留当前操作并检查连接' });
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('controlled deployment and launch configuration', () => {
   const originalConfig = (window as any).config;
   afterEach(() => {

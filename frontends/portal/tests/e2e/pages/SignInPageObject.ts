@@ -85,6 +85,6 @@ export class SignInPageObject {
   }
 
   get images() {
-    return this.root.locator('img');
+    return this.root.locator('img:not([src^="/brand/"])');
   }
 }

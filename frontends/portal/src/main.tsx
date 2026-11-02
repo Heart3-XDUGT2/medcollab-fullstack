@@ -9,12 +9,14 @@ import './ui/ui.css';
 import HomePage from './features/home/HomePage';
 import SsoSignInPage from './features/home/SsoSignInPage';
 import SignInPage from './features/sign-in/SignInPage';
+import TeamsPage from './features/teams/TeamsPage';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
     <Routes>
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/home" element={<HomePage />} />
+      <Route path="/teams" element={<TeamsPage />} />
       <Route path="/account/sign-in" element={<SsoSignInPage />} />
       <Route path="/sign-in" element={<SignInPage />} />
       <Route path="*" element={<Navigate to="/home" replace />} />

@@ -1,11 +1,11 @@
 .mc-sso {
-  --mc-sso-ink: #182524;
-  --mc-sso-muted: #586563;
-  --mc-sso-accent: #146b5d;
+  --mc-sso-ink: var(--mc-ink);
+  --mc-sso-muted: var(--mc-muted);
+  --mc-sso-accent: var(--mc-primary);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
-  background: #f6f8f7;
+  background: #fff;
   color: var(--mc-sso-ink);
   color-scheme: light;
   font-family: Inter, 'Microsoft YaHei', 'PingFang SC', sans-serif;
@@ -18,7 +18,7 @@
   letter-spacing: 0;
 }
 .mc-sso ::selection {
-  background: #cce5de;
+  background: #c5e9f3;
   color: var(--mc-sso-ink);
 }
 .mc-sso__header {
@@ -52,10 +52,9 @@
 }
 .mc-sso__main {
   width: 100%;
-  max-width: 432px;
-  flex: 1;
+  max-width: 360px;
   margin: 0 auto;
-  padding: 48px 24px 112px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -63,7 +62,7 @@
 .mc-sso__main h1 {
   margin: 0 0 12px;
   color: var(--mc-sso-ink);
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   line-height: 1.3;
 }
@@ -89,10 +88,10 @@
   text-decoration: none;
 }
 .mc-sso .mc-sso__primary:hover {
-  background: #0d554a;
+  background: var(--mc-primary-hover);
 }
 .mc-sso .mc-sso__primary:disabled {
-  background: #586e68;
+  background: #536c79;
   color: #fff;
   opacity: 1;
   cursor: not-allowed;
@@ -171,8 +170,7 @@
   }
   .mc-sso__main {
     justify-content: flex-start;
-    padding-top: 48px;
-    padding-bottom: 40px;
+    padding: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

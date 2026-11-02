@@ -7,8 +7,8 @@
     <#if !usernameHidden??>
     <div class="medcollab-sign-in__field">
       <div class="medcollab-sign-in__label-row"><label for="medcollab-identifier">邮箱或账号</label></div>
-      <input id="medcollab-identifier" class="portal-input medcollab-sign-in__input" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="${(login.username!'')}" placeholder="请输入邮箱或账号" data-cy="sign-in-identifier" aria-describedby="medcollab-identifier-error" />
-      <p id="medcollab-identifier-error" class="medcollab-sign-in__field-error" aria-live="polite" data-cy="sign-in-identifier-error"></p>
+      <input id="medcollab-identifier" class="portal-input medcollab-sign-in__input" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" value="${(login.username!'')}" placeholder="请输入邮箱或账号" data-cy="sign-in-identifier" aria-invalid="${messagesPerField.existsError('username')?c}" aria-describedby="medcollab-identifier-error" />
+      <p id="medcollab-identifier-error" class="medcollab-sign-in__field-error" aria-live="polite" data-cy="sign-in-identifier-error"><#if messagesPerField.existsError('username')>${kcSanitize(messagesPerField.get('username'))?no_esc}</#if></p>
     </div>
     </#if>
     <div class="medcollab-sign-in__field">
@@ -21,12 +21,13 @@
         </#if>
       </div>
       <div class="medcollab-sign-in__password">
-        <input id="medcollab-password" class="portal-input medcollab-sign-in__input" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" data-cy="sign-in-password" aria-describedby="medcollab-password-error" />
+        <input id="medcollab-password" class="portal-input medcollab-sign-in__input" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" data-cy="sign-in-password" aria-invalid="${messagesPerField.existsError('password')?c}" aria-describedby="medcollab-password-error" />
         <button type="button" class="portal-button portal-button--ghost portal-button--icon medcollab-sign-in__password-toggle" aria-label="显示密码" aria-pressed="false" aria-controls="medcollab-password" title="显示密码" data-cy="sign-in-password-toggle" data-password-toggle><@icons.eye /></button>
       </div>
-      <p id="medcollab-password-error" class="medcollab-sign-in__field-error" aria-live="polite" data-cy="sign-in-password-error"></p>
+      <p id="medcollab-password-error" class="medcollab-sign-in__field-error" aria-live="polite" data-cy="sign-in-password-error"><#if messagesPerField.existsError('password')>${kcSanitize(messagesPerField.get('password'))?no_esc}</#if></p>
     </div>
     <input type="hidden" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if> />
+    <#if realm.rememberMe && !usernameHidden??><label class="mc-kc-remember"><input id="rememberMe" name="rememberMe" type="checkbox" <#if login.rememberMe??>checked</#if> />记住登录状态</label></#if>
     <button id="kc-login" name="login" type="submit" class="portal-button portal-button--default portal-button--default medcollab-sign-in__submit" data-cy="sign-in-submit">登录</button>
     <p class="medcollab-sign-in__service-error" role="alert" aria-atomic="true" data-cy="sign-in-service-error"><#if message?has_content>${kcSanitize(message.summary)?no_esc}</#if></p>
   </form>

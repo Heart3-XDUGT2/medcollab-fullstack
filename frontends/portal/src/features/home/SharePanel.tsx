@@ -335,30 +335,30 @@ export default function SharePanel({
       </form>
       {results && (
         <div className="mc-library-share-results" aria-label="账号搜索结果">
-          {results.length === 0 ? (
-            <p>没有找到匹配账号。</p>
+          {results.filter((user) => !members.some((member) => member.subject === user.subject))
+            .length === 0 ? (
+            <p>{results.length ? '匹配账号已在共享名单中。' : '没有找到匹配账号。'}</p>
           ) : (
-            results.map((user) => {
-              const exists = members.some((member) => member.subject === user.subject);
-              return (
-                <button
-                  key={user.subject}
-                  type="button"
-                  data-cy="home-user-result"
-                  aria-pressed={selected?.subject === user.subject}
-                  disabled={!active || busy || exists}
-                  onClick={() => {
-                    setSelected(user);
-                  }}
-                >
-                  <Icons.Patient aria-hidden="true" />
-                  <span>{user.username}</span>
-                  <span>
-                    {exists ? '已共享' : selected?.subject === user.subject ? '已选中' : '选择'}
-                  </span>
-                </button>
-              );
-            })
+            results
+              .filter((user) => !members.some((member) => member.subject === user.subject))
+              .map((user) => {
+                return (
+                  <button
+                    key={user.subject}
+                    type="button"
+                    data-cy="home-user-result"
+                    aria-pressed={selected?.subject === user.subject}
+                    disabled={!active || busy}
+                    onClick={() => {
+                      setSelected(user);
+                    }}
+                  >
+                    <Icons.Patient aria-hidden="true" />
+                    <span>{user.username}</span>
+                    <span>{selected?.subject === user.subject ? '已选中' : '选择'}</span>
+                  </button>
+                );
+              })
           )}
         </div>
       )}

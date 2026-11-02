@@ -187,6 +187,65 @@ describe('confirmed serial upload outcomes', () => {
 });
 
 describe('cancellation and unknown results', () => {
+  test('appends to a snapshotted existing dataset without creating another one', async () => {
+    const client = api();
+    const target = { ...dataset, id: 'existing-target', instanceCount: 48 };
+    const completion = runUpload(client, {
+      name: '',
+      targetDataset: target,
+      files: [file('first.dcm'), file('second.dcm')],
+      identity,
+      onProgress: () => {
+        target.id = 'changed-after-start';
+        target.name = 'changed';
+      },
+    });
+    const state = await completion;
+    expect(client.createDataset).not.toHaveBeenCalled();
+    expect(client.importFile).toHaveBeenCalledTimes(2);
+    expect(client.importFile.mock.calls.map((call) => call[0])).toEqual([
+      'existing-target',
+      'existing-target',
+    ]);
+    expect(state.dataset).toMatchObject({
+      id: 'existing-target',
+      name: dataset.name,
+      instanceCount: 48,
+    });
+    expect(Object.isFrozen(state.dataset)).toBe(true);
+  });
+
+  test('an aborted append does not create or import and does not claim a new dataset', async () => {
+    const client = api();
+    const controller = new AbortController();
+    controller.abort();
+    const state = await runUpload(client, {
+      name: '',
+      targetDataset: dataset,
+      files: [file()],
+      identity,
+      signal: controller.signal,
+    });
+    expect(state.stopped).toBe(true);
+    expect(state.errors[0].message).toContain('尚未上传');
+    expect(client.createDataset).not.toHaveBeenCalled();
+    expect(client.importFile).not.toHaveBeenCalled();
+  });
+
+  test('an unknown append result stops without creating or retrying', async () => {
+    const client = api();
+    client.importFile.mockRejectedValueOnce({ status: 503, kind: 'http' });
+    const state = await runUpload(client, {
+      name: '',
+      targetDataset: dataset,
+      files: [file(), file('next.dcm')],
+      identity,
+    });
+    expect(state).toMatchObject({ stopped: true, completed: 0, failed: 0 });
+    expect(client.createDataset).not.toHaveBeenCalled();
+    expect(client.importFile).toHaveBeenCalledTimes(1);
+  });
+
   test('does not describe an unconfigured adapter as an uncertain server mutation', async () => {
     const client = api();
     client.createDataset.mockRejectedValueOnce({ status: 0, kind: 'unconfigured' });

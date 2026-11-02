@@ -1,11 +1,13 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Button, Icons, Input, Label } from '../../ui';
-import type { HomeApi, Identity } from './api';
+import type { Dataset, HomeApi, Identity } from './api';
 import { MAX_UPLOAD_BYTES, runUpload } from './upload';
 import type { UploadProgress } from './upload';
 import './upload-panel.css';
 
 type Props = {
+  targetDataset?: Dataset;
+  destinationLabel?: string;
   mode: 'real' | 'demo';
   api: HomeApi;
   identity: Identity | null;
@@ -29,7 +31,8 @@ const identityKey = (identity: Identity | null) =>
   identity ? JSON.stringify([identity.issuer, identity.subject]) : null;
 
 export default function UploadPanel(props: Props) {
-  const { mode, api, identity, scopeSignal, enabled, loginUrl } = props;
+  const { mode, api, identity, scopeSignal, enabled, loginUrl, targetDataset, destinationLabel } =
+    props;
   const [name, setName] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
@@ -47,13 +50,22 @@ export default function UploadPanel(props: Props) {
   const pending = useRef(false);
   const operation = useRef(0);
   const active = useRef<AbortController | null>(null);
-  const pickerContext = useRef<{ mode: Props['mode']; identity: string | null } | null>(null);
+  const pickerContext = useRef<{
+    mode: Props['mode'];
+    identity: string | null;
+    target: string | undefined;
+  } | null>(null);
   const latest = useRef(props);
   latest.current = props;
-  const previousContext = useRef({ mode, identity: identityKey(identity) });
+  const previousContext = useRef({
+    mode,
+    identity: identityKey(identity),
+    target: targetDataset?.id,
+  });
   const id = useId();
   const contextChanged =
     previousContext.current.mode !== mode ||
+    previousContext.current.target !== targetDataset?.id ||
     Boolean(
       identity &&
         previousContext.current.identity &&
@@ -121,6 +133,7 @@ export default function UploadPanel(props: Props) {
     const previous = previousContext.current;
     const changed =
       previous.mode !== mode ||
+      previous.target !== targetDataset?.id ||
       (currentIdentity && previous.identity && previous.identity !== currentIdentity);
     if (changed || (!currentIdentity && pending.current)) {
       operation.current++;
@@ -142,16 +155,19 @@ export default function UploadPanel(props: Props) {
     }
     previousContext.current = {
       mode,
+      target: targetDataset?.id,
       identity: currentIdentity || (previous.mode === mode ? previous.identity : null),
     };
-  }, [mode, identity?.issuer, identity?.subject]);
+  }, [mode, identity?.issuer, identity?.subject, targetDataset?.id]);
 
   function select(event: React.ChangeEvent<HTMLInputElement>) {
     const openedContext = pickerContext.current;
     pickerContext.current = null;
     const stalePicker =
       openedContext &&
-      (openedContext.mode !== mode || openedContext.identity !== identityKey(identity));
+      (openedContext.mode !== mode ||
+        openedContext.identity !== identityKey(identity) ||
+        openedContext.target !== targetDataset?.id);
     if (!selectionDisabled && !scopeSignal.aborted && !pending.current && !stalePicker) {
       setFiles(Array.from(event.currentTarget.files || []));
       setError('');
@@ -160,7 +176,7 @@ export default function UploadPanel(props: Props) {
   }
 
   function choose(input: React.RefObject<HTMLInputElement>) {
-    pickerContext.current = { mode, identity: identityKey(identity) };
+    pickerContext.current = { mode, identity: identityKey(identity), target: targetDataset?.id };
     input.current?.click();
   }
 
@@ -184,6 +200,7 @@ export default function UploadPanel(props: Props) {
       mounted.current &&
       operation.current === currentOperation &&
       latest.current.mode === mode &&
+      latest.current.targetDataset?.id === targetDataset?.id &&
       latest.current.scopeSignal === scopeSignal &&
       identityKey(latest.current.identity) === identityKey(currentIdentity);
     let enteredQueue = false;
@@ -197,6 +214,7 @@ export default function UploadPanel(props: Props) {
     try {
       const next = await runUpload(api, {
         name,
+        targetDataset,
         files,
         identity: currentIdentity,
         signal: controller.signal,
@@ -219,7 +237,7 @@ export default function UploadPanel(props: Props) {
           setError('本次操作结果尚未确认，请刷新影像集核对，勿直接重复上传。');
         } else {
           setError(failure instanceof Error ? failure.message : '无法开始上传，请核对所选文件。');
-          const invalidName = !name.trim() || name.trim().length > 200;
+          const invalidName = !targetDataset && (!name.trim() || name.trim().length > 200);
           setNameInvalid(invalidName);
           if (invalidName) nameRef.current?.focus();
           else if (!files.length) chooseRef.current?.focus();
@@ -242,7 +260,7 @@ export default function UploadPanel(props: Props) {
   const status = busy
     ? cancelling
       ? '正在停止后续上传…'
-      : progress?.dataset
+      : progress?.dataset || targetDataset
         ? '正在逐个上传文件'
         : '正在创建影像集'
     : progress?.stopped || uncertain
@@ -270,25 +288,39 @@ export default function UploadPanel(props: Props) {
           )}
         </p>
       )}
-      <Label className="mc-upload-label" htmlFor={`${id}-name`}>
-        新影像集名称
-      </Label>
-      <Input
-        id={`${id}-name`}
-        ref={nameRef}
-        className="mc-upload-name"
-        data-cy="home-upload-name"
-        value={name}
-        disabled={selectionDisabled}
-        placeholder="输入影像集名称"
-        aria-invalid={nameInvalid}
-        aria-describedby={nameInvalid ? `${id}-error` : undefined}
-        onChange={(event) => {
-          setName(event.target.value);
-          setNameInvalid(false);
-          setError('');
-        }}
-      />
+      {destinationLabel && (
+        <p className="mc-upload-destination">
+          上传至 <strong>{destinationLabel}</strong>
+        </p>
+      )}
+      {targetDataset ? (
+        <div className="mc-upload-target">
+          <span className="mc-upload-label">目标数据集</span>
+          <strong>{targetDataset.name}</strong>
+        </div>
+      ) : (
+        <>
+          <Label className="mc-upload-label" htmlFor={`${id}-name`}>
+            新影像集名称
+          </Label>
+          <Input
+            id={`${id}-name`}
+            ref={nameRef}
+            className="mc-upload-name"
+            data-cy="home-upload-name"
+            value={name}
+            disabled={selectionDisabled}
+            placeholder="输入影像集名称"
+            aria-invalid={nameInvalid}
+            aria-describedby={nameInvalid ? `${id}-error` : undefined}
+            onChange={(event) => {
+              setName(event.target.value);
+              setNameInvalid(false);
+              setError('');
+            }}
+          />
+        </>
+      )}
       <div className="mc-upload-pickers">
         <Button
           ref={chooseRef}

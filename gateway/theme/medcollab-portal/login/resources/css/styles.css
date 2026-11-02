@@ -1,3 +1,20 @@
+:root {
+  --mc-ink: #171c1f;
+  --mc-muted: #5f6a71;
+  --mc-ground: #f7f9fa;
+  --mc-surface: #fff;
+  --mc-subtle: #f3f6f7;
+  --mc-primary: #007fa3;
+  --mc-primary-hover: #006c8c;
+  --mc-primary-pale: #e9f5f8;
+  --mc-border: #e5eaed;
+  --mc-control: #c5cfd5;
+  --mc-selected: #edf5f7;
+  --mc-danger: #ae3638;
+  --mc-warning: #8a5818;
+  --mc-radius: 6px;
+  --mc-motion: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
 *,
 *::before,
 *::after {
@@ -7,8 +24,9 @@ html {
   line-height: 1.5;
   font-family: Inter, 'Microsoft YaHei', 'PingFang SC', sans-serif;
   font-size: 16px;
-  color: #182524;
-  background: #f6f8f7;
+  color: var(--mc-ink);
+  background: var(--mc-ground);
+  letter-spacing: 0;
   font-synthesis: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -20,6 +38,26 @@ button,
 input,
 select {
   font: inherit;
+}
+textarea {
+  font: inherit;
+  color: inherit;
+}
+input,
+textarea {
+  caret-color: var(--mc-primary);
+}
+::selection {
+  background: #c5e9f3;
+  color: var(--mc-ink);
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--mc-primary);
+  outline-offset: 3px;
 }
 button {
   cursor: pointer;

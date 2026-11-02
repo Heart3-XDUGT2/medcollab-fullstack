@@ -14,8 +14,9 @@
   gap: 8px;
   padding: 10px 12px;
   margin: 0 0 20px;
-  background: #f4f6f5;
-  border: 1px solid var(--mc-edge);
+  background: #fff7e8;
+  border: 1px solid #ecdbb7;
+  color: var(--mc-warning);
   border-radius: 6px;
 }
 .mc-library-share-warning svg {
@@ -79,19 +80,19 @@
 }
 .mc-library-share-results > button:hover,
 .mc-library-share-results > button[aria-pressed='true'] {
-  border-color: #aac9bd;
-  background: #eaf2ee;
+  border-color: #a8cdd9;
+  background: var(--mc-primary-pale);
 }
 .mc-library-share-results > button:disabled {
-  color: #586563;
-  background: #f1f4f2;
+  color: var(--mc-muted);
+  background: var(--mc-subtle);
 }
 .mc-library-share-results > button svg,
 .mc-library-share-members > li > svg {
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
-  color: #586563;
+  color: var(--mc-muted);
 }
 .mc-library-share-results > button > span:first-of-type {
   flex: 1;
@@ -100,7 +101,7 @@
 }
 .mc-library-share-results > button > span:last-child {
   flex: 0 0 auto;
-  color: #52675d;
+  color: var(--mc-muted);
   font-size: 12px;
 }
 .mc-library-share-confirm {
@@ -148,14 +149,14 @@
   height: 20px;
 }
 .mc-library-dialog .mc-library-share-icon:hover {
-  background: #edf3f0;
+  background: var(--mc-subtle);
 }
 .mc-library-share-loading {
   min-height: 64px;
   display: flex;
   align-items: center;
   padding: 12px;
-  background: #f1f5f3;
+  background: var(--mc-subtle);
   border-radius: 6px;
   color: var(--mc-muted);
   font-size: 13px;
@@ -172,12 +173,46 @@
   align-items: center;
   gap: 8px;
   min-height: 52px;
-  border-bottom: 1px solid #e9eeeb;
+  border-bottom: 1px solid var(--mc-border);
 }
 .mc-library-share-members > li > span {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.mc-library-share-members > li > span:last-child {
+  flex: none;
+  font-size: 12px;
+  color: var(--mc-muted);
+  white-space: nowrap;
+}
+.mc-library-share .mc-library-share-dataset {
+  padding: 14px;
+  background: var(--mc-ground);
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.mc-library-share-search > label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.mc-library-share-warning > span {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--mc-warning);
+}
+.mc-library-share-results > button {
+  min-height: 54px;
+  border-radius: 4px;
+}
+.mc-library-share-confirm {
+  border-top: 1px solid var(--mc-border);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+.mc-library-share-confirm > p {
+  font-size: 12px;
 }
 .mc-library-dialog .mc-library-share-remove {
   min-height: 44px;
