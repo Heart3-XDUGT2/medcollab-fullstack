@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { attachCollaborationProxy } from './websocket-proxy.mjs';
 const folder = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORTAL_PORT || 8080);
 const javaPort = Number(process.env.PORTAL_JAVA_PORT || 8082);
@@ -93,5 +94,6 @@ const server = http.createServer(async (request, response) => {
   } catch { if (!response.headersSent) json(500, { error: 'Portal 入口处理失败' }); else response.destroy(); }
 });
 server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? `Port ${port} is occupied. Run the Portal deployment launcher to move Java to ${javaPort}.` : error.message); process.exitCode = 1; });
+attachCollaborationProxy(server, javaPort, port);
 server.listen(port, '127.0.0.1', () => console.log(`Portal: http://127.0.0.1:${port}/home; Java: 127.0.0.1:${javaPort}`));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));

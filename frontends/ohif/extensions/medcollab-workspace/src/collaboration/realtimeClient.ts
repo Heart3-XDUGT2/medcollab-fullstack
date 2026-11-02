@@ -20,6 +20,7 @@ export type RealtimeMember = {
   activeSegment: number | null;
   activeLabel: string | null;
   lastSeen: string;
+  cursor?: { world: number[] } | null;
 };
 
 export type RealtimeActivity = {
@@ -46,10 +47,12 @@ type Options = {
   datasetId: string;
   seriesId: string;
   onState: (snapshot: RealtimeSnapshot) => void;
+  clientId?: string;
+  onReady?: () => void;
+  onEvent?: (type: string, payload: Record<string, any>) => void;
 };
 
 const MAX_ACTIVITIES = 20;
-const MAX_RECONNECT_ATTEMPTS = 5;
 
 export function isRealtimeEnabled(): boolean {
   try {
@@ -71,6 +74,11 @@ export function setRealtimeEnabled(enabled: boolean): void {
 }
 
 export class RealtimeClient {
+  private seq = 0;
+  private clientId: string;
+  private onlineHandler = () => {
+    if (!this.stopped && !this.socket) this.connect();
+  };
   private socket?: WebSocket;
   private stopped = true;
   private attempts = 0;
@@ -78,7 +86,7 @@ export class RealtimeClient {
   private presenceTimer?: ReturnType<typeof setInterval>;
   private activeSegment: number | null = null;
   private activeLabel: string | null = null;
-  private cursor: { imageId: string; x: number; y: number } | null = null;
+  private cursor: { world: number[] } | null = null;
   private snapshot: RealtimeSnapshot = {
     status: 'off',
     members: [],
@@ -86,11 +94,14 @@ export class RealtimeClient {
     error: '',
   };
 
-  constructor(private options: Options) {}
+  constructor(private options: Options) {
+    this.clientId = options.clientId || crypto.randomUUID();
+  }
 
   connect(): void {
     this.destroy(false);
     this.stopped = false;
+    window.addEventListener('online', this.onlineHandler);
     if (!isRealtimeEnabled()) {
       this.emit({ status: 'off', members: [], activities: [], error: '' });
       return;
@@ -112,18 +123,28 @@ export class RealtimeClient {
       return;
     }
 
+    const socket = this.socket;
     this.socket.onopen = () => {
+      if (this.socket !== socket || this.stopped) return;
       this.attempts = 0;
       this.emit({ ...this.snapshot, status: 'connected', error: '' });
-      this.send('join', { clientId: crypto.randomUUID(), activeSegment: this.activeSegment });
+      this.send('join', {
+        clientId: this.clientId,
+        protocolVersion: this.options.onReady ? 2 : 1,
+        activeSegment: this.activeSegment,
+      });
       this.sendPresence();
       this.presenceTimer = setInterval(() => this.sendPresence(), 10_000);
     };
-    this.socket.onmessage = event => this.handleMessage(event.data);
+    this.socket.onmessage = event => {
+      if (this.socket === socket && !this.stopped) this.handleMessage(event.data);
+    };
     this.socket.onerror = () => {
       // close follows; avoid duplicating the error state here.
     };
-    this.socket.onclose = event => this.handleClose(event);
+    this.socket.onclose = event => {
+      if (this.socket === socket) this.handleClose(event);
+    };
   }
 
   setActive(segmentNumber: number | null, label: string | null): void {
@@ -132,18 +153,28 @@ export class RealtimeClient {
     this.sendPresence();
   }
 
-  setCursor(cursor: { imageId: string; x: number; y: number } | null): void {
+  setCursor(cursor: { world: number[] } | null): void {
     this.cursor = cursor;
     this.sendPresence();
   }
 
+  preview(points: number[][]): void {
+    this.send('stroke-preview', { points });
+  }
+
   destroy(emit = true): void {
     this.stopped = true;
+    window.removeEventListener('online', this.onlineHandler);
     clearTimeout(this.reconnectTimer);
     clearInterval(this.presenceTimer);
     this.reconnectTimer = undefined;
     this.presenceTimer = undefined;
     try {
+      if (this.socket) {
+        this.socket.onclose = null;
+        this.socket.onmessage = null;
+        this.socket.onopen = null;
+      }
       this.socket?.close(1000, 'closed');
     } catch {
       // Ignore a socket already closed by the browser.
@@ -168,7 +199,7 @@ export class RealtimeClient {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     try {
       this.socket.send(
-        JSON.stringify({ v: 1, type, seq: Date.now(), ts: new Date().toISOString(), payload })
+        JSON.stringify({ v: 1, type, seq: ++this.seq, ts: new Date().toISOString(), payload })
       );
     } catch {
       // A failed send is recovered by the next presence/heartbeat or reconnect.
@@ -195,6 +226,27 @@ export class RealtimeClient {
     if (message.type === 'room-state') {
       const members = Array.isArray(payload.members) ? payload.members.map(normalizeMember) : [];
       this.emit({ status: 'connected', members, activities: this.snapshot.activities, error: '' });
+      if (
+        payload.protocolVersion === 2 &&
+        Array.isArray(payload.capabilities) &&
+        payload.capabilities.includes('mask-ops')
+      )
+        this.options.onReady?.();
+      return;
+    }
+    if (message.type === 'members-state') {
+      this.emit({
+        ...this.snapshot,
+        members: Array.isArray(payload.members) ? payload.members.map(normalizeMember) : [],
+      });
+      return;
+    }
+    if (
+      message.type === 'mask-committed' ||
+      message.type === 'lock-state' ||
+      message.type === 'stroke-preview'
+    ) {
+      this.options.onEvent?.(message.type, payload);
       return;
     }
     if (message.type === 'presence') {
@@ -256,16 +308,6 @@ export class RealtimeClient {
       return;
     }
 
-    if (this.attempts >= MAX_RECONNECT_ATTEMPTS) {
-      this.emit({
-        status: 'error',
-        members: [],
-        activities: this.snapshot.activities,
-        error: '实时协作未连接；已停止重试',
-      });
-      return;
-    }
-
     this.emit({
       status: 'disconnected',
       members: [],
@@ -274,6 +316,7 @@ export class RealtimeClient {
     });
     const delay = Math.min(30_000, 1000 * 2 ** this.attempts);
     this.attempts++;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     this.reconnectTimer = setTimeout(() => {
       if (!this.stopped) this.connect();
     }, delay);
@@ -291,11 +334,15 @@ function normalizeMember(raw: Record<string, any>): RealtimeMember {
     username: String(raw.username || ''),
     role: ['leader', 'uploader', 'member'].includes(raw.role) ? raw.role : 'member',
     segmentNumber: Number.isSafeInteger(raw.segmentNumber) ? raw.segmentNumber : null,
-    color: Array.isArray(raw.color) && raw.color.length >= 3 ? raw.color : null,
+    color:
+      Array.isArray(raw.color) && raw.color.length >= 3
+        ? [Number(raw.color[0]), Number(raw.color[1]), Number(raw.color[2])]
+        : null,
     online: raw.online !== false,
     activeSegment: Number.isSafeInteger(raw.activeSegment) ? raw.activeSegment : null,
     activeLabel: typeof raw.activeLabel === 'string' ? raw.activeLabel : null,
     lastSeen: typeof raw.lastSeen === 'string' ? raw.lastSeen : '',
+    cursor: Array.isArray(raw.cursor?.world) && raw.cursor.world.length === 3 ? raw.cursor : null,
   };
 }
 

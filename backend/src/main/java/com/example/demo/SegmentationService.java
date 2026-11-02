@@ -73,6 +73,7 @@ public class SegmentationService {
         // The old table is read/delete only, until existing users migrate their drafts to IndexedDB.
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS request_id VARCHAR(80)");
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS request_hash VARCHAR(64)");
+        db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS through_seq BIGINT");
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS segmentation_publication_requests "
                 + "ON segmentation_publications(dataset_id,series_id,request_id)");
     }
@@ -100,6 +101,7 @@ public class SegmentationService {
     public Workspace publish(String datasetId, String seriesId, PublishRequest request, DemoSession.Identity user) {
         return mutate(() -> {
             datasets.requireDatasetAccess(datasetId, user, true);
+            requireLegacyPublication(datasetId, seriesId);
             List<DicomSegCodec.SourceImage> source = seriesSources(datasetId, seriesId, user);
             if (request == null || request.expectedPublishedVersion() < 0 || request.publicationId() == null
                     || !request.publicationId().matches("[a-zA-Z0-9-]{16,80}"))
@@ -149,6 +151,7 @@ public class SegmentationService {
     public Status publishLabelmap(String datasetId,String seriesId,LabelmapRequest request,DemoSession.Identity user) {
         return mutate(()->{
             datasets.requireDatasetAccess(datasetId,user,true);
+            requireLegacyPublication(datasetId,seriesId);
             var source=seriesSources(datasetId,seriesId,user);
             if(request==null || request.expectedPublishedVersion()<0 || request.publicationId()==null
                     || !request.publicationId().matches("[a-zA-Z0-9-]{16,80}")) throw badRequest("发布请求编号或版本无效");
@@ -187,7 +190,7 @@ public class SegmentationService {
         return codec.encodeLabelmap(source,checkedLabel(request.label()),checkedLabelmap(request.data(),source));
     }
 
-    private DicomSegCodec.Labelmap checkedLabelmap(DicomSegCodec.Labelmap data,List<DicomSegCodec.SourceImage> source) {
+    DicomSegCodec.Labelmap checkedLabelmap(DicomSegCodec.Labelmap data,List<DicomSegCodec.SourceImage> source) {
         if(data==null||data.segments()==null||data.masks()==null||data.segments().isEmpty()||data.segments().size()>64||data.masks().size()>MAX_SLICES)
             throw badRequest("Labelmap 必须包含 1 至 64 个标签");
         Set<Integer> numbers=new HashSet<>();
@@ -270,7 +273,7 @@ public class SegmentationService {
         return publication == null ? List.of() : checkedMasks(codec.decode(orthanc.file(publication.orthancId()), source), source);
     }
 
-    private List<DicomSegCodec.SourceImage> seriesSources(String datasetId, String seriesId, DemoSession.Identity user) {
+    List<DicomSegCodec.SourceImage> seriesSources(String datasetId, String seriesId, DemoSession.Identity user) {
         List<DicomSegCodec.SourceImage> result = sources(datasetId, user).items().stream()
                 .filter(s -> Objects.equals(seriesId, s.seriesId())).toList();
         if (result.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND, "此影像集中没有对应的可标注 CT 序列");
@@ -364,6 +367,36 @@ public class SegmentationService {
     }
 
     private static long version(Publication publication) { return publication == null ? 0 : publication.version(); }
+
+    private void requireLegacyPublication(String datasetId, String seriesId) {
+        if (db.queryForObject("SELECT COUNT(*) FROM mask_rooms WHERE dataset_id=? AND series_id=?",
+                Integer.class, datasetId, seriesId) > 0)
+            throw conflict("此序列已启用可靠协作，请使用新版工作区同步并生成归档版本，不能整量覆盖");
+    }
+
+    /** Slow encoding/upload is deliberately outside the operation/lease database transaction. */
+    String uploadCollaborativeSnapshot(List<DicomSegCodec.SourceImage> source, DicomSegCodec.Labelmap data) {
+        data = checkedLabelmap(data, source);
+        var uploaded = orthanc.importDicom(codec.encodeLabelmap(source, "医学标注", data));
+        var stored = checkedLabelmap(codec.decodeLabelmap(orthanc.file(uploaded.id()), source), source);
+        if (!data.masks().equals(stored.masks()) || !data.segments().stream().map(s -> List.of(s.number(),s.label())).toList()
+                .equals(stored.segments().stream().map(s -> List.of(s.number(),s.label())).toList()))
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "归档 SEG 读回校验失败，操作流水仍安全保留");
+        return uploaded.id();
+    }
+
+    /** Caller holds the dataset lock; only the verified snapshot's fixed watermark is registered. */
+    long recordCollaborativeSnapshot(String datasetId, String seriesId, long expectedVersion, long throughSeq,
+            String orthancId, DemoSession.Identity author) {
+        var previous = latest(datasetId, seriesId);
+        if (version(previous) != expectedVersion) throw conflict("归档基线已变化，请重试");
+        long next = expectedVersion + 1;
+        db.update("INSERT INTO segmentation_publications "
+                + "(dataset_id,series_id,version,author_issuer,author_subject,author_username,created_at,label,orthanc_id,request_id,through_seq) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?)", datasetId,seriesId,next,author.issuer(),author.subject(),author.username(),
+                Instant.now().toString(),"医学标注",orthancId,"collab-snapshot-"+throughSeq,throughSeq);
+        return next;
+    }
     private static String checkedLabel(String label) {
         if (label == null || label.isBlank() || label.strip().length() > 64
                 || label.chars().anyMatch(Character::isISOControl)) throw badRequest("掩码名称不能为空，且不能超过 64 个字符");

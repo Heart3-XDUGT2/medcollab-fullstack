@@ -141,11 +141,10 @@ export class OHIFWorkspaceDriver implements WorkspaceDriver {
     for (const id of toolGroupService.getToolGroupIds()) {
       const group = toolGroupService.getToolGroup(id);
       if (readOnly) {
-        if (this.disabledTools.has(group)) continue;
-        const names: string[] = [];
+        const names: string[] = this.disabledTools.get(group) || [];
         for (const [name, options] of Object.entries(group.toolOptions) as [string, any][]) {
           if (!safe.has(name) && ['Active', 'Passive'].includes(options.mode)) {
-            names.push(name);
+            if (!names.includes(name)) names.push(name);
             group.setToolDisabled(name);
           }
         }

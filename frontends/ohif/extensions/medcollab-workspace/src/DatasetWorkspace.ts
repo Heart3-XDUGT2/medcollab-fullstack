@@ -1,5 +1,13 @@
 import { OHIFWorkspaceDriver } from './OHIFWorkspaceDriver';
 import {
+  EDIT_LEASE_REQUIRED_MESSAGE,
+  ReliableCollaboration,
+  type Journal,
+} from './collaboration/reliableCollaboration';
+import { applyMaskOperation, type MaskOperation } from './collaboration/maskOperations';
+import { SliceEditGate } from './collaboration/SliceEditGate';
+import { CollaborationOverlay } from './collaboration/CollaborationOverlay';
+import {
   isRealtimeEnabled,
   RealtimeClient,
   type RealtimeActivity,
@@ -24,6 +32,7 @@ type Draft = {
   publicationId: string;
   publishAttempted?: boolean;
   updatedAt?: string;
+  collaboration?: Journal;
 };
 
 /** Real dataset adapter. Local drafts and optimistic publication versions, no simulated leases. */
@@ -47,6 +56,15 @@ export class DatasetWorkspace {
     onlineMembers: [] as RealtimeMember[],
     activities: [] as RealtimeActivity[],
     realtimeError: '',
+    collaborationReady: false,
+    canEdit: false,
+    editingBy: '',
+    pendingOps: 0,
+    operationSeq: 0,
+    archivedThrough: 0,
+    collabConflict: false,
+    sliceEditing: false,
+    sliceLeaseCount: 0,
   };
   private listeners = new Set<() => void>();
   private subscriptions: (() => void)[] = [];
@@ -72,9 +90,27 @@ export class DatasetWorkspace {
   private lastSignature = '';
   private segmentColors = new Map<number, number[]>();
   private realtime?: RealtimeClient;
+  private reliable?: ReliableCollaboration;
+  private overlay?: CollaborationOverlay;
+  private sliceGate?: SliceEditGate;
+  private clientId = '';
+  private beforeUnload = (event: BeforeUnloadEvent) => {
+    if (this.state.dirty || this.state.pendingOps) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  };
   private realtimePreferenceHandler = (event: Event) => {
     const enabled = Boolean((event as CustomEvent).detail);
-    if (enabled) this.startRealtime(this.generation);
+    if (enabled && this.state.dirty && !this.reliable) {
+      const generation = this.generation;
+      this.setReadOnly(true);
+      clearTimeout(this.timer);
+      this.timer = undefined;
+      this.saveDraft()
+        .then(() => this.startRealtime(generation))
+        .catch(error => this.fail(error));
+    } else if (enabled) this.startRealtime(this.generation);
     else this.stopRealtime();
   };
 
@@ -138,7 +174,9 @@ export class DatasetWorkspace {
     return session;
   }
   setReadOnly(value: boolean) {
-    this.guard.setReadOnly(value);
+    this.guard.setReadOnly(
+      value || (isRealtimeEnabled() && (!this.state.collaborationReady || !this.state.canEdit))
+    );
   }
 
   /**
@@ -229,8 +267,19 @@ export class DatasetWorkspace {
     const client = new RealtimeClient({
       datasetId: this.state.datasetId,
       seriesId: this.state.seriesId,
+      clientId: this.clientId,
+      onReady: () => this.startReliable(generation).catch(error => this.fail(error)),
+      onEvent: (type, payload) => {
+        if (this.stopped || generation !== this.generation) return;
+        if (type === 'mask-committed') this.reliable?.receive(payload as any);
+        if (type === 'mask-committed') this.overlay?.committed(payload.subject);
+        if (type === 'stroke-preview') this.overlay?.preview(payload);
+        if (type === 'lock-state') this.reliable?.catchup().catch(error => this.fail(error));
+      },
       onState: snapshot => {
         if (this.stopped || generation !== this.generation) return;
+        this.reliable?.transport(snapshot.status === 'connected');
+        this.overlay?.update(snapshot.members);
         this.update({
           realtimeStatus: snapshot.status,
           onlineMembers: snapshot.members.filter(member => member.online),
@@ -240,11 +289,25 @@ export class DatasetWorkspace {
       },
     });
     this.realtime = client;
+    this.overlay?.destroy();
+    this.overlay = new CollaborationOverlay(
+      this.runtime,
+      client,
+      this.identity.subject,
+      () => this.state.canEdit
+    );
+    this.setReadOnly(true);
     client.connect();
     this.syncPresence();
   }
 
   private stopRealtime() {
+    this.sliceGate?.destroy();
+    this.sliceGate = undefined;
+    this.overlay?.destroy();
+    this.overlay = undefined;
+    this.reliable?.stop();
+    this.reliable = undefined;
     this.realtime?.destroy(false);
     this.realtime = undefined;
     if (!this.stopped) {
@@ -253,8 +316,189 @@ export class DatasetWorkspace {
         onlineMembers: [],
         activities: [],
         realtimeError: '',
+        collaborationReady: false,
+        canEdit: false,
+        sliceEditing: false,
       });
     }
+  }
+
+  private async collaborationRequest(tail: string, body?: unknown) {
+    const generation = this.generation;
+    const endpoint = this.segApi('/collaboration' + tail);
+    const session = await this.session();
+    if (this.stopped || generation !== this.generation) throw new Error('工作台已切换');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      return await this.json(endpoint, {
+        signal: controller.signal,
+        ...(body === undefined
+          ? {}
+          : {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                [session.csrfHeaderName]: session.csrfToken,
+                'X-Medcollab-Issuer': session.issuer,
+                'X-Medcollab-Subject': session.subject,
+              },
+              body: JSON.stringify(body),
+            }),
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async startReliable(generation: number) {
+    if (this.stopped || generation !== this.generation) return;
+    if (!this.reliable) {
+      if (this.saving) await this.saving;
+      if (this.stopped || generation !== this.generation) return;
+      this.reliable = new ReliableCollaboration({
+        clientId: this.clientId,
+        journal: this.currentDraft?.collaboration,
+        privateDraft: !!this.currentDraft && !this.currentDraft.collaboration,
+        request: (tail, body) => this.collaborationRequest(tail, body),
+        persist: async journal => {
+          const key = this.key;
+          const record = await this.store().write(key, this.revision, {
+            data: journal.queued,
+            collaboration: journal,
+            label: '医学标注',
+            baseVersion: this.state.version,
+            sourceFingerprint: this.fingerprint,
+            publicationId: crypto.randomUUID(),
+          });
+          if (this.stopped || generation !== this.generation) return;
+          this.revision = record.revision;
+          this.currentDraft = record.draft;
+          this.update({ local: journal.pending.length > 0, savedAt: record.draft.updatedAt });
+        },
+        replace: async data => {
+          if (this.stopped || generation !== this.generation) return;
+          await this.restore(data);
+          this.lastSignature = this.signature(this.capture());
+        },
+        apply: async (operation, data) => {
+          if (!this.stopped && generation === this.generation)
+            await this.applyRemote(operation, data);
+        },
+        hasUnqueuedChanges: () => this.hasUnqueuedChanges(),
+        getLocalData: () => this.capture(),
+        sourceIds: () => this.sources.map(s => s.id),
+        onState: state => {
+          if (this.stopped || generation !== this.generation) return;
+          this.update({
+            collaborationReady: true,
+            canEdit: state.canEdit,
+            editingBy: state.lease?.username || '',
+            pendingOps: state.pending,
+            operationSeq: state.seq,
+            archivedThrough: state.throughSeq,
+            collabConflict: state.conflict,
+            sliceEditing: state.sliceEditing,
+            sliceLeaseCount: state.sliceLeases.filter(s => s.heldBySelf).length,
+            version: state.version,
+            message:
+              state.error ||
+              (state.pending
+                ? `${state.pending} 条修改已存本机，等待同步`
+                : `已同步到服务器 · 操作 ${state.seq}`),
+          });
+          this.setReadOnly(
+            this.blocked || this.state.busy || !!this.currentDraft?.publishAttempted
+          );
+        },
+      });
+    }
+    await this.reliable.connect();
+    if (this.state.sliceEditing && !this.sliceGate) this.sliceGate = new SliceEditGate({
+      scope: event => this.editSlices(event),
+      holds: ids => this.reliable?.holdsSlices(ids) || false,
+      acquire: async ids => {
+        await this.reliable!.acquireSlices(ids);
+        if (this.state.error?.includes('切片') || this.state.error?.includes('序列编辑权')) this.update({ error: '' });
+      },
+      touch: () => this.reliable?.touch(),
+      error: error => this.fail(error),
+    });
+  }
+
+  private editSlices(event: MouseEvent): string[] | null {
+    if (!this.state.sliceEditing || !this.state.ready || this.state.busy || this.state.collabConflict) return null;
+    const { viewportGridService, cornerstoneViewportService, toolGroupService } = this.runtime.servicesManager.services;
+    for (const id of viewportGridService.getState().viewports.keys()) {
+      let viewport;
+      try { viewport = cornerstoneViewportService.getCornerstoneViewport(id); } catch { continue; }
+      if (!viewport?.element?.contains(event.target)) continue;
+      const group = toolGroupService.getToolGroupForViewport(id);
+      const tool = group?.getActivePrimaryMouseButtonTool?.() || '';
+      if (!/Brush|Eraser|Paint|Scissors|Fill|Threshold/.test(tool)) return null;
+      const { cornerstone } = this.libraries();
+      const imageId = viewport.getCurrentImageId?.();
+      const meta = imageId && cornerstone.metaData.get('instance', imageId);
+      const plane = imageId && cornerstone.metaData.get('imagePlaneModule', imageId);
+      const normal = viewport.getCamera?.()?.viewPlaneNormal;
+      const row = plane?.rowCosines, col = plane?.columnCosines;
+      const axial = row && col && normal && Math.abs(normal[0] * (row[1]*col[2]-row[2]*col[1])
+        + normal[1] * (row[2]*col[0]-row[0]*col[2]) + normal[2] * (row[0]*col[1]-row[1]*col[0])) > 0.999;
+      const spherical = /SPHERE/.test(group.getToolInstance(tool)?.configuration?.activeStrategy || '');
+      if ((axial || viewport.type === 'stack') && !spherical) {
+        const source = this.sources.find(s => s.sopInstanceUid === meta?.SOPInstanceUID);
+        if (source) return [source.id];
+      }
+      // A resliced plane or volumetric brush can mutate multiple source DICOM images.
+      // Reserve them together rather than letting cross-plane strokes bypass a slice lock.
+      return this.sources.map(s => s.id);
+    }
+    return null;
+  }
+
+  private signature(data: Labelmap) {
+    return JSON.stringify({ ...data, masks: [...data.masks].sort((a,b) => a.instanceId.localeCompare(b.instanceId)) });
+  }
+
+  private async applyRemote(operation: MaskOperation, data: Labelmap) {
+    const current = this.capture();
+    const baseline = this.lastSignature ? JSON.parse(this.lastSignature) : current;
+    if (JSON.stringify(current.segments) !== JSON.stringify(data.segments)) {
+      await this.restore(data);
+    } else {
+      this.restoring = true;
+      try {
+        const { cornerstone, cornerstoneTools } = this.libraries();
+        const sourceBySOP = new Map(this.sources.map(s => [s.sopInstanceUid, s.id]));
+        const patches = new Map(operation.masks.map(m => [m.instanceId, m.runs]));
+        for (const id of cornerstoneTools.segmentation.getLabelmapImageIds(this.segmentationId)) {
+          const image = cornerstone.cache.getImage(id);
+          const meta = cornerstone.metaData.get('instance', image?.referencedImageId);
+          const runs = patches.get(sourceBySOP.get(meta?.SOPInstanceUID));
+          if (!runs) continue;
+          const pixels = image.getPixelData();
+          for (let i = 0; i < runs.length; i += 3)
+            pixels.fill(runs[i + 2], runs[i], runs[i] + runs[i + 1]);
+          image.voxelManager?.resetModifiedSlices?.();
+        }
+        cornerstoneTools.segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(
+          this.segmentationId
+        );
+      } finally {
+        this.restoring = false;
+      }
+    }
+    this.lastSignature = this.signature(applyMaskOperation(baseline, operation));
+  }
+
+  async acquireEdit() {
+    await this.reliable?.acquire();
+    if (this.reliable?.canEdit && this.state.error === EDIT_LEASE_REQUIRED_MESSAGE)
+      this.update({ error: '' });
+  }
+  async releaseEdit() {
+    if (this.state.dirty) await this.saveDraft();
+    await this.reliable?.release();
   }
 
   private syncPresence() {
@@ -371,6 +615,8 @@ export class DatasetWorkspace {
         this.state.datasetId,
         this.state.seriesId + ':ohif-labelmap'
       );
+      // A new page gets a new lease identity, including duplicated tabs. Old queues remain recoverable.
+      this.clientId = crypto.randomUUID();
       const record = await this.store().read(this.key);
       this.revision = record.revision;
       this.currentDraft = record.draft || undefined;
@@ -405,7 +651,7 @@ export class DatasetWorkspace {
       this.displaySet = await this.waitForDisplaySet();
       if (this.stopped || generation !== this.generation) return;
       await this.restore(this.currentDraft?.data || published.data);
-      this.lastSignature = JSON.stringify(this.capture());
+      this.lastSignature = this.signature(this.capture());
       const base = this.currentDraft?.baseVersion ?? published.status.publishedVersion;
       this.update({
         ready: true,
@@ -438,8 +684,23 @@ export class DatasetWorkspace {
         () => this.attach()
       );
       this.subscriptions.push(unsubscribe);
+      const { cornerstone, cornerstoneTools } = this.libraries();
+      const activated = () => {
+        if (isRealtimeEnabled() && (!this.state.canEdit || this.state.busy)) this.setReadOnly(true);
+      };
+      cornerstone.eventTarget.addEventListener(
+        cornerstoneTools.Enums.Events.TOOL_ACTIVATED,
+        activated
+      );
+      this.subscriptions.push(() =>
+        cornerstone.eventTarget.removeEventListener(
+          cornerstoneTools.Enums.Events.TOOL_ACTIVATED,
+          activated
+        )
+      );
       this.poller = setInterval(() => this.checkUpdates().catch(error => this.fail(error)), 15000);
       window.addEventListener('medcollab:realtime-preference', this.realtimePreferenceHandler);
+      window.addEventListener('beforeunload', this.beforeUnload);
       this.startRealtime(generation);
     } catch (error) {
       if (generation === this.generation) this.fail(error);
@@ -644,8 +905,28 @@ export class DatasetWorkspace {
   }
   private changed() {
     if (this.restoring || !this.state.ready || this.stopped) return;
+    if (this.reliable) {
+      // Viewport/active-label events also fire for viewers. They are not local mask edits.
+      if (!this.state.canEdit && !this.state.dirty) {
+        try {
+          if (this.signature(this.capture()) === this.lastSignature) return;
+        } catch (error) {
+          this.fail(error);
+          return;
+        }
+      }
+      this.serial++;
+      this.update({ dirty: true, local: true, message: '正在保存并同步修改…' });
+      if (!this.timer)
+        this.timer = setTimeout(() => {
+          this.timer = undefined;
+          this.syncPresence();
+          this.saveDraft().catch(error => this.fail(error));
+        }, 400);
+      return;
+    }
     try {
-      const signature = JSON.stringify(this.capture());
+      const signature = this.signature(this.capture());
       if (signature === this.lastSignature) return;
       this.lastSignature = signature;
     } catch (error) {
@@ -660,7 +941,34 @@ export class DatasetWorkspace {
     if (!this.state.error)
       this.timer = setTimeout(() => this.saveDraft().catch(error => this.fail(error)), 700);
   }
+  private hasUnqueuedChanges() {
+    if (!this.state.dirty) return false;
+    try {
+      if (this.signature(this.capture()) !== this.lastSignature) return true;
+    } catch {
+      // Do not overwrite a canvas whose state cannot be safely inspected.
+      return true;
+    }
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.update({ dirty: false });
+    return false;
+  }
   async saveDraft() {
+    if (this.reliable) {
+      const serial = this.serial,
+        generation = this.generation;
+      const data = this.capture();
+      await this.reliable.enqueue(data);
+      if (!this.stopped && generation === this.generation) {
+        this.lastSignature = this.signature(this.reliable.queuedData || data);
+        this.update({
+          dirty: serial !== this.serial,
+          error: this.state.error === EDIT_LEASE_REQUIRED_MESSAGE ? '' : this.state.error,
+        });
+      }
+      return;
+    }
     const entered = this.generation;
     if (this.saving) {
       await this.saving;
@@ -702,6 +1010,12 @@ export class DatasetWorkspace {
   }
   async publish() {
     if (this.state.busy || !this.state.ready) return;
+    if (this.reliable) {
+      if (this.state.dirty) await this.saveDraft();
+      await this.reliable.archive();
+      this.update({ message: '已请求后台生成 SEG 归档版本，可继续绘制' });
+      return;
+    }
     const generation = this.generation;
     clearTimeout(this.timer);
     this.update({ busy: true, error: '' });
@@ -808,7 +1122,16 @@ export class DatasetWorkspace {
       !window.confirm('加载共享版本会替换本机草稿。请先导出需要保留的 Labelmap SEG，再确认继续。')
     )
       return;
-    if (this.currentDraft?.publishAttempted) throw new Error('发布结果待确认，请先重试发布');
+    if (this.currentDraft?.publishAttempted && !this.reliable)
+      throw new Error('发布结果待确认，请先重试发布');
+    if (this.reliable) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+      this.update({ dirty: false, local: false });
+      await this.reliable.reset();
+      this.update({ collabConflict: false, error: '', newerVersion: 0 });
+      return;
+    }
     clearTimeout(this.timer);
     if (this.saving) await this.saving;
     if (this.stopped || generation !== this.generation) return;
@@ -822,7 +1145,7 @@ export class DatasetWorkspace {
       this.revision = record.revision;
       this.currentDraft = undefined;
       await this.restore(published.data);
-      this.lastSignature = JSON.stringify(this.capture());
+      this.lastSignature = this.signature(this.capture());
       this.update({
         version: published.status.publishedVersion,
         dirty: false,
@@ -841,6 +1164,7 @@ export class DatasetWorkspace {
     }
   }
   private async checkUpdates() {
+    if (this.reliable) return;
     if (!this.state.ready || this.state.busy || this.stopped) return;
     const generation = this.generation;
     await this.session();
@@ -859,6 +1183,7 @@ export class DatasetWorkspace {
     }
   }
   close() {
+    window.removeEventListener('beforeunload', this.beforeUnload);
     window.removeEventListener('medcollab:realtime-preference', this.realtimePreferenceHandler);
     this.stopRealtime();
     this.stopped = true;

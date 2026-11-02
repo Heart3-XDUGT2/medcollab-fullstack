@@ -43,7 +43,9 @@ Windows PowerShell：
 | `SEGMENTATION_WORK_DIR` | `../.runtime/segmentation` |
 | `APP_DATASETS_SEED_ENABLED` | `false`，干净安装不加载旧演示数据 |
 
-相对路径以 `backend/` 为工作目录。默认数据库与分割临时文件位于仓库根目录的 `.runtime/`，不应提交到 Git。表结构和兼容迁移由 `DatasetService`、`SegmentationService` 在启动时创建，测试使用内存 H2。`src/test/resources/public-datasets.json` 是迁移测试专用的合成清单，只有虚构 ID，不含影像或原机器的数据；它不进入应用 JAR。
+相对路径以 `backend/` 为工作目录。默认数据库与分割临时文件位于仓库根目录的 `.runtime/`，不应提交到 Git。表结构和兼容迁移由业务服务在启动时创建，测试使用内存 H2。可靠协作新增 `mask_rooms`、`mask_ops`、`mask_snapshot_jobs`，归档不会删除操作流水。`src/test/resources/public-datasets.json` 是迁移测试专用的合成清单，只有虚构 ID，不含影像或原机器的数据；它不进入应用 JAR。
+
+同源 `/ws/medcollab` 复用登录会话和团队/共享权限；HTTP 协作接口位于现有序列 API 下的 `/collaboration`。默认 30 秒编辑租约、10 秒续租、20 秒或 100 条操作触发后台 SEG 归档。当前房间服务按单 Java 实例部署，配置和接口见 [可靠协作协议](../docs/team-system/realtime-collaboration-v0.2.zh-CN.md)。
 
 ## 导入影像
 
