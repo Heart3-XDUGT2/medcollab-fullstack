@@ -4,7 +4,14 @@ import { UserPreferencesModal, FooterAction } from '@ohif/ui-next';
 import { useTranslation } from 'react-i18next';
 import i18n, { changeLanguageAndReload } from '@ohif/i18n';
 
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@ohif/ui-next';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Switch,
+} from '@ohif/ui-next';
 
 const { availableLanguages, defaultLanguage, currentLanguage: currentLanguageFn } = i18n;
 
@@ -25,6 +32,7 @@ const MODIFIER_OPTIONS = [
 ];
 
 const DEFAULT_TOOL_BINDINGS_STORAGE_KEY = 'user-preferred-tool-bindings';
+const REALTIME_STORAGE_KEY = 'medcollab:realtime:enabled';
 
 function getToolModifier(
   toolGroupService: any,
@@ -116,6 +124,13 @@ function UserPreferencesModalDefault({ hide }: { hide: () => void }) {
     hotkeyDefinitions: initialHotkeyDefinitions,
     languageValue: currentLanguage.value,
     crosshairModifier: initialCrosshairModifier,
+    realtimeEnabled: (() => {
+      try {
+        return window.localStorage.getItem(REALTIME_STORAGE_KEY) === 'true';
+      } catch {
+        return false;
+      }
+    })(),
   });
 
   const onLanguageChangeHandler = (value: string) => {
@@ -141,7 +156,14 @@ function UserPreferencesModalDefault({ hide }: { hide: () => void }) {
       languageValue: defaultLanguage.value,
       hotkeyDefinitions: resolvedHotkeyDefaults,
       crosshairModifier: getModifierFromBindings(defaultCrosshairBindings, 1),
+      realtimeEnabled: false,
     }));
+    try {
+      window.localStorage.removeItem(REALTIME_STORAGE_KEY);
+    } catch {
+      // Ignore unavailable storage when resetting preferences.
+    }
+    window.dispatchEvent(new CustomEvent('medcollab:realtime-preference', { detail: false }));
 
     hotkeysManager.restoreDefaultBindings();
     if (toolGroupService && defaultCrosshairBindings?.length) {
@@ -220,6 +242,35 @@ function UserPreferencesModalDefault({ hide }: { hide: () => void }) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <UserPreferencesModal.SubHeading>
+          {t('RealtimeCollaboration', { defaultValue: '实时协作' })}
+        </UserPreferencesModal.SubHeading>
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-foreground text-sm">
+              {t('EnableRealtimeCollaboration', {
+                defaultValue: '启用 WebSocket 实时协作',
+              })}
+            </div>
+            <p className="text-muted-foreground mt-1 text-xs">
+              {t('RealtimeCollaborationDescription', {
+                defaultValue:
+                  '显示在线成员、正在编辑的标签和协作动态。关闭时只使用发布后的共享版本。',
+              })}
+            </p>
+          </div>
+          <Switch
+            checked={state.realtimeEnabled}
+            onCheckedChange={checked =>
+              setState(current => ({ ...current, realtimeEnabled: checked }))
+            }
+            aria-label={t('EnableRealtimeCollaboration', {
+              defaultValue: '启用 WebSocket 实时协作',
+            })}
+            data-cy="realtime-collaboration-toggle"
+          />
         </div>
 
         <UserPreferencesModal.SubHeading>{t('Hotkeys')}</UserPreferencesModal.SubHeading>
@@ -313,10 +364,19 @@ function UserPreferencesModalDefault({ hide }: { hide: () => void }) {
               }
               hotkeysManager.setHotkeys(state.hotkeyDefinitions);
 
+              try {
+                window.localStorage.setItem(REALTIME_STORAGE_KEY, String(state.realtimeEnabled));
+              } catch {
+                // Settings still work for this session when storage is unavailable.
+              }
+              window.dispatchEvent(
+                new CustomEvent('medcollab:realtime-preference', {
+                  detail: state.realtimeEnabled,
+                })
+              );
+
               if (toolGroupService && state.crosshairModifier != null) {
-                const bindings = [
-                  { mouseButton: 1, modifierKey: Number(state.crosshairModifier) },
-                ];
+                const bindings = [{ mouseButton: 1, modifierKey: Number(state.crosshairModifier) }];
                 toolGroupService.setToolBindings('mpr', 'Crosshairs', bindings);
                 toolGroupService.applyToolBindings('mpr', 'Crosshairs', {
                   replaceExisting: true,

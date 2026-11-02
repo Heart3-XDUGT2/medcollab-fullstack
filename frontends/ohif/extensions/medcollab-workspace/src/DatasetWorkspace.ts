@@ -1,4 +1,11 @@
 import { OHIFWorkspaceDriver } from './OHIFWorkspaceDriver';
+import {
+  isRealtimeEnabled,
+  RealtimeClient,
+  type RealtimeActivity,
+  type RealtimeMember,
+  type RealtimeStatus,
+} from './collaboration/realtimeClient';
 
 type Segment = { number: number; label: string; color: number[] };
 type Mask = { instanceId: string; runs: number[] };
@@ -36,6 +43,10 @@ export class DatasetWorkspace {
     newerVersion: 0,
     collaborators: [] as Collaborator[],
     datasetAccess: '',
+    realtimeStatus: 'off' as RealtimeStatus,
+    onlineMembers: [] as RealtimeMember[],
+    activities: [] as RealtimeActivity[],
+    realtimeError: '',
   };
   private listeners = new Set<() => void>();
   private subscriptions: (() => void)[] = [];
@@ -60,6 +71,12 @@ export class DatasetWorkspace {
   private originalCommands = new Map<string, any>();
   private lastSignature = '';
   private segmentColors = new Map<number, number[]>();
+  private realtime?: RealtimeClient;
+  private realtimePreferenceHandler = (event: Event) => {
+    const enabled = Boolean((event as CustomEvent).detail);
+    if (enabled) this.startRealtime(this.generation);
+    else this.stopRealtime();
+  };
 
   constructor(private runtime: any) {
     this.guard = new OHIFWorkspaceDriver(runtime);
@@ -192,6 +209,76 @@ export class DatasetWorkspace {
     }
   }
 
+  private startRealtime(generation: number) {
+    this.realtime?.destroy(false);
+    this.realtime = undefined;
+    if (
+      !isRealtimeEnabled() ||
+      this.stopped ||
+      generation !== this.generation ||
+      !this.state.ready
+    ) {
+      this.update({
+        realtimeStatus: 'off',
+        onlineMembers: [],
+        activities: [],
+        realtimeError: '',
+      });
+      return;
+    }
+    const client = new RealtimeClient({
+      datasetId: this.state.datasetId,
+      seriesId: this.state.seriesId,
+      onState: snapshot => {
+        if (this.stopped || generation !== this.generation) return;
+        this.update({
+          realtimeStatus: snapshot.status,
+          onlineMembers: snapshot.members.filter(member => member.online),
+          activities: snapshot.activities,
+          realtimeError: snapshot.error,
+        });
+      },
+    });
+    this.realtime = client;
+    client.connect();
+    this.syncPresence();
+  }
+
+  private stopRealtime() {
+    this.realtime?.destroy(false);
+    this.realtime = undefined;
+    if (!this.stopped) {
+      this.update({
+        realtimeStatus: 'off',
+        onlineMembers: [],
+        activities: [],
+        realtimeError: '',
+      });
+    }
+  }
+
+  private syncPresence() {
+    if (!this.realtime) return;
+    try {
+      const { segmentationService, viewportGridService } = this.runtime.servicesManager.services;
+      const viewportId = viewportGridService.getActiveViewportId();
+      const segment = segmentationService.getActiveSegment?.(viewportId);
+      const segmentNumber = Number.isSafeInteger(segment?.segmentNumber)
+        ? segment.segmentNumber
+        : null;
+      const segmentation = this.segmentationId
+        ? segmentationService.getSegmentation?.(this.segmentationId)
+        : null;
+      const label =
+        segmentNumber && segmentation?.segments?.[segmentNumber]?.label
+          ? segmentation.segments[segmentNumber].label
+          : null;
+      this.realtime.setActive(segmentNumber, label);
+    } catch {
+      // Presence is best-effort; the viewer must not fail because of it.
+    }
+  }
+
   /** Resolve a team dataset through the existing team APIs (no new backend endpoint). */
   private async loadTeamCollaborators(generation: number): Promise<Collaborator[] | null> {
     try {
@@ -258,6 +345,10 @@ export class DatasetWorkspace {
     this.state.dirty = false;
     this.state.collaborators = [];
     this.state.datasetAccess = '';
+    this.state.realtimeStatus = 'off';
+    this.state.onlineMembers = [];
+    this.state.activities = [];
+    this.state.realtimeError = '';
     this.emit();
     this.setReadOnly(true);
     try {
@@ -348,6 +439,8 @@ export class DatasetWorkspace {
       );
       this.subscriptions.push(unsubscribe);
       this.poller = setInterval(() => this.checkUpdates().catch(error => this.fail(error)), 15000);
+      window.addEventListener('medcollab:realtime-preference', this.realtimePreferenceHandler);
+      this.startRealtime(generation);
     } catch (error) {
       if (generation === this.generation) this.fail(error);
     }
@@ -561,6 +654,7 @@ export class DatasetWorkspace {
       return;
     }
     this.serial++;
+    this.syncPresence();
     this.update({ dirty: true, local: true, message: '正在自动保存到本机…' });
     clearTimeout(this.timer);
     if (!this.state.error)
@@ -765,6 +859,8 @@ export class DatasetWorkspace {
     }
   }
   close() {
+    window.removeEventListener('medcollab:realtime-preference', this.realtimePreferenceHandler);
+    this.stopRealtime();
     this.stopped = true;
     this.generation++;
     clearTimeout(this.timer);
