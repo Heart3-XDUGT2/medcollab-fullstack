@@ -1,66 +1,144 @@
-# Design
+---
+name: MedCollab Portal
+description: A working medical dataset library for personal and team research
+colors:
+  primary: "#007fa3"
+  primary-hover: "#006c8c"
+  primary-pale: "#e9f5f8"
+  ink: "#171c1f"
+  muted: "#5f6a71"
+  ground: "#f7f9fa"
+  surface: "#ffffff"
+  border: "#e5eaed"
+  control: "#c5cfd5"
+  selected: "#edf5f7"
+  danger: "#ae3638"
+  warning: "#8a5818"
+typography:
+  title:
+    fontFamily: "Inter, Microsoft YaHei, PingFang SC, sans-serif"
+    fontSize: "24px"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "0"
+  body:
+    fontFamily: "Inter, Microsoft YaHei, PingFang SC, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "0"
+  metadata:
+    fontFamily: "Inter, Microsoft YaHei, PingFang SC, sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "0"
+rounded:
+  control: "6px"
+  dialog: "8px"
+spacing:
+  small: "8px"
+  group: "16px"
+  tablet-gutter: "24px"
+  desktop-gutter: "32px"
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.surface}"
+    rounded: "{rounded.control}"
+    padding: "8px 14px"
+    height: "40px"
+  button-secondary:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.control}"
+    padding: "8px 14px"
+    height: "40px"
+---
 
-## Migration Authority
+# MedCollab Portal Design
 
-Preserve the delivered home/account interface and password-form preview. The
-scope is local engineering extraction, not a new visual direction. Necessary
-exceptions: the password page is image-free because redistribution rights for
-the old CT crop were unconfirmed; the independent sample has no thumbnail and
-no hard-coded viewer destination.
+## Overview
 
-## Tokens And Layout
+**Creative North Star: "Research Objects, Clear Connections"**
 
-- Light page `#f6f8f7`, white working surfaces, ink `#182524`.
-- Muted text `#586563`, primary teal `#146b5d`, borders `#dce3df`.
-- Restrained independent warning, error and source-category colors.
-- Inter 400/500/600/700 via Fontsource, CJK system fallbacks, zero letter spacing.
-- Corners 6-8 px, interactive targets at least 44 px.
-- File library rail, compact toolbar, one continuous selected-row background.
-- Detail drawer at 1200 px and below; list rows adapt at 640 px.
-- Brand visible on mobile; demo state remains visible in overlays.
+This is the approved personal-library prototype implemented in the unified
+application, not the earlier migration freeze. Cold-white working planes,
+near-black text and a lake-blue accent continue through the account entry,
+personal library and independent team library. The original connecting mark
+is a local brand asset, not a competitor image.
 
-Account forms use a constrained single-column layout. Their whitespace is
-intentional and is not filled with decoration, promotional copy or fake images.
+## Colors
 
-## Local UI Boundary
+Use the primary for the main action and selected feedback; use the neutral
+layers for navigation, fields and continuous lists. Warning and danger remain
+independent semantic colors, especially for irreversible sharing and deletion.
+Do not use source colors as annotation progress or clinical signals.
 
-`src/ui/` contains only the small compatibility surface needed by these pages:
-forwardRef buttons/inputs, native labels, Lucide icons and Radix dialog/menu
-primitives. It does not introduce a new design system or copy the imaging UI.
+## Typography
 
-Radix owns portals, focus trapping, Escape, focus return, modal semantics and
-menu keyboard behavior. Page-specific focus restoration and cancellation guards
-remain in the migrated components. `styles.css` supplies an explicit minimal
-reset and `sr-only`; no Tailwind preflight or host application is assumed.
+Inter is self-hosted from the locked Fontsource dependency, with system CJK
+fallbacks. Use zero letter spacing and tabular figures in comparable columns.
+Object names use 14px semibold, page titles 24px, metadata at least 12px.
+Team-specific metadata was brought up to this minimum in the final focused pass.
 
-## Verification
+## Layout
 
-Check default/unconfigured and explicit demo states, fields, menus and overlays
-at 1440, 768 and 390 px. Cover keyboard, focus return, list scroll preservation,
-reduced motion and unknown-write outcomes. Keep inspection to one batch and one
-confirmation batch; do not turn migration into open-ended polishing.
+`PortalShell` supplies a 216px light sidebar, fixed-position account area and
+mobile navigation. Home filters may be supplied without coupling the shell to
+HomePage state. At 1100px and below the sidebar folds into a 64px mobile header;
+the phone header is 60px. Desktop content gutters are 32px, tablet 24px and
+phone 18px.
 
-Unit and browser tests in this repository are rerun evidence, not inherited
-success claims. Mocked Java responses are not backend integration, and no viewer
-or ROI regression result is claimed for this engine-free project.
+Home and the default team-page navigation use the same `ui/navigation.ts` icon
+mapping. Closing mobile navigation with Escape restores focus to its opener.
 
-The migration rerun passed 126 unit/component tests and 33 browser tests. This
-includes the existing safety assertions, seven new sample-path checks, two
-cross-application navigation checks and the unselected-row menu focus
-regression. Returning from rename via Escape or Cancel focuses the stable row
-control rather than a removed menu item.
+Names lead the continuous library rows; source and creator form a secondary
+line. Count and creation time align in columns. IDs move to details. List and
+source-grouped views share search and selection. Details are optional and
+become a focus-managed drawer on smaller screens.
 
-The first screenshot batch covers the three target sizes plus home detail,
-sharing, demo file selection, account entry, password preview and its help
-dialog. It records no horizontal overflow, page errors or demo API calls.
-The single Impeccable scan reports four Inter-family warnings, accepted to
-preserve the agreed identity; no scanner suppressions are added.
-Independent review accepted this as a standalone UI preview without mandatory
-visual rework. The established layout is frozen. Live backend, SSO and imaging
-workspace integration remain separate work.
+Team libraries use the same frame but retain their real membership and ownership
+semantics. Do not add a team tab to personal sharing: the backend does not offer
+that operation. Login has a complete split brand/authentication composition,
+which stacks structurally on phones rather than shrinking typography.
 
-## Assets
+## Elevation & Depth
 
-No medical-image pixels or old font binaries are shipped. The Inter OFL,
-upstream OHIF MIT and runtime-library notices are retained and distributed with
-the build. See `THIRD_PARTY_NOTICES.md` and `public/licenses/`.
+Working surfaces are flat. Borders and tone changes separate content; shadows
+belong to menus, dialogs and drawers. State feedback uses 180ms transitions,
+disabled under reduced motion. Do not add gradients, glow or decorative motion.
+
+## Shapes
+
+Controls use 6px corners and dialogs 8px. Outline icons use local Lucide;
+individual datasets have no repeated file-image tile. The brand mark is
+`public/brand/medcollab-mark.svg`. No medical images or competitor screenshots
+are shipped.
+
+## Components
+
+Reuse `ui/Button`, `Input`, Radix dialogs and menus. Button size classes are
+separate from variant classes. Preserve focus trapping, Escape, focus return
+and menu keyboard navigation. Shared exports include `Brand`, `PortalShell`
+and `AuthLayout`; `ui/ui.css` and `styles.css` own their vocabulary.
+
+Personal sharing always explains that confirmation cannot be revoked.
+Existing recipients are managed separately from addable search candidates.
+Upload reuses the established serial queue; `targetDataset` appends without
+creating another dataset, while `destinationLabel` describes the destination.
+Neither changes the HTTP protocol or unknown-result handling.
+
+## Do's and Don'ts
+
+- Do preserve the real/demo boundary, fresh CSRF and identity checks.
+- Do distinguish empty, unavailable, signed-out, expired and lost-access states.
+- Do keep real team libraries separate from personal sharing.
+- Don't imply real-time brush collaboration, saving, review progress or viewer
+  loading merely from a rendered button.
+- Don't replace clinical or protocol verification with UI screenshots.
+
+The implementation record and actual check results live in
+`../../docs/ui/portal-team-ui/portal-implementation.zh-CN.md`. Local fixture
+verification is not live backend or deployment acceptance. Inter-family detector
+warnings are accepted to retain the established, locally licensed work font.

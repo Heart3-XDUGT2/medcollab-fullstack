@@ -17,6 +17,7 @@ export type UploadProgress = {
 
 export type UploadOptions = {
   name: string;
+  targetDataset?: Dataset;
   files: File[];
   identity: Identity;
   signal?: AbortSignal;
@@ -130,12 +131,14 @@ function validate(name: string, files: File[]) {
 }
 
 export async function runUpload(api: UploadApi, options: UploadOptions): Promise<UploadProgress> {
-  const name = options.name.trim();
+  const target = options.targetDataset ? datasetCopy(options.targetDataset) : null;
+  if (target && (!target.id || typeof target.id !== 'string')) throw new Error('目标影像集无效');
+  const name = (target ? target.name : options.name).trim();
   const files = [...options.files];
   const identity = { issuer: options.identity.issuer, subject: options.identity.subject };
   validate(name, files);
   const progress: UploadProgress = {
-    dataset: null,
+    dataset: target,
     completed: 0,
     total: files.length,
     success: 0,
@@ -154,30 +157,38 @@ export async function runUpload(api: UploadApi, options: UploadOptions): Promise
 
   if (options.signal?.aborted) {
     stop(0, 'aborted');
-    progress.errors.push({ name, message: '上传已取消，尚未创建影像集或上传文件。' });
-    emit();
-    return snapshot(progress);
-  }
-
-  try {
-    progress.dataset = datasetCopy(await api.createDataset(name, identity, options.signal));
-  } catch (error) {
-    const failure = failureOf(error, options.signal);
-    stop(failure.status, failure.kind);
     progress.errors.push({
       name,
-      message:
-        failure.kind === 'unconfigured'
-          ? '后端尚未配置，尚未创建影像集或上传文件。'
-          : isUnconfirmed(failure)
-            ? '影像集创建结果尚未确认，请刷新列表核对，勿直接重复创建。'
-            : uploadFailureMessage(failure),
+      message: target
+        ? '上传已取消，尚未上传文件，原影像集保持不变。'
+        : '上传已取消，尚未创建影像集或上传文件。',
     });
     emit();
     return snapshot(progress);
   }
+
+  if (!target)
+    try {
+      progress.dataset = datasetCopy(await api.createDataset(name, identity, options.signal));
+    } catch (error) {
+      const failure = failureOf(error, options.signal);
+      stop(failure.status, failure.kind);
+      progress.errors.push({
+        name,
+        message:
+          failure.kind === 'unconfigured'
+            ? '后端尚未配置，尚未创建影像集或上传文件。'
+            : isUnconfirmed(failure)
+              ? '影像集创建结果尚未确认，请刷新列表核对，勿直接重复创建。'
+              : uploadFailureMessage(failure),
+      });
+      emit();
+      return snapshot(progress);
+    }
   emit();
 
+  const datasetId = progress.dataset?.id;
+  if (!datasetId) throw new Error('目标影像集尚未确认');
   for (const file of files) {
     if (options.signal?.aborted) {
       stop(0, 'aborted');
@@ -191,7 +202,7 @@ export async function runUpload(api: UploadApi, options: UploadOptions): Promise
 
     let result;
     try {
-      result = await api.importFile(progress.dataset.id, file, identity, options.signal);
+      result = await api.importFile(datasetId, file, identity, options.signal);
     } catch (error) {
       const failure = failureOf(error, options.signal);
       // An unknown result is not a confirmed failure or a completed file.

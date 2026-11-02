@@ -1,0 +1,33 @@
+{
+  "portal": "frontends/portal",
+  "files": [
+    {
+      "source": "src/styles.css",
+      "destination": "styles.css",
+      "sha256": "8160da045df493364d6fdd4fe57b6bfb243868d59931d5df2eb477c09ef8ed44"
+    },
+    {
+      "source": "src/ui/ui.css",
+      "destination": "ui.css",
+      "sha256": "b3eb9ff1b438757b2ec53367f47222d90aa29fd27b5275f19b3962a385036d9e"
+    },
+    {
+      "source": "src/features/sign-in/sign-in.css",
+      "destination": "sign-in.css",
+      "sha256": "a0e411c16b329688a4b9319927b56a5d049e60aad9f7d12b9fa95d864532ac89"
+    },
+    {
+      "source": "public/brand/medcollab-mark.svg",
+      "destination": "brand/medcollab-mark.svg",
+      "sha256": "ad0efc033a8cb1ed1f21d23a418c6171dd1edf3583f50b36ae0740a121b6c4dc"
+    }
+  ],
+  "themeOnly": [
+    "resources/css/auth.css",
+    "resources/css/keycloak-adapter.css",
+    "resources/js/portal-auth.js"
+  ],
+  "icons": "Existing Portal lucide-react Eye/EyeOff; ISC license retained",
+  "fonts": "Existing Portal @fontsource/inter; OFL retained",
+  "brand": "Original MedCollab mark from Portal public/brand; shared source, not a competitor asset"
+}

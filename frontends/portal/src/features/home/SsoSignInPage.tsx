@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import AuthLayout from '../../ui/AuthLayout';
 import { Button, Icons } from '../../ui';
 import { getAuthUrl, getHomeConfig, HomeConfig } from './api';
 import './sso.css';
@@ -20,15 +21,13 @@ export default function SsoSignInPage({ config: providedConfig }: Props) {
   }, []);
 
   return (
-    <div className="mc-sso" data-cy="mc-sso">
-      <header className="mc-sso__header">
-        <span className="mc-sso__brand">MedCollab</span>
-        <Link className="mc-sso__back" to="/home" data-cy="mc-sso-home">
-          <Icons.ChevronLeft aria-hidden="true" />
-          返回我的数据集
-        </Link>
-      </header>
-      <main className="mc-sso__main" aria-labelledby="mc-sso-title">
+    <AuthLayout
+      className="mc-sso"
+      dataCY="mc-sso"
+      backLabel="返回我的数据集"
+      backDataCY="mc-sso-home"
+    >
+      <section className="mc-sso__main" aria-labelledby="mc-sso-title">
         <h1 id="mc-sso-title">登录 MedCollab</h1>
         <p className="mc-sso__intro">访问并管理你的医学影像数据集。</p>
 
@@ -85,7 +84,7 @@ export default function SsoSignInPage({ config: providedConfig }: Props) {
           密码表单外观预览
           <Icons.ChevronRight aria-hidden="true" />
         </Link>
-      </main>
-    </div>
+      </section>
+    </AuthLayout>
   );
 }
