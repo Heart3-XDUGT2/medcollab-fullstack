@@ -18,6 +18,18 @@ export type Session = {
 
 export type User = { subject: string; username: string };
 export type Identity = { issuer: string; subject: string };
+export type Team = {
+  id: string; name: string; leaderSubject: string; leaderUsername: string;
+  memberCount: number; role: 'leader' | 'member' | 'none'; createdAt: string;
+};
+export type TeamMember = {
+  subject: string; username: string; role: 'leader' | 'member'; joinedAt: string;
+};
+export type TeamDataset = Dataset & {
+  access: 'owner' | 'shared'; scope: 'team'; teamId: string;
+  uploaderSubject: string; canDelete: boolean;
+};
+export type TeamInvite = { team: Team; inviteCode: string };
 export type Instance = { id: string; instanceNumber: string };
 export type ImportResult = { status: 'Success' | 'AlreadyStored'; id: string };
 export type HomeConfig = {
@@ -160,6 +172,32 @@ function isUser(value: unknown): value is User {
 
 function isInstance(value: unknown): value is Instance {
   return isObject(value) && nonempty(value.id) && typeof value.instanceNumber === 'string';
+}
+
+function isTeam(value: unknown): value is Team {
+  return isObject(value) && nonempty(value.id) && nonempty(value.name) &&
+    nonempty(value.leaderSubject) && typeof value.leaderUsername === 'string' &&
+    Number.isSafeInteger(value.memberCount) && Number(value.memberCount) >= 1 &&
+    ['leader', 'member', 'none'].includes(value.role as string) &&
+    typeof value.createdAt === 'string' && Number.isFinite(Date.parse(value.createdAt));
+}
+function isTeamMember(value: unknown): value is TeamMember {
+  return isObject(value) && ['leader', 'member'].includes(value.role as string) &&
+    typeof value.joinedAt === 'string' && Number.isFinite(Date.parse(value.joinedAt)) && isUser(value);
+}
+function isTeamDataset(value: unknown): value is TeamDataset {
+  return isObject(value) && value.access !== 'public' &&
+    value.scope === 'team' && nonempty(value.teamId) && nonempty(value.uploaderSubject) &&
+    typeof value.canDelete === 'boolean' && isDataset(value);
+}
+function isTeamInvite(value: unknown): value is TeamInvite {
+  return isObject(value) && isTeam(value.team) && value.team.role === 'leader' &&
+    typeof value.inviteCode === 'string' && /^[A-Za-z0-9_-]{16,100}$/.test(value.inviteCode);
+}
+function teamName(name: string): string {
+  const clean = name.trim();
+  if (!clean || clean.length > 100) throw new ApiError('团队名称需为 1–100 个字符', 400, 'validation');
+  return clean;
 }
 
 function items<T>(value: unknown, validate: (item: unknown) => item is T): T[] {
@@ -310,11 +348,77 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
   }
 
   const datasetPath = (id: string) => `/api/datasets/${validateId(id)}`;
+  const teamPath = (id: string) => `/api/teams/${validateId(id)}`;
+  const memberTeam = (id: string) => (value: unknown): value is Team =>
+    isTeam(value) && value.id === id && value.role !== 'none';
+  const teamDataset = (id: string) => (value: unknown): value is TeamDataset =>
+    isTeamDataset(value) && value.teamId === id;
   const success = (value: unknown): value is { success: true } =>
     isObject(value) && value.success === true;
 
   return {
     getSession,
+    async listTeams(signal?: AbortSignal): Promise<Team[]> {
+      return items(await request('/api/teams', { signal }), (value): value is Team =>
+        isTeam(value) && value.role !== 'none');
+    },
+    async searchTeams(query: string, signal?: AbortSignal): Promise<Team[]> {
+      const q = query.trim();
+      if (q.length < 2 || q.length > 100) throw new ApiError('团队搜索需为 2–100 个字符', 400, 'validation');
+      const result = items(await request(`/api/teams/search?${new URLSearchParams({ q })}`, { signal }), isTeam);
+      if (result.length > 20) throw new ApiError('服务器返回的数据格式不符合接口约定', 0, 'protocol');
+      return result;
+    },
+    async getTeam(id: string, signal?: AbortSignal): Promise<Team> {
+      return validated(await request(teamPath(id), { signal }), memberTeam(id));
+    },
+    async createTeam(name: string, identity: Identity, signal?: AbortSignal): Promise<TeamInvite> {
+      return validated(await write('/api/teams', 'POST', identity, { json: { name: teamName(name) }, signal }), isTeamInvite);
+    },
+    async joinTeam(id: string, inviteCode: string, identity: Identity, signal?: AbortSignal): Promise<Team> {
+      validateId(id);
+      const code = inviteCode.trim();
+      if (!code || code.length > 100) throw new ApiError('请填写有效的邀请码', 400, 'validation');
+      const normalized = id.trim().toUpperCase();
+      return validated(await write('/api/teams/join', 'POST', identity, {
+        json: { teamId: normalized, inviteCode: code }, signal,
+      }), memberTeam(normalized));
+    },
+    async renameTeam(id: string, name: string, identity: Identity, signal?: AbortSignal): Promise<Team> {
+      return validated(await write(teamPath(id), 'PATCH', identity, { json: { name: teamName(name) }, signal }), memberTeam(id));
+    },
+    async listTeamMembers(id: string, signal?: AbortSignal): Promise<TeamMember[]> {
+      return items(await request(`${teamPath(id)}/members`, { signal }), isTeamMember);
+    },
+    async addTeamMember(id: string, subject: string, identity: Identity, signal?: AbortSignal): Promise<void> {
+      validateId(subject);
+      validated(await write(`${teamPath(id)}/members`, 'PUT', identity, { json: { subject }, signal }), success);
+    },
+    async removeTeamMember(id: string, subject: string, identity: Identity, signal?: AbortSignal): Promise<void> {
+      validated(await write(`${teamPath(id)}/members/${validateId(subject)}`, 'DELETE', identity, { signal }), success);
+    },
+    async leaveTeam(id: string, identity: Identity, signal?: AbortSignal): Promise<void> {
+      validated(await write(`${teamPath(id)}/leave`, 'POST', identity, { signal }), success);
+    },
+    async transferTeam(id: string, subject: string, identity: Identity, signal?: AbortSignal): Promise<Team> {
+      validateId(subject);
+      return validated(await write(`${teamPath(id)}/transfer`, 'POST', identity, { json: { subject }, signal }), memberTeam(id));
+    },
+    async rotateTeamInvite(id: string, identity: Identity, signal?: AbortSignal): Promise<TeamInvite> {
+      return validated(await write(`${teamPath(id)}/invite-code`, 'POST', identity, { signal }),
+        (value): value is TeamInvite => isTeamInvite(value) && value.team.id === id);
+    },
+    async listTeamDatasets(id: string, signal?: AbortSignal): Promise<TeamDataset[]> {
+      return items(await request(`${teamPath(id)}/datasets`, { signal }), teamDataset(id));
+    },
+    async createTeamDataset(id: string, name: string, identity: Identity, signal?: AbortSignal): Promise<TeamDataset> {
+      return validated(await write(`${teamPath(id)}/datasets`, 'POST', identity, {
+        json: { name: validateName(name) }, signal,
+      }), teamDataset(id));
+    },
+    async deleteTeamDataset(id: string, datasetId: string, identity: Identity, signal?: AbortSignal): Promise<void> {
+      validated(await write(`${teamPath(id)}/datasets/${validateId(datasetId)}`, 'DELETE', identity, { signal }), success);
+    },
     async listDatasets(signal?: AbortSignal): Promise<Dataset[]> {
       return items(await request('/api/datasets', { signal }), isDataset);
     },

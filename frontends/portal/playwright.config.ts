@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { outputFolder: './playwright-report', open: 'never' }]],
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: process.env.PORTAL_E2E_BASE_URL || 'http://127.0.0.1:5173',
     testIdAttribute: 'data-cy',
     actionTimeout: 10_000,
     trace: 'retain-on-failure',

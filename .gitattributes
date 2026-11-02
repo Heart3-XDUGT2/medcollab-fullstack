@@ -10,3 +10,14 @@
 *.woff binary
 *.woff2 binary
 *.ico binary
+
+# Byte-identical Portal/theme sources and provenance must survive Windows checkout.
+frontends/portal/src/styles.css text eol=lf
+frontends/portal/src/ui/ui.css text eol=lf
+frontends/portal/src/features/sign-in/sign-in.css text eol=lf
+frontends/portal/public/brand/medcollab-mark.svg text eol=lf
+gateway/theme/medcollab-portal/login/resources/css/styles.css text eol=lf
+gateway/theme/medcollab-portal/login/resources/css/ui.css text eol=lf
+gateway/theme/medcollab-portal/login/resources/css/sign-in.css text eol=lf
+gateway/theme/medcollab-portal/login/resources/brand/medcollab-mark.svg text eol=lf
+gateway/theme/medcollab-portal/style-provenance.json text eol=lf

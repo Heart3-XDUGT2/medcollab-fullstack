@@ -349,13 +349,13 @@ test.describe('MedCollab home response fixtures', () => {
     await home.visit();
     await home.enterDemo.click();
     await expect(home.demoBanner).toContainText('本机演示');
-    await expect(home.rows).toHaveCount(4);
+    await expect(home.rows).toHaveCount(12);
     await home.filterBy('owner');
-    await expect(home.rows).toHaveCount(1);
-    await expect(home.rows).toContainText('待导入的影像集');
+    await expect(home.rows).toHaveCount(6);
+    await expect(home.row('待导入的影像集')).toBeVisible();
     await home.filterBy('shared');
-    await expect(home.rows).toHaveCount(1);
-    await expect(home.rows).toContainText('协作资料（空集）');
+    await expect(home.rows).toHaveCount(4);
+    await expect(home.row('协作资料（空集）')).toBeVisible();
     await home.filterBy('public');
     await expect(home.rows).toHaveCount(2);
     await home.filterBy('all');
@@ -409,7 +409,31 @@ test.describe('MedCollab home response fixtures', () => {
       await expect(home.detail).toBeHidden();
       await expect(home.datasetNames.first()).toHaveText(datasetName);
     }
-    await expect(home.rows).toHaveCount(4);
+    await expect(home.rows).toHaveCount(12);
+    expect(requests).toEqual([]);
+  });
+
+  test('keeps search and selection when changing list organization or hiding details', async ({
+    page,
+    homePageObject: home,
+  }) => {
+    const requests = await mockHomeApi(page);
+    await home.visit();
+    await home.enterDemo.click();
+    await home.search.fill('腹部');
+    const selected = home.selectDataset('腹部 CT · 多器官标注集');
+    await selected.click();
+    await expect(home.detail).toBeVisible();
+    await page.getByRole('button', { name: '按来源分组', exact: true }).click();
+    await expect(home.search).toHaveValue('腹部');
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
+    await expect(home.detail).toBeVisible();
+    await page.getByRole('button', { name: '切换资料概览', exact: true }).click();
+    await expect(home.detail).toBeHidden();
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: '连续列表', exact: true }).click();
+    await expect(home.search).toHaveValue('腹部');
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
     expect(requests).toEqual([]);
   });
 
@@ -427,7 +451,7 @@ test.describe('MedCollab home response fixtures', () => {
     await home.nameSave.click();
     await expect(home.actionDialog).toBeHidden();
     await expect(home.row(createdName)).toBeVisible();
-    await expect(home.rows).toHaveCount(5);
+    await expect(home.rows).toHaveCount(13);
     await home.moreForDataset(createdName).click();
     await home.renameMenuItem.click();
     await expect(home.nameInput).toHaveValue(createdName);
@@ -436,12 +460,13 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.actionDialog).toBeHidden();
     await expect(home.row(createdName)).toHaveCount(0);
     await expect(home.row(renamedName)).toBeVisible();
-    await expect(home.rows).toHaveCount(5);
+    await expect(home.rows).toHaveCount(13);
     const persisted = await page.evaluate(() =>
       JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } })
     );
     expect(persisted).not.toContain(createdName);
     expect(persisted).not.toContain(renamedName);
+    await page.getByRole('button', { name: '账号菜单', exact: true }).click();
     await home.logout.click();
     await expect(home.connectionState).toContainText('尚未连接影像服务');
     await expect(home.demoBanner).toBeHidden();
@@ -459,15 +484,8 @@ test.describe('MedCollab home response fixtures', () => {
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await expect(home.account).toHaveText(sessionA.username!);
-    await expect(home.tableHeadings).toHaveText([
-      '数据集',
-      '来源',
-      '创建者',
-      '实例数',
-      '创建时间',
-      '操作',
-    ]);
-    await expect(home.row('Alpha fixture')).toContainText('fixture-owner-01');
+    await expect(home.tableHeadings).toHaveText(['数据集', '实例数', '创建时间', '操作']);
+    await expect(home.row('Alpha fixture')).not.toContainText('fixture-owner-01');
     await expect(home.row('Alpha fixture')).toContainText('我创建的');
     await expect(home.row('Alpha fixture')).toContainText('fixture-account-a');
     await expect(home.row('Alpha fixture')).toContainText('12');
@@ -487,6 +505,7 @@ test.describe('MedCollab home response fixtures', () => {
       'Alpha fixture',
     ]);
     await home.selectDataset('Alpha fixture').click();
+    await expect(home.detail).toContainText('fixture-owner-01');
     await expect(home.detail).toContainText('继续共享');
     await home.openWorkspace.click();
     await expect(home.notice).toContainText('工作界面入口尚未接入');
@@ -822,12 +841,13 @@ test.describe('MedCollab home response fixtures', () => {
     await home.moreForDataset(datasetName).click();
     await home.shareMenuItem.click();
     await expect(home.shareMember(username)).toBeVisible();
-    await home.shareRemove(username).click();
-    await expect(home.shareRemoveConfirm).toBeVisible();
+    await expect(home.shareMember(username)).toContainText('不可撤销');
+    await expect(home.shareRemove(username)).toHaveCount(0);
+    await expect(home.shareRemoveConfirm).toHaveCount(0);
     await expect(home.shareMembers).toHaveCount(1);
-    await home.shareRemoveConfirm.click();
-    await expect(home.shareMembers).toHaveCount(0);
-    await expect(home.shareNotice).toContainText('未保存到云端');
+    await home.shareSearch.fill('示例');
+    await home.shareSearchSubmit.click();
+    await expect(home.userResult(username)).toHaveCount(0);
     expect(requests).toEqual([]);
   });
 
@@ -848,7 +868,7 @@ test.describe('MedCollab home response fixtures', () => {
       .toBe(1);
     await home.enterDemo.click();
     await expect(home.demoBanner).toBeVisible();
-    await expect(home.rows).toHaveCount(4);
+    await expect(home.rows).toHaveCount(12);
     const lateResponse = page.waitForResponse(
       (response) => new URL(response.url()).pathname === '/api/datasets'
     );
@@ -859,7 +879,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.datasetNames).toContainText(['待导入的影像集']);
     await expect(home.row('Alpha fixture')).toHaveCount(0);
     await expect(home.account).toHaveText('示例空间');
-    await expect(home.rows).toHaveCount(4);
+    await expect(home.rows).toHaveCount(12);
   });
 
   test('opens mobile details immediately and restores row focus without moving the list', async ({
@@ -917,7 +937,7 @@ test.describe('MedCollab home response fixtures', () => {
       const requests = await mockHomeApi(page);
       await home.visit();
       await home.enterDemo.click();
-      await expect(home.rows).toHaveCount(4);
+      await expect(home.rows).toHaveCount(12);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
@@ -955,7 +975,7 @@ test.describe('MedCollab home response fixtures', () => {
         }
         await home.filterControl('owner').click();
         await expect(home.navigationDialog).toBeHidden();
-        await expect(home.rows).toHaveCount(1);
+        await expect(home.rows).toHaveCount(6);
       }
       await home.create.click();
       await home.waitForDialogSettled();

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import AuthLayout from '../../ui/AuthLayout';
 import {
   Button,
   Input,
@@ -72,156 +73,143 @@ export default function SignInPage({ adapter = unconfiguredSignInAdapter }: Prop
   }
 
   return (
-    <div className="medcollab-sign-in" data-cy="medcollab-sign-in">
-      <header className="medcollab-sign-in__header">
-        <Link className="medcollab-sign-in__brand" to={{ pathname: '/home', search: backSearch }}>
-          MedCollab
-        </Link>
-        <Link
-          className="medcollab-sign-in__back"
-          data-cy="sign-in-home"
-          to={{ pathname: '/home', search: backSearch }}
-        >
-          <Icons.ChevronLeft aria-hidden="true" />
-          返回首页
-        </Link>
-      </header>
-      <main className="medcollab-sign-in__layout">
-        <section
-          className="medcollab-sign-in__form-region"
-          aria-labelledby="medcollab-sign-in-title"
-        >
-          <div className="medcollab-sign-in__intro">
-            <h1 id="medcollab-sign-in-title">登录</h1>
-            <p>账号服务尚未接入，当前仅预览登录界面。</p>
+    <AuthLayout
+      className="medcollab-sign-in"
+      dataCY="medcollab-sign-in"
+      backSearch={backSearch}
+      backDataCY="sign-in-home"
+    >
+      <section className="medcollab-sign-in__form-region" aria-labelledby="medcollab-sign-in-title">
+        <div className="medcollab-sign-in__intro">
+          <h1 id="medcollab-sign-in-title">登录 MedCollab</h1>
+          <p>密码表单外观预览，不发送账号或密码。</p>
+        </div>
+        <form onSubmit={submit} noValidate data-cy="sign-in-form" aria-busy={submitting}>
+          <div className="medcollab-sign-in__field">
+            <div className="medcollab-sign-in__label-row">
+              <Label htmlFor="medcollab-identifier">邮箱或账号</Label>
+            </div>
+            <Input
+              id="medcollab-identifier"
+              ref={identifierRef}
+              name="username"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={identifier}
+              disabled={submitting}
+              aria-invalid={Boolean(errors.identifier)}
+              aria-describedby={errors.identifier ? 'medcollab-identifier-error' : undefined}
+              data-cy="sign-in-identifier"
+              className="medcollab-sign-in__input"
+              placeholder="请输入邮箱或账号"
+              onChange={(event) => {
+                setIdentifier(event.target.value);
+                setErrors((current) => ({ ...current, identifier: undefined }));
+                setServiceError('');
+              }}
+            />
+            <p
+              className="medcollab-sign-in__field-error"
+              id="medcollab-identifier-error"
+              data-cy="sign-in-identifier-error"
+              aria-live="polite"
+            >
+              {errors.identifier}
+            </p>
           </div>
-          <form onSubmit={submit} noValidate data-cy="sign-in-form" aria-busy={submitting}>
-            <div className="medcollab-sign-in__field">
-              <div className="medcollab-sign-in__label-row">
-                <Label htmlFor="medcollab-identifier">邮箱或账号</Label>
-              </div>
+          <div className="medcollab-sign-in__field">
+            <div className="medcollab-sign-in__label-row">
+              <Label htmlFor="medcollab-password">密码</Label>
+              <Button
+                type="button"
+                variant="link"
+                className="medcollab-sign-in__text-action"
+                dataCY="sign-in-forgot"
+                onClick={(event) => showHelp('forgot', event.currentTarget)}
+              >
+                忘记密码？
+              </Button>
+            </div>
+            <div className="medcollab-sign-in__password">
               <Input
-                id="medcollab-identifier"
-                ref={identifierRef}
-                name="username"
-                type="text"
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={identifier}
+                id="medcollab-password"
+                ref={passwordRef}
+                name="password"
+                type={visible ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
                 disabled={submitting}
-                aria-invalid={Boolean(errors.identifier)}
-                aria-describedby={errors.identifier ? 'medcollab-identifier-error' : undefined}
-                data-cy="sign-in-identifier"
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? 'medcollab-password-error' : undefined}
+                data-cy="sign-in-password"
                 className="medcollab-sign-in__input"
-                placeholder="请输入邮箱或账号"
+                placeholder="请输入密码"
                 onChange={(event) => {
-                  setIdentifier(event.target.value);
-                  setErrors((current) => ({ ...current, identifier: undefined }));
+                  setPassword(event.target.value);
+                  setErrors((current) => ({ ...current, password: undefined }));
                   setServiceError('');
                 }}
               />
-              <p
-                className="medcollab-sign-in__field-error"
-                id="medcollab-identifier-error"
-                data-cy="sign-in-identifier-error"
-                aria-live="polite"
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="medcollab-sign-in__password-toggle"
+                dataCY="sign-in-password-toggle"
+                aria-label={visible ? '隐藏密码' : '显示密码'}
+                aria-pressed={visible}
+                title={visible ? '隐藏密码' : '显示密码'}
+                disabled={submitting}
+                onClick={() => setVisible((current) => !current)}
               >
-                {errors.identifier}
-              </p>
+                {visible ? (
+                  <Icons.EyeHidden aria-hidden="true" />
+                ) : (
+                  <Icons.EyeVisible aria-hidden="true" />
+                )}
+              </Button>
             </div>
-            <div className="medcollab-sign-in__field">
-              <div className="medcollab-sign-in__label-row">
-                <Label htmlFor="medcollab-password">密码</Label>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="medcollab-sign-in__text-action"
-                  dataCY="sign-in-forgot"
-                  onClick={(event) => showHelp('forgot', event.currentTarget)}
-                >
-                  忘记密码？
-                </Button>
-              </div>
-              <div className="medcollab-sign-in__password">
-                <Input
-                  id="medcollab-password"
-                  ref={passwordRef}
-                  name="password"
-                  type={visible ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  disabled={submitting}
-                  aria-invalid={Boolean(errors.password)}
-                  aria-describedby={errors.password ? 'medcollab-password-error' : undefined}
-                  data-cy="sign-in-password"
-                  className="medcollab-sign-in__input"
-                  placeholder="请输入密码"
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setErrors((current) => ({ ...current, password: undefined }));
-                    setServiceError('');
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="medcollab-sign-in__password-toggle"
-                  dataCY="sign-in-password-toggle"
-                  aria-label={visible ? '隐藏密码' : '显示密码'}
-                  aria-pressed={visible}
-                  title={visible ? '隐藏密码' : '显示密码'}
-                  disabled={submitting}
-                  onClick={() => setVisible((current) => !current)}
-                >
-                  {visible ? (
-                    <Icons.EyeHidden aria-hidden="true" />
-                  ) : (
-                    <Icons.EyeVisible aria-hidden="true" />
-                  )}
-                </Button>
-              </div>
-              <p
-                className="medcollab-sign-in__field-error"
-                id="medcollab-password-error"
-                data-cy="sign-in-password-error"
-                aria-live="polite"
-              >
-                {errors.password}
-              </p>
-            </div>
-            <Button
-              type="submit"
-              className="medcollab-sign-in__submit"
-              dataCY="sign-in-submit"
-              disabled={submitting}
-            >
-              {submitting ? '处理中…' : '登录'}
-            </Button>
             <p
-              className="medcollab-sign-in__service-error"
-              role="alert"
-              aria-atomic="true"
-              data-cy="sign-in-service-error"
+              className="medcollab-sign-in__field-error"
+              id="medcollab-password-error"
+              data-cy="sign-in-password-error"
+              aria-live="polite"
             >
-              {serviceError}
+              {errors.password}
             </p>
-          </form>
-          <div className="medcollab-sign-in__register">
-            <span>还没有账号？</span>
-            <Button
-              type="button"
-              variant="link"
-              className="medcollab-sign-in__text-action"
-              dataCY="sign-in-register"
-              onClick={(event) => showHelp('register', event.currentTarget)}
-            >
-              注册账号
-            </Button>
           </div>
-        </section>
-      </main>
+          <Button
+            type="submit"
+            className="medcollab-sign-in__submit"
+            dataCY="sign-in-submit"
+            disabled={submitting}
+          >
+            {submitting ? '处理中…' : '登录'}
+          </Button>
+          <p
+            className="medcollab-sign-in__service-error"
+            role="alert"
+            aria-atomic="true"
+            data-cy="sign-in-service-error"
+          >
+            {serviceError}
+          </p>
+        </form>
+        <div className="medcollab-sign-in__register">
+          <span>还没有账号？</span>
+          <Button
+            type="button"
+            variant="link"
+            className="medcollab-sign-in__text-action"
+            dataCY="sign-in-register"
+            onClick={(event) => showHelp('register', event.currentTarget)}
+          >
+            注册账号
+          </Button>
+        </div>
+      </section>
       <Dialog
         open={Boolean(help)}
         onOpenChange={(open) => {
@@ -253,6 +241,6 @@ export default function SignInPage({ adapter = unconfiguredSignInAdapter }: Prop
           </Button>
         </DialogContent>
       </Dialog>
-    </div>
+    </AuthLayout>
   );
 }

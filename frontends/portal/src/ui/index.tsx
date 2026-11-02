@@ -58,7 +58,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Component
         ref={ref}
-        className={`portal-button portal-button--${variant} portal-button--${size} ${className}`}
+        className={`portal-button portal-button--${variant} portal-button--${size === 'icon' ? 'icon' : 'size-default'} ${className}`}
         data-cy={dataCY}
         {...(!asChild ? { type: 'button' as const } : {})}
         {...props}
