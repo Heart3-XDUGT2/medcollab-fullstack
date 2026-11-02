@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-01",
+  "version": "2026-11-02",
   "description": "从当前 Java 映射声明核对的路由索引；字段、返回类型及使用限制见开发维护指南；不是 Swagger 服务。",
   "routes": [
     {
@@ -270,7 +270,7 @@
       "group": "Portal/启动",
       "loginRequired": true,
       "csrfRequired": true,
-      "note": ""
+      "note": "已停用：个人共享不可撤销，合法访问者返回409，记录保持不变"
     },
     {
       "method": "GET",
@@ -343,6 +343,141 @@
       "loginRequired": false,
       "csrfRequired": false,
       "note": ""
+    },
+    {
+      "method": "GET",
+      "path": "/api/teams",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "我的团队"
+    },
+    {
+      "method": "GET",
+      "path": "/api/teams/search",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "搜索队名或完整 ID"
+    },
+    {
+      "method": "POST",
+      "path": "/api/teams",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "创建团队并返回一次性可见邀请码"
+    },
+    {
+      "method": "POST",
+      "path": "/api/teams/join",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "凭团队 ID 与邀请码加入"
+    },
+    {
+      "method": "GET",
+      "path": "/api/teams/{id}",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "读取当前所在团队"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/teams/{id}",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "组长修改队名"
+    },
+    {
+      "method": "GET",
+      "path": "/api/teams/{id}/members",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "读取队内成员"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/teams/{id}/members",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "组长直接添加已有账号"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/teams/{id}/members/{subject}",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "组长移除组员"
+    },
+    {
+      "method": "POST",
+      "path": "/api/teams/{id}/leave",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "普通成员退出"
+    },
+    {
+      "method": "POST",
+      "path": "/api/teams/{id}/transfer",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "移交给当前成员"
+    },
+    {
+      "method": "POST",
+      "path": "/api/teams/{id}/invite-code",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "组长轮换邀请码，旧码失效"
+    },
+    {
+      "method": "GET",
+      "path": "/api/teams/{id}/datasets",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "团队影像库"
+    },
+    {
+      "method": "POST",
+      "path": "/api/teams/{id}/datasets",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "创建团队数据集，当前账号记录为上传者"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/teams/{id}/datasets/{datasetId}",
+      "source": "TeamController.java",
+      "group": "团队影像库",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "当前成员删除自己上传的数据集（软删除）"
     }
   ]
 }

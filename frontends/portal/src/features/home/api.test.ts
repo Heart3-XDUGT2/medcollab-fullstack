@@ -373,16 +373,18 @@ describe('fresh-session writes and safe logout', () => {
     expect(mock).toHaveBeenCalledTimes(2);
     expect(mock.mock.calls.filter((call) => call[1].method === 'PATCH')).toHaveLength(1);
   });
-  test('share writes use the selected subject, support shared access, and use fresh CSRF each time', async () => {
+  test('sharing uses selected subject and deprecated revocation exposes the server conflict', async () => {
     const mock = vi
       .fn()
       .mockResolvedValueOnce(response(session()))
       .mockResolvedValueOnce(response({ success: true }))
       .mockResolvedValueOnce(response(session('second')))
-      .mockResolvedValueOnce(response({ success: true }));
+      .mockResolvedValueOnce(response({ error: '个人共享一经确认不可撤销' }, 409));
     const api = client(mock);
     await api.addShare(dataset.id, 'selected-subject', identity);
-    await api.removeShare(dataset.id, 'selected/subject', identity);
+    await expect(api.removeShare(dataset.id, 'selected/subject', identity)).rejects.toMatchObject({
+      status: 409,
+    });
     expect(mock.mock.calls[1]).toEqual([
       '/api/datasets/dataset-a/shares',
       expect.objectContaining({

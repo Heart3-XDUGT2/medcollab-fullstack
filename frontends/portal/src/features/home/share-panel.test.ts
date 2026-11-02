@@ -111,7 +111,7 @@ describe('account sharing panel', () => {
     expect(api.addShare).not.toHaveBeenCalled();
     await click('home-user-result');
     expect(container.textContent).toContain('可编辑影像');
-    expect(container.textContent).toContain('继续共享或撤销');
+    expect(container.textContent).toContain('确认共享后不可撤销');
     expect(api.addShare).not.toHaveBeenCalled();
     await click('home-share-add');
     expect(api.addShare).toHaveBeenCalledWith(
@@ -202,20 +202,14 @@ describe('account sharing panel', () => {
     expect(api.addShare).toHaveBeenCalledTimes(1);
   });
 
-  test('removing self needs confirmation and exits the resource after success', async () => {
+  test('confirmed shares have no removal controls, including the current account', async () => {
     api.listShares.mockResolvedValue([{ subject: identity.subject, username: 'me' }]);
     await render();
-    await click('home-share-remove');
+    expect(control('home-share-remove')).toBeNull();
+    expect(control('home-share-remove-confirm')).toBeNull();
+    expect(container.textContent).toContain('已共享，不可撤销');
     expect(api.removeShare).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('移除自己后将退出此影像集');
-    await click('home-share-remove-confirm');
-    expect(api.removeShare).toHaveBeenCalledWith(
-      dataset.id,
-      identity.subject,
-      identity,
-      expect.any(AbortSignal)
-    );
-    expect(props.onResourceLost).toHaveBeenCalledTimes(1);
+    expect(props.onResourceLost).not.toHaveBeenCalled();
   });
 
   test('404 exits the resource without retrying', async () => {

@@ -50,6 +50,7 @@ class SegmentationAccessTests {
     private static final List<DicomSegCodec.Mask> MASKS = List.of(new DicomSegCodec.Mask(ONE,List.of(1,3,9,2)));
     @Autowired SegmentationService segmentations;
     @Autowired DatasetService datasets;
+    @Autowired TeamService teams;
     @Autowired JdbcTemplate db;
     @Autowired MockMvc mvc;
     @MockitoBean OrthancService orthanc;
@@ -61,6 +62,7 @@ class SegmentationAccessTests {
     void reset() {
         db.update("DELETE FROM segmentation_drafts");
         db.update("DELETE FROM segmentation_publications");
+        db.update("DELETE FROM dataset_teams");
         db.update("DELETE FROM dataset_grants");
         db.update("DELETE FROM dataset_instances");
         db.update("DELETE FROM datasets");
@@ -95,6 +97,19 @@ class SegmentationAccessTests {
         verify(orthanc).file(SEG);
         verify(codec).decode(any(),anyList());
         assertThat(segmentations.file(dataset,SERIES,BOB)).containsExactly(4,5,6);
+    }
+
+    @Test
+    void teamMemberCanPublishAndReadUntilRemovedWhilePublicationRemainsInTeam() {
+        var team=teams.create("Annotation team",ALICE);
+        teams.addMember(team.team().id(),BOB.subject(),ALICE);
+        db.update("INSERT INTO dataset_teams VALUES (?,?)",dataset,team.team().id());
+        assertThat(segmentations.publish(dataset,SERIES,request(0,MASKS),BOB).publishedVersion()).isEqualTo(1);
+        assertThat(segmentations.workspace(dataset,SERIES,ALICE).masks()).isEqualTo(MASKS);
+        teams.removeMember(team.team().id(),BOB.subject(),ALICE);
+        assertThatThrownBy(()->segmentations.workspace(dataset,SERIES,BOB)).isInstanceOfSatisfying(ApiException.class,
+                e->assertThat(e.status()).isEqualTo(HttpStatus.NOT_FOUND));
+        assertThat(segmentations.workspace(dataset,SERIES,ALICE).publishedVersion()).isEqualTo(1);
     }
 
     @Test
@@ -183,9 +198,7 @@ class SegmentationAccessTests {
     }
 
     @Test
-    void revokedAndAnonymousUsersCannotReadOrPublishAndWritesRequireCsrf() throws Exception {
-        datasets.share(dataset,BOB.subject(),ALICE);
-        datasets.revoke(dataset,BOB.subject(),ALICE);
+    void unsharedAndAnonymousUsersCannotReadOrPublishAndWritesRequireCsrf() throws Exception {
         clearInvocations(codec,orthanc);
         mvc.perform(get("/api/datasets/"+dataset+"/segmentation/sources").with(login(BOB))).andExpect(status().isNotFound());
         for (String suffix : List.of("","/status","/file","/legacy-draft"))

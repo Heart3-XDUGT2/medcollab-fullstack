@@ -373,26 +373,26 @@ paths:
       - name: subject
         in: path
         required: true
-        description: 被移除的 Keycloak 稳定用户 ID，路径编码；不是用户名
+        description: 旧撤销接口的 Keycloak 稳定用户 ID；本版本不执行移除
         schema:
           type: string
           format: uuid
     delete:
       tags: [Sharing]
       operationId: removeShare
-      summary: 撤销一个显式共享账号
+      deprecated: true
+      summary: 已停用，个人共享确认后不可撤销
       x-csrf-required: true
       description: |
-        无请求体。不存在的共享记录也可返回 success=true。
-        不能移除所有者。当前 shared 成员可以移除自己或其他 shared 成员；
-        移除自己后退出对应资源并刷新列表。取消 fetch 不保证撤销服务器已完成的删除。
+        2026-11-02 起，无请求体，合法访问者一律收到409，既有共享记录保持不变。
+        所有者和接收者均不能移除共享。团队成员移除属于不同接口与授权来源。
       responses:
-        '200':
-          description: 已确认撤销或原本没有该共享记录
+        '409':
+          description: 个人共享不可撤销
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResult'
+                $ref: '#/components/schemas/ErrorBody'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -562,7 +562,7 @@ components:
           type: string
           enum: [owner, shared, public]
           description: |
-            owner 是归属而非仅本人可见；shared 拥有当前全部操作，含继续共享/撤销成员；
+            owner 是归属而非仅本人可见；shared 可编辑和继续共享，个人共享不可撤销；
             public 是所有登录用户可访问，不是匿名全网公开。没有细分只读权限。
         ownerUsername:
           type: string

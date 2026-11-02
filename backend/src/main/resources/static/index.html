@@ -622,20 +622,7 @@ async function loadShares(datasetId, epoch, sequence) {
   }
   data.items.forEach((user) => {
     const row = document.createElement('li');
-    row.append(document.createTextNode(user.username + '（全部权限） '));
-    const revoke = document.createElement('button');
-    revoke.type = 'button';
-    revoke.disabled = busy;
-    revoke.textContent = '取消共享';
-    revoke.addEventListener('click', () => run(async (epoch) => {
-      if (activeDataset?.id !== datasetId) return;
-      await request(datasetPath(datasetId) + '/shares/' + encodeURIComponent(user.subject), {method: 'DELETE'});
-      if (epoch !== sessionEpoch) return;
-      await loadDatasets(epoch, datasetId);
-      if (epoch !== sessionEpoch) return;
-      appMessage.textContent = '已取消对 ' + user.username + ' 的共享。如取消的是自己的共享，该影像集会从列表中移除。';
-    }, shareMessage));
-    row.append(revoke);
+    row.append(document.createTextNode(user.username + '（可编辑、可继续共享；共享不可撤销）'));
     list.append(row);
   });
 }

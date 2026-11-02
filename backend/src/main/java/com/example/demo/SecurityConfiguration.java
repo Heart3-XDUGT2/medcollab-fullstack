@@ -62,7 +62,7 @@ public class SecurityConfiguration {
 
         return http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/", "/index.html", "/segmentation.js", "/mask-drafts.js", "/favicon.ico", "/error", "/auth/**", "/oauth2/**",
+                        .requestMatchers("/", "/index.html", "/teams.html", "/teams.js", "/segmentation.js", "/mask-drafts.js", "/favicon.ico", "/error", "/auth/**", "/oauth2/**",
                                 "/login/oauth2/**", "/api/session", "/api/health").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())

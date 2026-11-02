@@ -69,10 +69,7 @@ export function createDemoLibrary() {
         shares.set(id, [...current, { ...user }]);
     },
     removeShare(id: string, subject: string) {
-      shares.set(
-        id,
-        (shares.get(id) || []).filter((user) => user.subject !== subject)
-      );
+      throw new Error('个人共享一经确认不可撤销');
     },
   };
 }

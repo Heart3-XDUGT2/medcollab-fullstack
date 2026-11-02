@@ -118,7 +118,7 @@ class DatasetAccessTests {
     void inaccessibleDatasetAndMixedDatasetInstanceIdsDenyAllReads() throws Exception {
         var mine = datasets.create("Private", ALICE);
         db.update("INSERT INTO dataset_instances VALUES (?,?,?)", mine.id(), ONE, "1");
-        db.update("INSERT INTO datasets VALUES ('public-test','Public',TRUE,NULL,NULL,'公共影像','2026-10-31T00:00:00Z')");
+        db.update("INSERT INTO datasets (id,name,is_public,owner_issuer,owner_subject,owner_username,created_at) VALUES ('public-test','Public',TRUE,NULL,NULL,'公共影像','2026-10-31T00:00:00Z')");
         for (String path : List.of("/instances", "/shares", "/instances/"+ONE+"/preview", "/instances/"+ONE+"/file")) {
             mvc.perform(get("/api/datasets/"+mine.id()+path).with(login(BOB))).andExpect(status().isNotFound());
         }
@@ -129,7 +129,7 @@ class DatasetAccessTests {
     }
 
     @Test
-    void sharedUserHasFullOperationsIncludingUploadRenameSharingAndRevocation() throws Exception {
+    void sharedUserCanUploadRenameReshareButCannotRevoke() throws Exception {
         var mine = datasets.create("Private", ALICE);
         datasets.share(mine.id(), BOB.subject(), ALICE);
         assertThat(datasets.list(BOB).items().getFirst().access()).isEqualTo("shared");
@@ -146,28 +146,28 @@ class DatasetAccessTests {
                         .contentType("application/json").content("{\"subject\":\"carol-sub\"}"))
                 .andExpect(status().isOk());
         assertThat(datasets.instances(mine.id(),CAROL).total()).isEqualTo(1);
-        mvc.perform(delete("/api/datasets/"+mine.id()+"/shares/carol-sub").with(login(BOB)).with(csrf())).andExpect(status().isOk());
-        assertThat(datasets.list(CAROL).items()).isEmpty();
+        mvc.perform(delete("/api/datasets/"+mine.id()+"/shares/carol-sub").with(login(BOB)).with(csrf())).andExpect(status().isConflict());
+        assertThat(datasets.list(CAROL).items()).hasSize(1);
         assertThatThrownBy(() -> datasets.revoke(mine.id(), ALICE.subject(), BOB)).isInstanceOf(ApiException.class);
     }
 
     @Test
-    void revokedUserImmediatelyLosesBrowseEditImportDownloadAndShareAccess() throws Exception {
+    void ownerCannotRevokeConfirmedSharingAndRecipientRetainsAccess() throws Exception {
         var mine = datasets.create("Private", ALICE);
         db.update("INSERT INTO dataset_instances VALUES (?,?,?)", mine.id(), ONE, "1");
         datasets.share(mine.id(),BOB.subject(),ALICE);
-        datasets.revoke(mine.id(),BOB.subject(),ALICE);
+        assertThatThrownBy(() -> datasets.revoke(mine.id(),BOB.subject(),ALICE)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         clearInvocations(orthanc,directory);
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances").with(login(BOB))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/preview").with(login(BOB))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/file").with(login(BOB))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/datasets/"+mine.id()+"/instances").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/preview").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/file").with(login(BOB))).andExpect(status().isOk());
         mvc.perform(patch("/api/datasets/"+mine.id()).with(login(BOB)).with(csrf()).contentType("application/json")
-                .content("{\"name\":\"forbidden\"}")).andExpect(status().isNotFound());
-        mvc.perform(multipart("/api/import").file(file()).param("datasetId",mine.id()).with(login(BOB)).with(csrf())).andExpect(status().isNotFound());
+                .content("{\"name\":\"still editable\"}")).andExpect(status().isOk());
         mvc.perform(put("/api/datasets/"+mine.id()+"/shares").with(login(BOB)).with(csrf()).contentType("application/json")
-                .content("{\"subject\":\"carol-sub\"}")).andExpect(status().isNotFound());
+                .content("{\"subject\":\"carol-sub\"}")).andExpect(status().isOk());
         verify(orthanc, never()).importDicom(any());
-        verify(directory, never()).requireUser(any());
+        assertThat(datasets.shares(mine.id(),ALICE).items()).hasSize(2);
     }
 
     @Test

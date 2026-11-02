@@ -12,7 +12,7 @@ const imagingRoot = path.resolve(folder, '../frontends/ohif/platform/app/dist');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.wasm':'application/wasm', '.woff':'font/woff', '.ttf':'font/ttf' };
 const proxyRoutes = /^\/(api|auth|oauth2|login\/oauth2)(\/|$)/;
 // Keep the existing simple editor on the public origin so its IndexedDB stays with the unified site.
-const editorRoutes = new Map([['/annotation-demo', '/index.html'], ['/mask-drafts.js', '/mask-drafts.js'], ['/segmentation.js', '/segmentation.js']]);
+const editorRoutes = new Map([['/teams', '/teams.html'], ['/teams.js', '/teams.js'], ['/annotation-demo', '/index.html'], ['/mask-drafts.js', '/mask-drafts.js'], ['/segmentation.js', '/segmentation.js']]);
 const spaRoutes = new Set(['/home']);
 const hopHeaders = ['connection', 'keep-alive', 'proxy-connection', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'];
 function safeHeaders(headers) {

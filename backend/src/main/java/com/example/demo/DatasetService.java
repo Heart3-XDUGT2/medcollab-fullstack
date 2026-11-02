@@ -25,10 +25,16 @@ public class DatasetService {
     public record DatasetItem(String id, String name, String access, String ownerUsername,
                               long instanceCount, String createdAt) { }
     public record ShareItem(String subject, String username) { }
+    public record TeamDatasetItem(String id, String name, String access, String ownerUsername,
+                                  long instanceCount, String createdAt, String scope, String teamId,
+                                  String uploaderSubject, boolean canDelete) { }
     private record StoredDataset(String id, String name, boolean publicDataset,
                                  String ownerIssuer, String ownerSubject, String ownerUsername, String createdAt) { }
-    private static final String VISIBLE = "(d.is_public = TRUE OR (d.owner_issuer = ? AND d.owner_subject = ?) "
-            + "OR EXISTS (SELECT 1 FROM dataset_grants g WHERE g.dataset_id = d.id AND g.user_issuer = ? AND g.user_subject = ?))";
+    private static final String PERSONAL = "NOT EXISTS (SELECT 1 FROM dataset_teams dt WHERE dt.dataset_id=d.id)";
+    private static final String VISIBLE = "(d.deleted_at IS NULL AND ((" + PERSONAL + " AND (d.is_public = TRUE OR (d.owner_issuer = ? AND d.owner_subject = ?) "
+            + "OR EXISTS (SELECT 1 FROM dataset_grants g WHERE g.dataset_id = d.id AND g.user_issuer = ? AND g.user_subject = ?))) "
+            + "OR EXISTS (SELECT 1 FROM dataset_teams dt JOIN team_members m ON m.team_id=dt.team_id "
+            + "WHERE dt.dataset_id=d.id AND m.user_issuer=? AND m.user_subject=?)))";
     private static final RowMapper<StoredDataset> DATASET = (r, n) -> new StoredDataset(r.getString("id"),
             r.getString("name"), r.getBoolean("is_public"), r.getString("owner_issuer"),
             r.getString("owner_subject"), r.getString("owner_username"), r.getString("created_at"));
@@ -36,16 +42,18 @@ public class DatasetService {
     private final TransactionTemplate transaction;
     private final OrthancService orthanc;
     private final KeycloakDirectoryService directory;
+    private final TeamService teams;
     private final String issuer;
     private final boolean seedEnabled;
 
     public DatasetService(JdbcTemplate db, PlatformTransactionManager manager, OrthancService orthanc,
-            KeycloakDirectoryService directory, @Value("${keycloak.issuer-uri}") String issuer,
+            KeycloakDirectoryService directory, TeamService teams, @Value("${keycloak.issuer-uri}") String issuer,
             @Value("${app.datasets.seed-enabled:true}") boolean seedEnabled) {
         this.db = db;
         this.transaction = new TransactionTemplate(manager);
         this.orthanc = orthanc;
         this.directory = directory;
+        this.teams = teams;
         this.issuer = issuer;
         this.seedEnabled = seedEnabled;
     }
@@ -63,6 +71,10 @@ public class DatasetService {
                 + "PRIMARY KEY(dataset_id, user_issuer, user_subject))");
         db.execute("CREATE INDEX IF NOT EXISTS dataset_grant_lookup ON dataset_grants(user_issuer, user_subject)");
         db.execute("CREATE TABLE IF NOT EXISTS dataset_migrations (id VARCHAR(100) PRIMARY KEY, applied_at VARCHAR(40) NOT NULL)");
+        db.execute("ALTER TABLE datasets ADD COLUMN IF NOT EXISTS deleted_at VARCHAR(40)");
+        db.execute("CREATE TABLE IF NOT EXISTS dataset_teams (dataset_id VARCHAR(100) PRIMARY KEY REFERENCES datasets(id), "
+                + "team_id VARCHAR(100) NOT NULL REFERENCES teams(id))");
+        db.execute("CREATE INDEX IF NOT EXISTS dataset_team_lookup ON dataset_teams(team_id)");
         if (seedEnabled) seedPublicDatasets();
     }
 
@@ -93,7 +105,7 @@ public class DatasetService {
     public OrthancService.Items<DatasetItem> list(DemoSession.Identity user) {
         validateIdentity(user);
         List<DatasetItem> items = db.query("SELECT d.*, (SELECT COUNT(*) FROM dataset_instances i WHERE i.dataset_id=d.id) AS instance_count "
-                        + "FROM datasets d WHERE " + VISIBLE + " ORDER BY d.is_public DESC, d.created_at DESC, d.id",
+                        + "FROM datasets d WHERE " + PERSONAL + " AND " + VISIBLE + " ORDER BY d.is_public DESC, d.created_at DESC, d.id",
                 (r, n) -> item(DATASET.mapRow(r, n), r.getLong("instance_count"), user), identityArgs(user));
         return new OrthancService.Items<>(items, items.size());
     }
@@ -109,7 +121,7 @@ public class DatasetService {
         String clean = checkedName(name);
         String id = UUID.randomUUID().toString();
         String created = Instant.now().toString();
-        db.update("INSERT INTO datasets VALUES (?,?,FALSE,?,?,?,?)", id, clean, user.issuer(), user.subject(), user.username(), created);
+        db.update("INSERT INTO datasets (id,name,is_public,owner_issuer,owner_subject,owner_username,created_at) VALUES (?,?,FALSE,?,?,?,?)", id, clean, user.issuer(), user.subject(), user.username(), created);
         return new DatasetItem(id, clean, "owner", user.username(), 0, created);
     }
 
@@ -179,26 +191,54 @@ public class DatasetService {
     }
 
     public void revoke(String id, String subject, DemoSession.Identity user) {
-        transaction.executeWithoutResult(ignored -> {
-            StoredDataset dataset = requirePrivateAccess(id, user, true);
-            if (issuer.equals(dataset.ownerIssuer()) && dataset.ownerSubject().equals(subject))
-                throw new ApiException(HttpStatus.BAD_REQUEST, "不能移除上传者的所有权");
-            db.update("DELETE FROM dataset_grants WHERE dataset_id=? AND user_issuer=? AND user_subject=?", id, issuer, subject);
+        requirePrivateAccess(id, user, false);
+        throw new ApiException(HttpStatus.CONFLICT, "个人共享一经确认不可撤销，不能移除共享成员");
+    }
+
+    public OrthancService.Items<TeamDatasetItem> teamDatasets(String teamId, DemoSession.Identity user) {
+        teams.requireMembership(teamId,user,false);
+        var items=db.query("SELECT d.*, (SELECT COUNT(*) FROM dataset_instances i WHERE i.dataset_id=d.id) AS instance_count "
+                + "FROM datasets d JOIN dataset_teams dt ON dt.dataset_id=d.id WHERE dt.team_id=? AND d.deleted_at IS NULL ORDER BY d.created_at DESC,d.id",
+                (r,n)->teamItem(DATASET.mapRow(r,n),r.getLong("instance_count"),teamId,user),teamId);
+        return new OrthancService.Items<>(items,items.size());
+    }
+
+    public TeamDatasetItem createTeamDataset(String teamId, String name, DemoSession.Identity user) {
+        return transaction.execute(ignored->{
+            teams.requireMembership(teamId,user,true);
+            DatasetItem created=create(name,user);
+            db.update("INSERT INTO dataset_teams VALUES (?,?)",created.id(),teamId);
+            return teamItem(requireAccess(created.id(),user,false),0,teamId,user);
+        });
+    }
+
+    /** Logical deletion protects Orthanc instances referenced by other business datasets. */
+    public void deleteTeamDataset(String teamId,String id,DemoSession.Identity user) {
+        transaction.executeWithoutResult(ignored->{
+            teams.requireMembership(teamId,user,true);
+            if(!teamId.equals(teamId(id))) throw unavailable();
+            var rows=db.query("SELECT * FROM datasets WHERE id=? FOR UPDATE",DATASET,id);
+            if(rows.isEmpty()) throw unavailable();
+            if(!isOwner(rows.getFirst(),user)) throw new ApiException(HttpStatus.FORBIDDEN,"只能删除自己上传的团队数据集");
+            db.update("UPDATE datasets SET deleted_at=COALESCE(deleted_at,?) WHERE id=?",Instant.now().toString(),id);
         });
     }
 
     private StoredDataset requirePrivateAccess(String id, DemoSession.Identity user, boolean lock) {
         StoredDataset dataset = requireAccess(id, user, lock);
+        if(teamId(id)!=null) throw new ApiException(HttpStatus.BAD_REQUEST, "团队影像仅向当前团队成员开放，不提供个人或队外共享");
         if (dataset.publicDataset()) throw new ApiException(HttpStatus.BAD_REQUEST, "公共影像已向所有登录用户开放，无需设置共享");
         return dataset;
     }
 
     private StoredDataset requireAccess(String id, DemoSession.Identity user, boolean lock) {
         validateIdentity(user);
-        List<StoredDataset> rows = db.query("SELECT * FROM datasets WHERE id=?" + (lock ? " FOR UPDATE" : ""), DATASET, id);
+        String teamId=teamId(id);
+        if(teamId!=null) teams.requireMembership(teamId,user,lock);
+        List<StoredDataset> rows = db.query("SELECT * FROM datasets WHERE id=? AND deleted_at IS NULL" + (lock ? " FOR UPDATE" : ""), DATASET, id);
         if (rows.isEmpty()) throw unavailable();
         StoredDataset dataset = rows.getFirst();
-        if (!dataset.publicDataset() && !isOwner(dataset, user)
+        if (teamId==null && !dataset.publicDataset() && !isOwner(dataset, user)
                 && db.queryForObject("SELECT COUNT(*) FROM dataset_grants WHERE dataset_id=? AND user_issuer=? AND user_subject=?",
                 Integer.class, id, user.issuer(), user.subject()) == 0) throw unavailable();
         return dataset;
@@ -209,7 +249,14 @@ public class DatasetService {
         if (user == null || !issuer.equals(user.issuer()) || user.subject() == null || user.subject().isBlank())
             throw new ApiException(HttpStatus.UNAUTHORIZED, "登录账户不属于当前服务器，请重新登录");
     }
-    private static Object[] identityArgs(DemoSession.Identity user) { return new Object[]{user.issuer(),user.subject(),user.issuer(),user.subject()}; }
+    private static Object[] identityArgs(DemoSession.Identity user) { return new Object[]{user.issuer(),user.subject(),user.issuer(),user.subject(),user.issuer(),user.subject()}; }
+    private String teamId(String id) {
+        var rows=db.query("SELECT team_id FROM dataset_teams WHERE dataset_id=?",(r,n)->r.getString(1),id);
+        return rows.isEmpty()?null:rows.getFirst();
+    }
+    private static TeamDatasetItem teamItem(StoredDataset d,long count,String teamId,DemoSession.Identity user) {
+        return new TeamDatasetItem(d.id(),d.name(),isOwner(d,user)?"owner":"shared",d.ownerUsername(),count,d.createdAt(),"team",teamId,d.ownerSubject(),isOwner(d,user));
+    }
     private static boolean isOwner(StoredDataset d, DemoSession.Identity user) { return user.issuer().equals(d.ownerIssuer()) && user.subject().equals(d.ownerSubject()); }
     private static DatasetItem item(StoredDataset d, long count, DemoSession.Identity user) {
         return new DatasetItem(d.id(),d.name(),d.publicDataset() ? "public" : isOwner(d,user) ? "owner" : "shared",d.ownerUsername(),count,d.createdAt());

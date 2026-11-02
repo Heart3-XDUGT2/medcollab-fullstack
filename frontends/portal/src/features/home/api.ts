@@ -368,6 +368,7 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
         success
       );
     },
+    /** @deprecated Server returns 409: confirmed personal sharing is irrevocable. */
     async removeShare(
       id: string,
       subject: string,

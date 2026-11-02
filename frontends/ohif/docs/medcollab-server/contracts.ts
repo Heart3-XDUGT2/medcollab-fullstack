@@ -16,6 +16,8 @@ export type Health = {
   message: string;
   application: string;
   workspaceApi: string; // current: dicomweb-labelmap-v1
+  teamApi: string; // team-library-v1
+  sharingPolicy: string; // personal-irrevocable-v1
   javaVersion: string;
   osName: string;
   osArch: string;

@@ -58,13 +58,15 @@ export default function HomePage() {
   const [sort, setSort] = useState('newest');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const landingNotice = useRef((() => {
-    const query = new URLSearchParams(window.location.search);
-    if (query.get('authError') === 'unavailable') return '账号服务暂时不可用，请稍后重试。';
-    if (query.has('authError')) return '登录未完成，请重新登录。';
-    if (query.get('logout') === '1') return '已退出登录。';
-    return '';
-  })());
+  const landingNotice = useRef(
+    (() => {
+      const query = new URLSearchParams(window.location.search);
+      if (query.get('authError') === 'unavailable') return '账号服务暂时不可用，请稍后重试。';
+      if (query.has('authError')) return '登录未完成，请重新登录。';
+      if (query.get('logout') === '1') return '已退出登录。';
+      return '';
+    })()
+  );
   const [navOpen, setNavOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [name, setName] = useState('');
@@ -155,7 +157,11 @@ export default function HomePage() {
     setMode('real');
     demo.current = null;
     setPhase('loading');
-    setNotice(interrupted ? '已停止等待操作；服务端可能已处理，请核对列表，不会自动重试。' : landingNotice.current);
+    setNotice(
+      interrupted
+        ? '已停止等待操作；服务端可能已处理，请核对列表，不会自动重试。'
+        : landingNotice.current
+    );
     landingNotice.current = '';
     try {
       const session = await api.getSession(signal);
@@ -425,7 +431,7 @@ export default function HomePage() {
       <p>
         {selected.access === 'public'
           ? '公共影像面向所有登录账号开放。'
-          : '共享成员可编辑、继续共享及管理共享名单。'}
+          : '共享成员可编辑并继续共享，个人共享确认后不可撤销。'}
       </p>
       <Button
         className="mc-library-primary"
@@ -527,6 +533,7 @@ export default function HomePage() {
             MedCollab
           </Link>
           <div className="mc-library-account">
+            {mode === 'real' && ready && identity.current && <a href="/teams">团队影像库</a>}
             <span data-cy="home-account" title={username || undefined}>
               {mode === 'demo' ? '示例空间' : username || '未登录'}
             </span>

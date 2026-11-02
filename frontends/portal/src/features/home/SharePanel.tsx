@@ -52,7 +52,6 @@ export default function SharePanel({
   const [results, setResults] = useState<User[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<User | null>(null);
-  const [removing, setRemoving] = useState<User | null>(null);
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [needsCheck, setNeedsCheck] = useState(false);
@@ -218,7 +217,7 @@ export default function SharePanel({
     }
   }
 
-  async function changeShare(kind: 'add' | 'remove', user: User) {
+  async function changeShare(user: User) {
     if (!canWrite || pendingWrite.current) return;
     const epoch = generation.current;
     const request = trackedRequest();
@@ -229,39 +228,23 @@ export default function SharePanel({
     callbacks.current.onBusyChange(true);
     try {
       if (mode === 'demo' && demo) {
-        if (kind === 'add') demo.addShare(dataset.id, user);
-        else demo.removeShare(dataset.id, user.subject);
+        demo.addShare(dataset.id, user);
       } else {
         const expected = boundIdentity.current;
         if (!expected) throw new ApiError('请登录原账号后刷新会话', 401, 'signed-out');
-        if (kind === 'add')
-          await api.addShare(dataset.id, user.subject, { ...expected }, request.controller.signal);
-        else
-          await api.removeShare(
-            dataset.id,
-            user.subject,
-            { ...expected },
-            request.controller.signal
-          );
+        await api.addShare(dataset.id, user.subject, { ...expected }, request.controller.signal);
       }
       if (!current(epoch, request.controller.signal)) return;
-      if (kind === 'remove' && mode === 'real' && user.subject === boundIdentity.current?.subject) {
-        callbacks.current.onResourceLost();
-        return;
-      }
       setSelected(null);
-      setRemoving(null);
       setNotice(
         mode === 'demo'
           ? '仅更新了本机示例的共享名单，未保存到云端。'
-          : kind === 'add'
-            ? '已确认共享，正在更新名单。'
-            : '已确认移除，正在更新名单。'
+          : '已确认共享，不可撤销，正在更新名单。'
       );
       await loadMembers();
     } catch (failure) {
       if (!current(epoch, request.controller.signal)) return;
-      if (kind === 'add' && failure instanceof ApiError && failure.status === 404) {
+      if (failure instanceof ApiError && failure.status === 404) {
         await verifyAddTarget(epoch, request.controller.signal);
       } else {
         handleFailure(failure, true);
@@ -303,7 +286,7 @@ export default function SharePanel({
       <p className="mc-library-share-dataset">{dataset.name}</p>
       <p className="mc-library-share-warning">
         <Icons.Info aria-hidden="true" />
-        <span>共享成员可编辑影像，并能继续共享或撤销其他成员的共享。</span>
+        <span>共享成员可编辑影像，并能继续共享。确认共享后不可撤销，请核对账号。</span>
       </p>
       {(!active || blocked) && mode === 'real' && (
         <div className="mc-library-share-paused" role="status">
@@ -366,7 +349,6 @@ export default function SharePanel({
                   disabled={!active || busy || exists}
                   onClick={() => {
                     setSelected(user);
-                    setRemoving(null);
                   }}
                 >
                   <Icons.Patient aria-hidden="true" />
@@ -391,7 +373,7 @@ export default function SharePanel({
           disabled={
             !selected || !canWrite || members.some((member) => member.subject === selected.subject)
           }
-          onClick={() => selected && changeShare('add', selected)}
+          onClick={() => selected && changeShare(selected)}
           dataCY="home-share-add"
         >
           <Icons.Plus aria-hidden="true" />
@@ -427,18 +409,7 @@ export default function SharePanel({
                   {user.username}
                   {user.subject === boundIdentity.current?.subject ? '（当前账号）' : ''}
                 </span>
-                <Button
-                  variant="ghost"
-                  className="mc-library-share-remove"
-                  disabled={!canWrite}
-                  onClick={() => {
-                    setRemoving(user);
-                    setSelected(null);
-                  }}
-                  dataCY="home-share-remove"
-                >
-                  移除
-                </Button>
+                <span>已共享，不可撤销</span>
               </li>
             ))}
           </ul>
@@ -447,32 +418,6 @@ export default function SharePanel({
         )
       ) : (
         <p className="mc-library-share-empty">共享名单尚未载入。</p>
-      )}
-      {removing && (
-        <div className="mc-library-share-removal" role="group" aria-label="确认移除共享">
-          <p>
-            确认移除 <strong>{removing.username}</strong> 的共享？
-            {removing.subject === boundIdentity.current?.subject && '移除自己后将退出此影像集。'}
-          </p>
-          <div>
-            <Button
-              variant="outline"
-              className="mc-library-secondary"
-              disabled={busy}
-              onClick={() => setRemoving(null)}
-            >
-              保留
-            </Button>
-            <Button
-              className="mc-library-share-destructive"
-              disabled={!canWrite}
-              onClick={() => changeShare('remove', removing)}
-              dataCY="home-share-remove-confirm"
-            >
-              确认移除
-            </Button>
-          </div>
-        </div>
       )}
       {error && (
         <p className="mc-library-error" role="alert" data-cy="home-share-error">

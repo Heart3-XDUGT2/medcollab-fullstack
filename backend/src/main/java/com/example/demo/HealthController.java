@@ -12,6 +12,8 @@ public class HealthController {
 	@GetMapping("/api/health")
 	public Map<String, String> health() {
 		return Map.of(
+				"teamApi", "team-library-v1",
+				"sharingPolicy", "personal-irrevocable-v1",
 				"workspaceApi", "dicomweb-labelmap-v1",
 				"status", "UP",
 				"message", "Java 服务器运行正常",

@@ -1,0 +1,425 @@
+{
+  "date": "2026-11-02",
+  "baseArchive": "medcollab-fullstack-github-2026-11-01.zip",
+  "baseArchiveSha256": "487a8c118f2d7195ac5d6ac557fe40f1a929e090ac7d8e2f149cfb62c301f692",
+  "archiveLayout": "Paths are relative to the existing repository root; no extra medcollab/ wrapper.",
+  "policies": [
+    "team-library-v1",
+    "personal-irrevocable-v1"
+  ],
+  "payloadFiles": 57,
+  "deletedFiles": [],
+  "manifestSelf": "docs/team-system/增量文件清单.json",
+  "manifestNote": "This newly added manifest does not list its own hash.",
+  "verification": {
+    "backendTests": 55,
+    "portalTests": 126,
+    "portalTypecheck": "passed",
+    "portalBuild": "passed",
+    "gatewayStubChecks": 7,
+    "teamOperationsInOpenApi": 15,
+    "typescriptContracts": "passed",
+    "liveDeploymentThisPackagingRun": false
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "operation": "modify",
+      "beforeSha256": "61dc591cb8a931527050670ee5035ea2c87d1b6b86945bf63103ccb4bb32c60d",
+      "afterSha256": "19a65941cf7d7e335015ba411221288c3bba29b4cfa10b71c4eebed8f3761804",
+      "bytes": 4236
+    },
+    {
+      "path": "backend/src/main/java/com/example/demo/DatasetService.java",
+      "operation": "modify",
+      "beforeSha256": "20c6e0994242e5118978edf95ee4f150a0fe5dbf36387ddf094cff43983e4de9",
+      "afterSha256": "e8a2cc4c4fa4a63441092a9fa8462fc59100942845bdb85ea87f950c4a4d4581",
+      "bytes": 17937
+    },
+    {
+      "path": "backend/src/main/java/com/example/demo/HealthController.java",
+      "operation": "modify",
+      "beforeSha256": "23839edad7c857d3555919f9e572636a822d0918fdb0902d1e51619a9d92f772",
+      "afterSha256": "311fba983721450e491b07eea841e7b6a0def9ef3be326705218c365f006d0c7",
+      "bytes": 753
+    },
+    {
+      "path": "backend/src/main/java/com/example/demo/SecurityConfiguration.java",
+      "operation": "modify",
+      "beforeSha256": "712ac78a918022d22c6dc31585a855d3386b976598776988d4e86bc6e3232b4d",
+      "afterSha256": "e8b8f52040b41aa9ee2c30335444a4e3850cf73401afb649ac495d906d7cece9",
+      "bytes": 5919
+    },
+    {
+      "path": "backend/src/main/java/com/example/demo/TeamController.java",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "a272856088b769fb6804918448611fbd5ce46ec9378504c74c80c9c696d23c07",
+      "bytes": 3930
+    },
+    {
+      "path": "backend/src/main/java/com/example/demo/TeamService.java",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "642292dc48d388104daf0294edb75095b2c354de0ef45e27fd134c35f981a7c9",
+      "bytes": 11607
+    },
+    {
+      "path": "backend/src/main/resources/static/index.html",
+      "operation": "modify",
+      "beforeSha256": "181a6cc6d88fb1a0465313cafc3e2b94d6e477af46086d16d626f91a50b27deb",
+      "afterSha256": "866cfd7a2b79989b14a5244484f5f12e2918a8efe40bbb68b42902c5f3f18ef5",
+      "bytes": 36545
+    },
+    {
+      "path": "backend/src/main/resources/static/teams.html",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "e3e6824c64519b05dadaaf11d47d20e419a69ec7a96cc3f517081d634dc9f111",
+      "bytes": 3243
+    },
+    {
+      "path": "backend/src/main/resources/static/teams.js",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "050ab56f72db6c67db3f55b2747368425b764a436228004319d3af9cd688e6d9",
+      "bytes": 11256
+    },
+    {
+      "path": "backend/src/test/java/com/example/demo/DatasetAccessTests.java",
+      "operation": "modify",
+      "beforeSha256": "dd5c9771dcbedd475b0daa85980d156beb5323271c0c7c594fb30f77fcffa9de",
+      "afterSha256": "bc01a10d1b999148935fb57a00286177d9fd921949c2b32210798d4b9638035a",
+      "bytes": 14430
+    },
+    {
+      "path": "backend/src/test/java/com/example/demo/SegmentationAccessTests.java",
+      "operation": "modify",
+      "beforeSha256": "d21613445da0d7b54d7d528b191e82660eda0e94c851146affa0d2f274dd59c4",
+      "afterSha256": "2a67cbe740820d7243e99f5f747641945775c991df4b45318a8b2eec1afd82d0",
+      "bytes": 20079
+    },
+    {
+      "path": "backend/src/test/java/com/example/demo/TeamSystemTests.java",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "d7d8f812e066c984f37cc77876241c5564426e79cb7fbfc5f48aee0022f506df",
+      "bytes": 14683
+    },
+    {
+      "path": "docs/PACKAGING.md",
+      "operation": "modify",
+      "beforeSha256": "fc1195391cf3c2eccb74d41d3083adec13da0bf54364efdeea2b5e2490266362",
+      "afterSha256": "2bd0e30e1b5a8ac99690f40e6b8cb18ca9c675792e2b9ae7557fee446e074497",
+      "bytes": 3493
+    },
+    {
+      "path": "docs/frontend-handoff/README.md",
+      "operation": "modify",
+      "beforeSha256": "7de50a17a97b386022bd6d431f84f7dca5803996a933e464436848a3d03b2902",
+      "afterSha256": "1d19671e231759fb0d6e85acb8fad32c89521649ff97d17d7cc50efade9aa87d",
+      "bytes": 1767
+    },
+    {
+      "path": "docs/frontend-handoff/contracts.ts",
+      "operation": "modify",
+      "beforeSha256": "589a7800809e4a7681282b41d2bc0292cec723dbe9ba2a1b635222c7deadab48",
+      "afterSha256": "fe809c9ef6c5cba6354f62c6d53fa900b4da031a00a5dfe8dd31599140b1cc2a",
+      "bytes": 4639
+    },
+    {
+      "path": "docs/frontend-handoff/team-library/README.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "45ec72306ad2366b8ae7e8cddf651095e167bd180516799178ef8144af7944f1",
+      "bytes": 1301
+    },
+    {
+      "path": "docs/frontend-handoff/team-library/contracts.ts",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "7333ef90ee0a4b1165ae42a438669675c7546766bf30fc11446d301afb9c3527",
+      "bytes": 1031
+    },
+    {
+      "path": "docs/frontend-handoff/team-library/openapi.json",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "066ff6bd050b396d6b3cc609abe84ab1b4433015e9b71d270326a96877a676c6",
+      "bytes": 45493
+    },
+    {
+      "path": "docs/frontend-handoff/team-library/request-examples.ts",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "f4e1c16ded9ddab3eeb290a0e528537398b7a620b548af6807bcec99f990f461",
+      "bytes": 2262
+    },
+    {
+      "path": "docs/frontend-handoff/team-library/团队系统接口.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "11b6ceddf66fb05017f949f3243e64f08cabb44db3c228bcdac7bf5fc67a45bb",
+      "bytes": 13581
+    },
+    {
+      "path": "docs/frontend-handoff/兼容性验收清单.md",
+      "operation": "modify",
+      "beforeSha256": "b79116d0cea5b884bac9dd7624aef9bf3026b0c7f026a5cf73582f3aa155c0d2",
+      "afterSha256": "47a0314ad8492b21374bc6bae97e1461fdcb6f53c4c49a36ab0d053f3b6b956a",
+      "bytes": 5764
+    },
+    {
+      "path": "docs/frontend-handoff/前端开发维护与兼容性指南.md",
+      "operation": "modify",
+      "beforeSha256": "52e8b7e6dda49aeb81a97e11434e39972a3c582bd9c9387fce1d600ca05a4816",
+      "afterSha256": "6de99ab82eaa3091745ebdd8f3deee19c5a8d1a572551e258cb65595bdb1e98b",
+      "bytes": 35286
+    },
+    {
+      "path": "docs/frontend-handoff/接口完整路径速查.md",
+      "operation": "modify",
+      "beforeSha256": "b013e9e9391cc18f672290d2e2c8b2b07dd7c80eb0ed961ff60bdd24d5b0c3ba",
+      "afterSha256": "eb8562f18a54d9de0e21330bbe1eaefba857e1724249a710d6cbe34f3b0dfaf8",
+      "bytes": 5497
+    },
+    {
+      "path": "docs/frontend-handoff/接口索引.json",
+      "operation": "modify",
+      "beforeSha256": "8a90414788bf0b49c61c6e9767eb0a8d287b838ff9199b835f0f2244aaae4c9d",
+      "afterSha256": "0211c30b598bb7521ae82c3103f44ede2387056e7bc2738bc5f1a472d81529de",
+      "bytes": 13797
+    },
+    {
+      "path": "docs/team-system/覆盖与更新说明.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "c2d6c44de507021cfd5e29e4769bca6bc35ca06bdbebb6d1f709f6f3c8debce7",
+      "bytes": 3610
+    },
+    {
+      "path": "docs/影像归属与共享说明.md",
+      "operation": "modify",
+      "beforeSha256": "8e12bf898e5f4f5bb6f33f2a94fb008c9340f1475a630b87fe721978e43f3c4c",
+      "afterSha256": "ab3e9349a5277cdd14660727de23927a399727536d3f6ca3641b8615244de74c",
+      "bytes": 4232
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/README.md",
+      "operation": "modify",
+      "beforeSha256": "7de50a17a97b386022bd6d431f84f7dca5803996a933e464436848a3d03b2902",
+      "afterSha256": "1d19671e231759fb0d6e85acb8fad32c89521649ff97d17d7cc50efade9aa87d",
+      "bytes": 1767
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/contracts.ts",
+      "operation": "modify",
+      "beforeSha256": "589a7800809e4a7681282b41d2bc0292cec723dbe9ba2a1b635222c7deadab48",
+      "afterSha256": "fe809c9ef6c5cba6354f62c6d53fa900b4da031a00a5dfe8dd31599140b1cc2a",
+      "bytes": 4639
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/team-library/README.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "45ec72306ad2366b8ae7e8cddf651095e167bd180516799178ef8144af7944f1",
+      "bytes": 1301
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/team-library/contracts.ts",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "7333ef90ee0a4b1165ae42a438669675c7546766bf30fc11446d301afb9c3527",
+      "bytes": 1031
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/team-library/openapi.json",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "066ff6bd050b396d6b3cc609abe84ab1b4433015e9b71d270326a96877a676c6",
+      "bytes": 45493
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/team-library/request-examples.ts",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "f4e1c16ded9ddab3eeb290a0e528537398b7a620b548af6807bcec99f990f461",
+      "bytes": 2262
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/team-library/团队系统接口.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "11b6ceddf66fb05017f949f3243e64f08cabb44db3c228bcdac7bf5fc67a45bb",
+      "bytes": 13581
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/兼容性验收清单.md",
+      "operation": "modify",
+      "beforeSha256": "b79116d0cea5b884bac9dd7624aef9bf3026b0c7f026a5cf73582f3aa155c0d2",
+      "afterSha256": "47a0314ad8492b21374bc6bae97e1461fdcb6f53c4c49a36ab0d053f3b6b956a",
+      "bytes": 5764
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/前端开发维护与兼容性指南.md",
+      "operation": "modify",
+      "beforeSha256": "52e8b7e6dda49aeb81a97e11434e39972a3c582bd9c9387fce1d600ca05a4816",
+      "afterSha256": "6de99ab82eaa3091745ebdd8f3deee19c5a8d1a572551e258cb65595bdb1e98b",
+      "bytes": 35286
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/接口完整路径速查.md",
+      "operation": "modify",
+      "beforeSha256": "b013e9e9391cc18f672290d2e2c8b2b07dd7c80eb0ed961ff60bdd24d5b0c3ba",
+      "afterSha256": "eb8562f18a54d9de0e21330bbe1eaefba857e1724249a710d6cbe34f3b0dfaf8",
+      "bytes": 5497
+    },
+    {
+      "path": "frontends/ohif/docs/medcollab-server/接口索引.json",
+      "operation": "modify",
+      "beforeSha256": "8a90414788bf0b49c61c6e9767eb0a8d287b838ff9199b835f0f2244aaae4c9d",
+      "afterSha256": "0211c30b598bb7521ae82c3103f44ede2387056e7bc2738bc5f1a472d81529de",
+      "bytes": 13797
+    },
+    {
+      "path": "frontends/portal/docs/api/backend-contract.zh-CN.md",
+      "operation": "modify",
+      "beforeSha256": "aced6203a567881a71449ee2fe42e159048373e876c16658ec0c5847e20137fc",
+      "afterSha256": "db8cec22d5091cd65e5984dc465cf7aab7d8948b1cf272b7e55bdae2f6742e00",
+      "bytes": 19413
+    },
+    {
+      "path": "frontends/portal/docs/api/openapi.yaml",
+      "operation": "modify",
+      "beforeSha256": "cf03748220b11d5014e9298b7a5ac42250e0218bce9fa28fe0278d0357ff0adf",
+      "afterSha256": "7e0b303973061c5d3448b5ab8df8007b5f22a3b3669f0d4ff6ed6ff029c65dc8",
+      "bytes": 27528
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/README.md",
+      "operation": "modify",
+      "beforeSha256": "7de50a17a97b386022bd6d431f84f7dca5803996a933e464436848a3d03b2902",
+      "afterSha256": "1d19671e231759fb0d6e85acb8fad32c89521649ff97d17d7cc50efade9aa87d",
+      "bytes": 1767
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/contracts.ts",
+      "operation": "modify",
+      "beforeSha256": "589a7800809e4a7681282b41d2bc0292cec723dbe9ba2a1b635222c7deadab48",
+      "afterSha256": "fe809c9ef6c5cba6354f62c6d53fa900b4da031a00a5dfe8dd31599140b1cc2a",
+      "bytes": 4639
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/team-library/README.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "45ec72306ad2366b8ae7e8cddf651095e167bd180516799178ef8144af7944f1",
+      "bytes": 1301
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/team-library/contracts.ts",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "7333ef90ee0a4b1165ae42a438669675c7546766bf30fc11446d301afb9c3527",
+      "bytes": 1031
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/team-library/openapi.json",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "066ff6bd050b396d6b3cc609abe84ab1b4433015e9b71d270326a96877a676c6",
+      "bytes": 45493
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/team-library/request-examples.ts",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "f4e1c16ded9ddab3eeb290a0e528537398b7a620b548af6807bcec99f990f461",
+      "bytes": 2262
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/team-library/团队系统接口.md",
+      "operation": "add",
+      "beforeSha256": null,
+      "afterSha256": "11b6ceddf66fb05017f949f3243e64f08cabb44db3c228bcdac7bf5fc67a45bb",
+      "bytes": 13581
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/兼容性验收清单.md",
+      "operation": "modify",
+      "beforeSha256": "b79116d0cea5b884bac9dd7624aef9bf3026b0c7f026a5cf73582f3aa155c0d2",
+      "afterSha256": "47a0314ad8492b21374bc6bae97e1461fdcb6f53c4c49a36ab0d053f3b6b956a",
+      "bytes": 5764
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/前端开发维护与兼容性指南.md",
+      "operation": "modify",
+      "beforeSha256": "52e8b7e6dda49aeb81a97e11434e39972a3c582bd9c9387fce1d600ca05a4816",
+      "afterSha256": "6de99ab82eaa3091745ebdd8f3deee19c5a8d1a572551e258cb65595bdb1e98b",
+      "bytes": 35286
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/接口完整路径速查.md",
+      "operation": "modify",
+      "beforeSha256": "b013e9e9391cc18f672290d2e2c8b2b07dd7c80eb0ed961ff60bdd24d5b0c3ba",
+      "afterSha256": "eb8562f18a54d9de0e21330bbe1eaefba857e1724249a710d6cbe34f3b0dfaf8",
+      "bytes": 5497
+    },
+    {
+      "path": "frontends/portal/docs/handoff/current-server/接口索引.json",
+      "operation": "modify",
+      "beforeSha256": "8a90414788bf0b49c61c6e9767eb0a8d287b838ff9199b835f0f2244aaae4c9d",
+      "afterSha256": "0211c30b598bb7521ae82c3103f44ede2387056e7bc2738bc5f1a472d81529de",
+      "bytes": 13797
+    },
+    {
+      "path": "frontends/portal/src/features/home/HomePage.tsx",
+      "operation": "modify",
+      "beforeSha256": "eed6ac5356d84862d0681a4a6d46b4ffb05ed175c9c0c95e16010797da90dea7",
+      "afterSha256": "d9c5c2058960e6bd800572d1db4944a6e5551c5e0d0620c9394c474cef5c7f3b",
+      "bytes": 39278
+    },
+    {
+      "path": "frontends/portal/src/features/home/SharePanel.tsx",
+      "operation": "modify",
+      "beforeSha256": "7e40462897e81fd952d710bbdba9ba0242ec191de5830bb60c0497f6c0a3ed7b",
+      "afterSha256": "abaa08094ed1464104dcea1a5fcaeb536b76fec2ca3bf5a4ab4284cd59363ca4",
+      "bytes": 15738
+    },
+    {
+      "path": "frontends/portal/src/features/home/api.test.ts",
+      "operation": "modify",
+      "beforeSha256": "ea62ed637051934b42be7048d606fcdfb89ec27098280111a35a1ee138765ece",
+      "afterSha256": "2788cc6a646be76c5aa3990561dd460fc289aae5498287458731cc30854dce9e",
+      "bytes": 19283
+    },
+    {
+      "path": "frontends/portal/src/features/home/api.ts",
+      "operation": "modify",
+      "beforeSha256": "8a324fff35f9c925de19bc4adeed55ac0ff48de9f5878f4c15ce2b2ac54fada9",
+      "afterSha256": "2036f3e93b7488e80f987a1afabba6710c3ba6ae36817394c618d3c9d7935003",
+      "bytes": 14919
+    },
+    {
+      "path": "frontends/portal/src/features/home/demo.ts",
+      "operation": "modify",
+      "beforeSha256": "dedd7aa34abdda4349871690dece7dd8208c6f7f176ff0019ef3aa7100907f7e",
+      "afterSha256": "a648c3ee5098be4c52169f889443fc5539b4d72fe0d1cb5bea7106aaf92a9386",
+      "bytes": 2246
+    },
+    {
+      "path": "frontends/portal/src/features/home/share-panel.test.ts",
+      "operation": "modify",
+      "beforeSha256": "a7b1b69895f43361016b14ff65393d9516017ba03ce826bb97191e60725f306c",
+      "afterSha256": "7df76ae9987dcd1f87bdd8107c93c44d8761bcf3a15bb0fd12865f0fe7a2ed81",
+      "bytes": 11530
+    },
+    {
+      "path": "gateway/unified-server.mjs",
+      "operation": "modify",
+      "beforeSha256": "dc47c18f3c70b150520473933013cb8fc567420e3863e7b268ef77327ad12b69",
+      "afterSha256": "b81c95c410fead0f08bc4b096aca8419da7e5fb057bd8f979e8dd0aa66780064",
+      "bytes": 8201
+    }
+  ]
+}
