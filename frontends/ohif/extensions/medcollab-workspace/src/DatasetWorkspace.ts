@@ -5,7 +5,7 @@ type Mask = { instanceId: string; runs: number[] };
 type Labelmap = { segments: Segment[]; masks: Mask[] };
 type Collaborator = {
   username: string;
-  role: 'owner' | 'editor' | 'public';
+  role: 'owner' | 'editor' | 'public' | 'leader' | 'uploader' | 'member';
   isSelf: boolean;
 };
 
@@ -125,8 +125,11 @@ export class DatasetWorkspace {
   }
 
   /**
-   * Load the accounts that can access this dataset (owner + explicit shares).
-   * This is not a presence feed: the backend has no online/editing status yet.
+   * Load the accounts that can access this dataset.
+   *
+   * Personal datasets use the owner + explicit share list. Team datasets are not
+   * returned by /api/datasets and /shares returns 400 for them, so resolve the
+   * owning team first and use its member list. No presence/online status here.
    */
   private async loadCollaborators(generation: number) {
     try {
@@ -134,41 +137,52 @@ export class DatasetWorkspace {
       if (this.stopped || generation !== this.generation) return;
       const dataset = (datasets.items || []).find(item => item.id === this.state.datasetId);
       const self = this.identity?.username || this.state.username;
-      const list: Collaborator[] = [];
 
-      if (dataset?.access === 'public') {
-        list.push({ username: '所有登录用户', role: 'public', isSelf: false });
-      } else if (dataset?.ownerUsername) {
-        list.push({
-          username: dataset.ownerUsername,
-          role: 'owner',
-          isSelf: dataset.access === 'owner',
-        });
-      }
+      if (dataset) {
+        const list: Collaborator[] = [];
+        if (dataset.access === 'public') {
+          list.push({ username: '所有登录用户', role: 'public', isSelf: false });
+        } else if (dataset.ownerUsername) {
+          list.push({
+            username: dataset.ownerUsername,
+            role: 'owner',
+            isSelf: dataset.access === 'owner',
+          });
+        }
 
-      if (dataset?.access !== 'public') {
-        const shares = await this.json(this.api('/shares'));
-        for (const item of shares.items || []) {
-          if (!list.some(existing => existing.username === item.username)) {
-            list.push({
-              username: item.username,
-              role: 'editor',
-              isSelf: item.username === self,
-            });
+        if (dataset.access !== 'public') {
+          const shares = await this.json(this.api('/shares'));
+          for (const item of shares.items || []) {
+            if (!list.some(existing => existing.username === item.username)) {
+              list.push({
+                username: item.username,
+                role: 'editor',
+                isSelf: item.username === self,
+              });
+            }
           }
         }
+
+        if (self && !list.some(existing => existing.username === self)) {
+          list.push({
+            username: self,
+            role: dataset.access === 'owner' ? 'owner' : 'editor',
+            isSelf: true,
+          });
+        }
+
+        if (!this.stopped && generation === this.generation) {
+          this.update({ collaborators: list, datasetAccess: dataset.access || '' });
+        }
+        return;
       }
 
-      if (self && !list.some(existing => existing.username === self)) {
-        list.push({
-          username: self,
-          role: dataset?.access === 'owner' ? 'owner' : 'editor',
-          isSelf: true,
-        });
-      }
-
+      const teamCollaborators = await this.loadTeamCollaborators(generation);
       if (!this.stopped && generation === this.generation) {
-        this.update({ collaborators: list, datasetAccess: dataset?.access || '' });
+        this.update({
+          collaborators: teamCollaborators || [],
+          datasetAccess: teamCollaborators ? 'team' : '',
+        });
       }
     } catch {
       // Collaborator display is non-critical; never block the workspace on it.
@@ -176,6 +190,41 @@ export class DatasetWorkspace {
         this.update({ collaborators: [] });
       }
     }
+  }
+
+  /** Resolve a team dataset through the existing team APIs (no new backend endpoint). */
+  private async loadTeamCollaborators(generation: number): Promise<Collaborator[] | null> {
+    try {
+      const teams = await this.json('/api/teams');
+      if (this.stopped || generation !== this.generation) return null;
+
+      for (const team of teams.items || []) {
+        const datasets = await this.json(`/api/teams/${encodeURIComponent(team.id)}/datasets`);
+        const dataset = (datasets.items || []).find(item => item.id === this.state.datasetId);
+        if (!dataset) continue;
+
+        const members = await this.json(`/api/teams/${encodeURIComponent(team.id)}/members`);
+        if (this.stopped || generation !== this.generation) return null;
+        const self = this.identity?.username || this.state.username;
+        const list: Collaborator[] = (members.items || []).map(member => ({
+          username: member.username,
+          role:
+            member.role === 'leader'
+              ? 'leader'
+              : member.subject === dataset.uploaderSubject
+                ? 'uploader'
+                : 'member',
+          isSelf: member.username === self,
+        }));
+        if (self && !list.some(existing => existing.username === self)) {
+          list.push({ username: self, role: 'member', isSelf: true });
+        }
+        return list;
+      }
+    } catch {
+      // Older deployments may not have /api/teams; fall back to no collaborators.
+    }
+    return null;
   }
   installCommands() {
     const manager = this.runtime.commandsManager;

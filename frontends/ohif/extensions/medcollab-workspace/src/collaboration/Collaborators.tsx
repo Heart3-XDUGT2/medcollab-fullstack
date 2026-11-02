@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 type Collaborator = {
   username: string;
-  role: 'owner' | 'editor' | 'public';
+  role: 'owner' | 'editor' | 'public' | 'leader' | 'uploader' | 'member';
   isSelf: boolean;
 };
 
@@ -12,6 +12,9 @@ const roleLabel: Record<Collaborator['role'], string> = {
   owner: '所有者',
   editor: '协作者',
   public: '公共访问',
+  leader: '组长',
+  uploader: '上传者',
+  member: '组员',
 };
 
 function initials(name: string): string {
