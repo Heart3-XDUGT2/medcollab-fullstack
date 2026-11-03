@@ -24,8 +24,11 @@ export function initializeWebWorkerProgressHandler(uiNotificationService: any) {
     try {
       const { progress, type, id } = detail;
 
-      // Skip notifications for compute statistics
-      if (type === cornerstoneTools.Enums.WorkerTypes.COMPUTE_STATISTICS) {
+      // These background tasks run repeatedly while drawing; their toasts obscure the work area.
+      if (
+        type === cornerstoneTools.Enums.WorkerTypes.COMPUTE_STATISTICS ||
+        type === cornerstoneTools.Enums.WorkerTypes.POLYSEG_LABELMAP_TO_SURFACE
+      ) {
         return;
       }
 
