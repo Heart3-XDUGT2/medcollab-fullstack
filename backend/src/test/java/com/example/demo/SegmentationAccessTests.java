@@ -88,6 +88,7 @@ class SegmentationAccessTests {
         var published = segmentations.publish(dataset,SERIES,request(0,MASKS),ALICE);
         assertThat(published.publishedVersion()).isEqualTo(1);
         assertThat(published.orthancId()).isEqualTo(SEG);
+        assertThat(db.queryForObject("SELECT annotated_slice_count FROM segmentation_publications WHERE dataset_id=?",Integer.class,dataset)).isEqualTo(1);
         assertThat(published.masks()).isEqualTo(MASKS);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM segmentation_drafts",Integer.class)).isZero();
         assertThat(datasets.instances(dataset,ALICE).total()).isEqualTo(2);

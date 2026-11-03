@@ -34,6 +34,8 @@ class CollaborationTests {
     @Autowired SegmentationService segmentations;
     @Autowired DatasetService datasets;
     @Autowired TeamService teams;
+    @Autowired AnnotationStatisticsService statistics;
+    @Autowired AnnotationStatisticsBackfill statisticsBackfill;
     @Autowired JdbcTemplate db;
     @Autowired MockMvc mvc;
     @MockitoBean OrthancService orthanc;
@@ -200,5 +202,162 @@ class CollaborationTests {
         db.update("UPDATE mask_slice_leases SET expires_at=0 WHERE dataset_id=?",dataset);
         String next=slice(CLIENT,ALICE,ONE);
         assertStatus(409,()->collaboration.commit(dataset,SERIES,new CollaborationService.Batch(CLIENT,next,List.of(op(0,1,1,1)),true),ALICE));
+    }
+
+    @Test void statisticsCountAcceptedPatchesOnceAndKeepErasedWorkInLifetimeTotals() {
+        var before=statistics.personal(ALICE);
+        var bobBefore=statistics.personal(BOB);
+        var first=op(0,0,2,1);commit(first);commit(first);
+        commit(op(1,0,2,0));
+        var stats=statistics.personal(ALICE);
+        assertThat(stats.totalStrokes()-before.totalStrokes()).isEqualTo(2);
+        assertThat(stats.paintOperations()-before.paintOperations()).isEqualTo(1);
+        assertThat(stats.eraseOperations()-before.eraseOperations()).isEqualTo(1);
+        assertThat(stats.editedSliceCount()-before.editedSliceCount()).isEqualTo(1);
+        assertThat(stats.everPaintedSliceCount()-before.everPaintedSliceCount()).isEqualTo(1);
+        assertThat(statistics.personal(BOB).totalStrokes()).isEqualTo(bobBefore.totalStrokes());
+        var progress=statistics.series(dataset,SERIES,ALICE);
+        assertThat(progress.progress().totalSlices()).isEqualTo(2);
+        assertThat(progress.progress().annotatedSlices()).isZero();
+        assertThat(progress.pendingArchive()).isTrue();
+        assertThat(progress.seq()).isEqualTo(2);
+    }
+
+    @Test void metadataAndEmptyPatchesDoNotCountAndMixedPatchIsOneEdit() {
+        var before=statistics.personal(ALICE);
+        commit(new CollaborationService.Operation(UUID.randomUUID().toString(),0,SEGMENTS,List.of()));
+        commit(op(1));
+        commit(op(2,0,1,1,1,1,0));
+        var after=statistics.personal(ALICE);
+        assertThat(after.totalStrokes()-before.totalStrokes()).isEqualTo(1);
+        assertThat(after.totalAcceptedOperations()-before.totalAcceptedOperations()).isEqualTo(3);
+        assertThat(after.mixedOperations()-before.mixedOperations()).isEqualTo(1);
+    }
+
+    @Test void invalidBatchDoesNotLeaveStatisticsAndRenameKeepsTheSameIdentity() {
+        var before=statistics.personal(ALICE);
+        assertStatus(409,()->commit(op(0,0,1,1),op(40,1,1,1)));
+        assertThat(statistics.personal(ALICE).totalStrokes()).isEqualTo(before.totalStrokes());
+        commit(op(0,0,1,1));
+        var renamed=new DemoSession.Identity(ISSUER,ALICE.subject(),"new-alice");
+        assertThat(statistics.personal(renamed).totalStrokes()).isEqualTo(before.totalStrokes()+1);
+        assertStatus(401,()->statistics.personal(new DemoSession.Identity("https://wrong.example",ALICE.subject(),"alice")));
+    }
+
+    @Test void historicalBackfillIsIdempotentAndSurvivesDatasetDeletion() {
+        var before=statistics.personal(ALICE);
+        commit(op(0,0,1,1));commit(op(1,0,1,0));
+        db.update("DELETE FROM annotation_activity_ops WHERE dataset_id=?",dataset);
+        db.update("DELETE FROM annotation_activity_slices WHERE dataset_id=?",dataset);
+        statisticsBackfill.backfill();statisticsBackfill.backfill();
+        var after=statistics.personal(ALICE);
+        assertThat(after.totalStrokes()-before.totalStrokes()).isEqualTo(2);
+        assertThat(after.editedSliceCount()-before.editedSliceCount()).isEqualTo(1);
+        assertThat(after.everPaintedSliceCount()-before.everPaintedSliceCount()).isEqualTo(1);
+        db.update("UPDATE datasets SET deleted_at='2026-11-03T00:00:00Z' WHERE id=?",dataset);
+        assertThat(statistics.personal(ALICE).totalStrokes()).isEqualTo(after.totalStrokes());
+        assertStatus(404,()->statistics.dataset(dataset,ALICE));
+    }
+
+    @Test void currentProgressDiffersFromFixedArchivedSnapshotAndErasureCanReduceIt() {
+        commit(op(0,0,1,1));
+        var atOne=collaboration.state(dataset,SERIES,CLIENT,ALICE).data();
+        when(codec.decodeLabelmap(any(),anyList())).thenReturn(atOne);
+        when(codec.encodeLabelmap(anyList(),anyString(),any())).thenAnswer(call->{commit(op(1,0,1,0));return new byte[]{1,2};});
+        collaboration.archive(dataset,SERIES);
+        var stats=statistics.series(dataset,SERIES,ALICE);
+        assertThat(stats.progress().annotatedSlices()).isZero();
+        assertThat(stats.publishedProgress().annotatedSlices()).isEqualTo(1);
+        assertThat(stats.publishedProgress().percent()).isEqualTo(50);
+        assertThat(stats.seq()).isEqualTo(2);assertThat(stats.throughSeq()).isEqualTo(1);
+        assertThat(stats.pendingArchive()).isTrue();
+        clearInvocations(orthanc,codec);
+        statistics.series(dataset,SERIES,ALICE);
+        verify(orthanc,never()).file(anyString());
+        verify(codec,never()).decodeLabelmap(any(),anyList());
+    }
+
+    @Test void emptyAndMultipleSeriesProgressUsesWeightedSliceCounts() {
+        when(codec.sources(anyList())).thenReturn(List.of());
+        var empty=statistics.dataset(dataset,ALICE);
+        assertThat(empty.progress().totalSlices()).isZero();
+        assertThat(empty.progress().percent()).isZero();
+        assertThat(empty.series()).isEmpty();
+        when(codec.sources(anyList())).thenReturn(SOURCES);
+        commit(op(0,0,1,1));
+        var other=new DicomSegCodec.SourceImage("other-ct","1","other-series","Other",4,5,"1.2.4");
+        var images=new ArrayList<>(SOURCES);images.add(other);
+        when(codec.sources(anyList())).thenReturn(images);
+        var stats=statistics.dataset(dataset,ALICE);
+        assertThat(stats.seriesCount()).isEqualTo(2);
+        assertThat(stats.progress().totalSlices()).isEqualTo(3);
+        assertThat(stats.progress().annotatedSlices()).isEqualTo(1);
+        assertThat(stats.progress().percent()).isEqualTo(33.33);
+        assertThat(stats.publishedProgress().annotatedSlices()).isZero();
+    }
+
+    @Test void oldCurrentPublicationIsDecodedOnlyOnceAndManualSavesCacheCounts() {
+        String other=datasets.create("Legacy CT",ALICE).id();
+        db.update("INSERT INTO dataset_instances VALUES (?,?,?)",other,ONE,"1");
+        var data=new DicomSegCodec.Labelmap(SEGMENTS,List.of(new DicomSegCodec.Mask(ONE,List.of(0,1,1))));
+        when(codec.decodeLabelmap(any(),anyList())).thenReturn(data);
+        segmentations.publishLabelmap(other,SERIES,new SegmentationService.LabelmapRequest(0,"Test",data,UUID.randomUUID().toString()),ALICE);
+        assertThat(db.queryForObject("SELECT annotated_slice_count FROM segmentation_publications WHERE dataset_id=?",Integer.class,other)).isEqualTo(1);
+        db.update("UPDATE segmentation_publications SET annotated_slice_count=NULL WHERE dataset_id=?",other);
+        clearInvocations(orthanc,codec);
+        assertThat(statistics.series(other,SERIES,ALICE).publishedProgress().annotatedSlices()).isEqualTo(1);
+        assertThat(statistics.series(other,SERIES,ALICE).progress().annotatedSlices()).isEqualTo(1);
+        verify(orthanc,times(1)).file("seg-id");
+        verify(codec,times(1)).decodeLabelmap(any(),anyList());
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM mask_rooms WHERE dataset_id=?",Integer.class,other)).isZero();
+    }
+
+    @Test void teamRemovalHidesDatasetStatsButPreservesOwnLifetimeHistory() {
+        String team=teams.create("Stats Team",ALICE).team().id();teams.addMember(team,BOB.subject(),ALICE);
+        String teamDataset=datasets.createTeamDataset(team,"CT",BOB).id();
+        db.update("INSERT INTO dataset_instances VALUES (?,?,?)",teamDataset,ONE,"1");
+        var before=statistics.personal(BOB);
+        String token=collaboration.lease(teamDataset,SERIES,new CollaborationService.LeaseRequest("client-bob-001",null,"acquire"),BOB).leaseId();
+        collaboration.commit(teamDataset,SERIES,new CollaborationService.Batch("client-bob-001",token,List.of(op(0,0,1,1))),BOB);
+        assertThat(statistics.series(teamDataset,SERIES,BOB).progress().annotatedSlices()).isEqualTo(1);
+        teams.removeMember(team,BOB.subject(),ALICE);
+        assertStatus(404,()->statistics.dataset(teamDataset,BOB));
+        assertThat(statistics.personal(BOB).totalStrokes()).isEqualTo(before.totalStrokes()+1);
+    }
+
+    @Test void backfillCrossesBatchBoundariesAndResumesWithoutDoubleCounting() {
+        var before=statistics.personal(ALICE);
+        var json=tools.jackson.databind.json.JsonMapper.builder().build();
+        var rows=new ArrayList<Object[]>();
+        for(int i=1;i<=205;i++) {
+            var operation=op(i-1,0,1,i%2);
+            rows.add(new Object[]{dataset,SERIES,i,operation.clientOpId(),ALICE.issuer(),ALICE.subject(),ALICE.username(),
+                    "historical-hash",json.writeValueAsString(operation),"2026-11-02T00:00:00Z"});
+        }
+        db.batchUpdate("INSERT INTO mask_ops VALUES (?,?,?,?,?,?,?,?,?,?)",rows);
+        statisticsBackfill.backfill();statisticsBackfill.backfill();
+        assertThat(statistics.personal(ALICE).totalStrokes()-before.totalStrokes()).isEqualTo(205);
+        assertThat(statistics.personal(ALICE).everPaintedSliceCount()-before.everPaintedSliceCount()).isEqualTo(1);
+        db.update("DELETE FROM annotation_activity_ops WHERE dataset_id=? AND seq>200",dataset);
+        statisticsBackfill.backfill();
+        assertThat(statistics.personal(ALICE).totalStrokes()-before.totalStrokes()).isEqualTo(205);
+    }
+
+    @Test void statisticsHttpUsesSessionNoStoreAndCurrentDatasetPermissions() throws Exception {
+        commit(op(0,0,1,1));
+        var alice=oidcLogin().idToken(t->t.subject(ALICE.subject()).claim("iss",ISSUER));
+        var bob=oidcLogin().idToken(t->t.subject(BOB.subject()).claim("iss",ISSUER));
+        for(String path:List.of("/api/me/annotation-stats","/api/datasets/"+dataset+"/annotation-stats",
+                "/api/datasets/"+dataset+"/segmentations/"+SERIES+"/stats")) {
+            mvc.perform(get(path)).andExpect(status().isUnauthorized());
+            mvc.perform(get(path).with(alice)).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        }
+        mvc.perform(get("/api/datasets/"+dataset+"/annotation-stats").with(bob)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/datasets/"+dataset+"/segmentations/unknown/stats").with(alice)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/me/annotation-stats?subject="+ALICE.subject()).with(bob)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalStrokes").value(statistics.personal(BOB).totalStrokes()));
+        clearInvocations(codec,orthanc);
+        assertStatus(404,()->statistics.series(dataset,SERIES,BOB));
+        verifyNoInteractions(codec,orthanc);
     }
 }

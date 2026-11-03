@@ -146,3 +146,51 @@ export interface DatasetWorkspaceUi {
 /** DICOMweb JSON is an array of tag objects, never Items<T>. */
 export type DicomAttribute = { vr: string; Value?: unknown[]; BulkDataURI?: string; InlineBinary?: string };
 export type DicomJson = Record<string, DicomAttribute>;
+
+/** 2026-11-03: lifetime accepted nonempty mask patches, NOT physical mouse gestures. */
+export type PersonalAnnotationStats = {
+  statisticVersion: 1;
+  countingMethod: 'accepted-mask-edit-operation';
+  scope: 'server-accepted-collaboration-history';
+  historyIncluded: boolean;
+  totalStrokes: number;
+  totalAcceptedOperations: number;
+  paintOperations: number;
+  eraseOperations: number;
+  mixedOperations: number;
+  editedSliceCount: number;
+  everPaintedSliceCount: number;
+  editedDatasetCount: number;
+  editedSeriesCount: number;
+  firstEditAt: string | null;
+  lastEditAt: string | null;
+  generatedAt: string;
+};
+export type AnnotationProgress = {
+  totalSlices: number;
+  annotatedSlices: number;
+  unannotatedSlices: number;
+  ratio: number; // [0,1], unrounded
+  percent: number; // [0,100], rounded to two decimal places
+};
+export type SeriesAnnotationStats = {
+  datasetId: string;
+  seriesId: string; // Orthanc ID, NOT SeriesInstanceUID
+  progress: AnnotationProgress;
+  publishedProgress: AnnotationProgress;
+  seq: number;
+  throughSeq: number;
+  publishedVersion: number;
+  pendingArchive: boolean;
+  archiveError: string;
+};
+export type DatasetAnnotationStats = {
+  datasetId: string;
+  completionMethod: 'nonempty-mask-slices/ct-slices';
+  seriesCount: number;
+  progress: AnnotationProgress;
+  publishedProgress: AnnotationProgress;
+  pendingArchive: boolean;
+  series: SeriesAnnotationStats[];
+  generatedAt: string;
+};

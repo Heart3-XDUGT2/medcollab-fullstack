@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-02",
+  "version": "2026-11-03",
   "description": "从当前 Java 映射声明核对的路由索引；字段、返回类型及使用限制见开发维护指南；不是 Swagger 服务。",
   "routes": [
     {
@@ -478,6 +478,33 @@
       "loginRequired": true,
       "csrfRequired": true,
       "note": "当前成员删除自己上传的数据集（软删除）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/annotation-stats",
+      "source": "AnnotationStatisticsController.java",
+      "group": "标注统计",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "字段与口径见标注统计接口.md；按当前会话与影像集权限读取，no-store"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/annotation-stats",
+      "source": "AnnotationStatisticsController.java",
+      "group": "标注统计",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "字段与口径见标注统计接口.md；按当前会话与影像集权限读取，no-store"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/stats",
+      "source": "AnnotationStatisticsController.java",
+      "group": "标注统计",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "字段与口径见标注统计接口.md；按当前会话与影像集权限读取，no-store"
     }
   ]
 }

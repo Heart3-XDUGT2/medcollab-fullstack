@@ -77,6 +77,7 @@ public class SegmentationService {
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS through_seq BIGINT");
         // Keep small publication receipts for conflict detection/idempotency after old SEG files are removed.
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS storage_deleted_at VARCHAR(40)");
+        db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS annotated_slice_count INTEGER");
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS segmentation_publication_requests "
                 + "ON segmentation_publications(dataset_id,series_id,request_id)");
         db.execute("CREATE INDEX IF NOT EXISTS segmentation_storage_cleanup "
@@ -138,6 +139,7 @@ public class SegmentationService {
                             + "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     datasetId, seriesId, nextVersion, user.issuer(), user.subject(), user.username(),
                     Instant.now().toString(), label, uploaded.id(), request.publicationId(), hash);
+            cacheSliceCount(datasetId,seriesId,nextVersion,masks.size());
             return loadWorkspace(datasetId, seriesId, user, source);
         });
     }
@@ -188,6 +190,7 @@ public class SegmentationService {
                 throw new ApiException(HttpStatus.BAD_GATEWAY,"Orthanc 中的 Labelmap 与发布内容不一致");
             db.update("INSERT INTO segmentation_publications (dataset_id,series_id,version,author_issuer,author_subject,author_username,created_at,label,orthanc_id,request_id,request_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     datasetId,seriesId,version(previous)+1,user.issuer(),user.subject(),user.username(),Instant.now().toString(),label,uploaded.id(),request.publicationId(),hash);
+            cacheSliceCount(datasetId,seriesId,version(previous)+1,data.masks().size());
             return status(datasetId,seriesId,user);
         });
     }
@@ -407,7 +410,7 @@ public class SegmentationService {
 
     /** Caller holds the dataset lock; only the verified snapshot's fixed watermark is registered. */
     long recordCollaborativeSnapshot(String datasetId, String seriesId, long expectedVersion, long throughSeq,
-            String orthancId, DemoSession.Identity author) {
+            String orthancId, DemoSession.Identity author, int annotatedSliceCount) {
         var previous = latest(datasetId, seriesId);
         if (version(previous) != expectedVersion) throw conflict("归档基线已变化，请重试");
         long next = expectedVersion + 1;
@@ -415,7 +418,13 @@ public class SegmentationService {
                 + "(dataset_id,series_id,version,author_issuer,author_subject,author_username,created_at,label,orthanc_id,request_id,through_seq) "
                 + "VALUES (?,?,?,?,?,?,?,?,?,?,?)", datasetId,seriesId,next,author.issuer(),author.subject(),author.username(),
                 Instant.now().toString(),"医学标注",orthancId,"collab-snapshot-"+throughSeq,throughSeq);
+        cacheSliceCount(datasetId,seriesId,next,annotatedSliceCount);
         return next;
+    }
+
+    void cacheSliceCount(String datasetId,String seriesId,long version,int count) {
+        db.update("UPDATE segmentation_publications SET annotated_slice_count=? WHERE dataset_id=? AND series_id=? AND version=? AND annotated_slice_count IS NULL",
+                count,datasetId,seriesId,version);
     }
     private static String checkedLabel(String label) {
         if (label == null || label.isBlank() || label.strip().length() > 64

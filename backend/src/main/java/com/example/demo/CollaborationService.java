@@ -47,15 +47,17 @@ public class CollaborationService {
     private final TransactionTemplate tx;
     private final DatasetService datasets;
     private final SegmentationService segmentations;
+    private final AnnotationActivityRecorder activity;
     private final JsonMapper json = JsonMapper.builder().build();
     private final Set<String> archiving = ConcurrentHashMap.newKeySet();
     private final long archiveMillis;
     private final int archiveOperations;
 
     public CollaborationService(JdbcTemplate db, PlatformTransactionManager manager, DatasetService datasets,
-            SegmentationService segmentations, @Value("${app.collaboration.archive-ms:20000}") long archiveMillis,
+            SegmentationService segmentations, AnnotationActivityRecorder activity, @Value("${app.collaboration.archive-ms:20000}") long archiveMillis,
             @Value("${app.collaboration.archive-operations:100}") int archiveOperations) {
         this.db=db; this.tx=new TransactionTemplate(manager); this.datasets=datasets; this.segmentations=segmentations;
+        this.activity=activity;
         this.archiveMillis=Math.max(1000,archiveMillis); this.archiveOperations=Math.max(1,archiveOperations);
     }
 
@@ -246,6 +248,8 @@ public class CollaborationService {
                 String at=Instant.now().toString();
                 db.update("INSERT INTO mask_ops VALUES (?,?,?,?,?,?,?,?,?,?)",datasetId,seriesId,seq,operation.clientOpId,
                         user.issuer(),user.subject(),user.username(),hash,encoded,at);
+                // Same transaction as the receipt: retries and rolled-back batches cannot inflate activity.
+                activity.record(datasetId,seriesId,seq,user,operation,at);
                 result.add(new Committed(seq,operation.clientOpId,user.subject(),user.username(),operation,at));
             }
             if(seq!=room.seq) db.update("UPDATE mask_rooms SET seq=?,data_json=? WHERE dataset_id=? AND series_id=?",
@@ -358,7 +362,7 @@ public class CollaborationService {
             final String orthancId=uploaded;
             tx.executeWithoutResult(ignored->{
                 datasets.requireDatasetAccess(datasetId,plan.author,true);
-                long version=segmentations.recordCollaborativeSnapshot(datasetId,seriesId,plan.version,plan.seq,orthancId,plan.author);
+                long version=segmentations.recordCollaborativeSnapshot(datasetId,seriesId,plan.version,plan.seq,orthancId,plan.author,plan.data.masks().size());
                 db.update("UPDATE mask_rooms SET through_seq=?,published_version=?,archived_at=?,archive_error='' WHERE dataset_id=? AND series_id=?",
                         plan.seq,version,System.currentTimeMillis(),datasetId,seriesId);
                 db.update("UPDATE mask_snapshot_jobs SET completed=TRUE WHERE dataset_id=? AND series_id=? AND through_seq=?",datasetId,seriesId,plan.seq);

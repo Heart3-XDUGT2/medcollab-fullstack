@@ -7,6 +7,7 @@
 import type {
   Dataset, Identity, ImportResult, Items, LabelmapRequest, LabelmapWorkspace,
   Launch, SegmentationStatus, Session, User,
+  PersonalAnnotationStats, DatasetAnnotationStats, SeriesAnnotationStats,
 } from './contracts';
 
 const encode = encodeURIComponent;
@@ -41,6 +42,14 @@ async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export const session = (signal?: AbortSignal) => read<Session>('/api/session', signal);
+
+/** Identity comes from the session. Never pass a username/subject to read another user's total. */
+export const personalAnnotationStats = (signal?: AbortSignal) =>
+  read<PersonalAnnotationStats>('/api/me/annotation-stats', signal);
+export const datasetAnnotationStats = (datasetId: string, signal?: AbortSignal) =>
+  read<DatasetAnnotationStats>(`${datasetPath(datasetId)}/annotation-stats`, signal);
+export const seriesAnnotationStats = (datasetId: string, seriesId: string, signal?: AbortSignal) =>
+  read<SeriesAnnotationStats>(`${segmentationPath(datasetId, seriesId)}/stats`, signal);
 
 async function freshHeaders(identity: Identity, signal?: AbortSignal): Promise<Headers> {
   const current = await session(signal);
