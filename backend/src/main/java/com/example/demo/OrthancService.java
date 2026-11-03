@@ -100,6 +100,21 @@ public class OrthancService {
         return exchange("GET", "/instances/" + checkedId(instanceId) + "/file", null, false);
     }
 
+    /** Only generated SEG instances may be removed by the retention worker. Missing files are already cleaned. */
+    public void deleteSegmentation(String instanceId) {
+        String id = checkedId(instanceId);
+        final JsonNode tags;
+        try { tags = simplifiedTags(id); }
+        catch (ApiException exception) {
+            if (exception.status() == HttpStatus.NOT_FOUND) return;
+            throw exception;
+        }
+        String sopClass = text(tags, "SOPClassUID", "");
+        if (!List.of("1.2.840.10008.5.1.4.1.1.66.4", "1.2.840.10008.5.1.4.1.1.66.7").contains(sopClass))
+            throw new ApiException(HttpStatus.CONFLICT, "清理目标不是 DICOM SEG，已保留该文件");
+        exchange("DELETE", "/instances/" + id, null, false);
+    }
+
     public Items<SeriesItem> series() {
         JsonNode data = readJson("GET", "/series?expand", null);
         requireArray(data);
@@ -169,7 +184,7 @@ public class OrthancService {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(30)).header("Accept", image ? "image/png" : "application/json");
         if (body == null) {
-            builder.GET();
+            builder.method(method, HttpRequest.BodyPublishers.noBody());
         } else {
             builder.header("Content-Type", "application/dicom")
                     .method(method, HttpRequest.BodyPublishers.ofByteArray(body));
@@ -196,6 +211,7 @@ public class OrthancService {
             return response.body();
         }
         if (status == 404) {
+            if ("DELETE".equals(method)) return new byte[0];
             throw new ApiException(HttpStatus.NOT_FOUND, "未找到对应的影像或序列，请重新浏览");
         }
         if (status == 413) {

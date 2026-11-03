@@ -39,6 +39,7 @@ public class SegmentationService {
     public record LabelmapWorkspace(Status status,DicomSegCodec.Labelmap data) { }
     private record Draft(long revision, long baseVersion, String label, String masksJson) { }
     private record Publication(long version, String author, String createdAt, String label, String orthancId) { }
+    private record PublishedFile(Publication publication, byte[] bytes) { }
 
     private static final String DEFAULT_LABEL = "手绘区域";
     private static final int MAX_SLICES = 2048;
@@ -74,8 +75,12 @@ public class SegmentationService {
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS request_id VARCHAR(80)");
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS request_hash VARCHAR(64)");
         db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS through_seq BIGINT");
+        // Keep small publication receipts for conflict detection/idempotency after old SEG files are removed.
+        db.execute("ALTER TABLE segmentation_publications ADD COLUMN IF NOT EXISTS storage_deleted_at VARCHAR(40)");
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS segmentation_publication_requests "
                 + "ON segmentation_publications(dataset_id,series_id,request_id)");
+        db.execute("CREATE INDEX IF NOT EXISTS segmentation_storage_cleanup "
+                + "ON segmentation_publications(storage_deleted_at,orthanc_id)");
     }
 
     public OrthancService.Items<DicomSegCodec.SourceImage> sources(String datasetId, DemoSession.Identity user) {
@@ -139,13 +144,14 @@ public class SegmentationService {
 
     public LabelmapWorkspace labelmap(String datasetId,String seriesId,DemoSession.Identity user) {
         var source=seriesSources(datasetId,seriesId,user);
-        var publication=latest(datasetId,seriesId);
+        var stored=latestFile(datasetId,seriesId);
+        var publication=stored.publication();
         var status=new Status(seriesId,source.getFirst().rows(),source.getFirst().columns(),version(publication),
                 publication==null?null:publication.author(),publication==null?null:publication.createdAt(),
                 publication==null?DEFAULT_LABEL:publication.label(),publication==null?null:publication.orthancId());
         return new LabelmapWorkspace(status,publication==null
                 ? new DicomSegCodec.Labelmap(List.of(),List.of())
-                : checkedLabelmap(codec.decodeLabelmap(orthanc.file(publication.orthancId()),source),source));
+                : checkedLabelmap(codec.decodeLabelmap(stored.bytes(),source),source));
     }
 
     public Status publishLabelmap(String datasetId,String seriesId,LabelmapRequest request,DemoSession.Identity user) {
@@ -165,6 +171,7 @@ public class SegmentationService {
                     (r,n)->List.of(r.getString(1),r.getString(2),r.getString(3)),datasetId,seriesId,request.publicationId());
             if(!retry.isEmpty()) {
                 if(!retry.getFirst().equals(List.of(user.issuer(),user.subject(),hash))) throw conflict("发布编号已用于不同内容或账户");
+                // Preserve the original acknowledgement: a later writer's pixels must not be attributed to this request.
                 var receipt=db.query("SELECT version,author_username,created_at,label,orthanc_id FROM segmentation_publications WHERE dataset_id=? AND series_id=? AND request_id=?",
                         (r,n)->new Publication(r.getLong(1),r.getString(2),r.getString(3),r.getString(4),r.getString(5)),datasetId,seriesId,request.publicationId()).getFirst();
                 return new Status(seriesId,source.getFirst().rows(),source.getFirst().columns(),receipt.version(),receipt.author(),receipt.createdAt(),receipt.label(),receipt.orthancId());
@@ -248,17 +255,20 @@ public class SegmentationService {
     public byte[] file(String datasetId, String seriesId, DemoSession.Identity user) {
         datasets.requireDatasetAccess(datasetId, user, false);
         seriesSources(datasetId, seriesId, user);
-        Publication published = latest(datasetId, seriesId);
+        var stored = latestFile(datasetId, seriesId);
+        Publication published = stored.publication();
         if (published == null) throw new ApiException(HttpStatus.NOT_FOUND, "此序列尚未上传 DICOM SEG");
-        return orthanc.file(published.orthancId());
+        return stored.bytes();
     }
 
     private Workspace loadWorkspace(String datasetId, String seriesId, DemoSession.Identity user,
             List<DicomSegCodec.SourceImage> source) {
-        Publication published = latest(datasetId, seriesId);
+        var stored = latestFile(datasetId, seriesId);
+        Publication published = stored.publication();
         return new Workspace(seriesId, source.getFirst().rows(), source.getFirst().columns(), version(published),
                 published == null ? null : published.author(), published == null ? null : published.createdAt(),
-                published == null ? DEFAULT_LABEL : published.label(), readPublishedMasks(published,source),
+                published == null ? DEFAULT_LABEL : published.label(), published == null ? List.of()
+                        : checkedMasks(codec.decode(stored.bytes(),source),source),
                 published == null ? null : published.orthancId());
     }
 
@@ -269,8 +279,18 @@ public class SegmentationService {
         } catch (java.security.NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
     }
 
-    private List<DicomSegCodec.Mask> readPublishedMasks(Publication publication, List<DicomSegCodec.SourceImage> source) {
-        return publication == null ? List.of() : checkedMasks(codec.decode(orthanc.file(publication.orthancId()), source), source);
+    /** A new publication may replace/delete an old file between the metadata query and its download. */
+    private PublishedFile latestFile(String datasetId, String seriesId) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Publication publication = latest(datasetId, seriesId);
+            if (publication == null) return new PublishedFile(null, null);
+            try { return new PublishedFile(publication, orthanc.file(publication.orthancId())); }
+            catch (ApiException exception) {
+                if (exception.status() != HttpStatus.NOT_FOUND
+                        || version(latest(datasetId, seriesId)) == publication.version()) throw exception;
+            }
+        }
+        throw new ApiException(HttpStatus.LOCKED, "掩码版本正在更新，请稍后重新读取");
     }
 
     List<DicomSegCodec.SourceImage> seriesSources(String datasetId, String seriesId, DemoSession.Identity user) {
