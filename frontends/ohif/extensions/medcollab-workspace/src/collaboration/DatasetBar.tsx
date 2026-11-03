@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import { Button } from '@ohif/ui-next';
 import { isRealtimeEnabled, setRealtimeEnabled } from './realtimeClient';
+import { DatasetProgress } from './DatasetProgress';
 
 const expansionPreference = 'medcollab:dataset-bar:expanded';
 
@@ -56,11 +57,22 @@ export function DatasetBar({ workspace }) {
         <span>共享版本：{state.version}</span>
         {state.collaborationReady && (
           <span>
-            {state.sliceEditing ? `按切片自动获取编辑权${state.sliceLeaseCount ? ` · 已占用 ${state.sliceLeaseCount} 张` : ''}` : state.canEdit
-              ? '你正在编辑'
-              : state.editingBy
-                ? `${state.editingBy} 正在编辑`
-                : '实时观看'}
+            {state.sliceEditing
+              ? `按切片自动获取编辑权${state.sliceLeaseCount ? ` · 已占用 ${state.sliceLeaseCount} 张` : ''}`
+              : state.canEdit
+                ? '你正在编辑'
+                : state.editingBy
+                  ? `${state.editingBy} 正在编辑`
+                  : '实时观看'}
+          </span>
+        )}
+        {state.stats && (
+          <span
+            data-cy="dataset-progress-compact"
+            className="text-muted-foreground"
+          >
+            进度 {state.stats.progress.annotatedSlices}/{state.stats.progress.totalSlices} ·{' '}
+            {Math.round(state.stats.progress.percent * 100) / 100}%
           </span>
         )}
         <span aria-live="polite">
@@ -113,15 +125,17 @@ export function DatasetBar({ workspace }) {
             <span>用户：{state.username || '读取中'}</span>
             {state.collaborationReady && (
               <>
-                {!state.sliceEditing && <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={state.canEdit || state.collabConflict}
-                  data-cy="dataset-acquire-edit"
-                  onClick={() => run(() => workspace.acquireEdit())}
-                >
-                  申请编辑
-                </Button>}
+                {!state.sliceEditing && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={state.canEdit || state.collabConflict}
+                    data-cy="dataset-acquire-edit"
+                    onClick={() => run(() => workspace.acquireEdit())}
+                  >
+                    申请编辑
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -170,6 +184,7 @@ export function DatasetBar({ workspace }) {
               加载共享版本
             </Button>
           </div>
+          <DatasetProgress workspace={workspace} />
           <p role="status">
             {state.message}
             {state.savedAt ? ` · 本机保存 ${new Date(state.savedAt).toLocaleTimeString()}` : ''}

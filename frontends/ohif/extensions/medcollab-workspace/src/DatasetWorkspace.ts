@@ -24,6 +24,26 @@ type Collaborator = {
   isSelf: boolean;
 };
 
+type Progress = {
+  totalSlices: number;
+  annotatedSlices: number;
+  unannotatedSlices: number;
+  ratio: number;
+  percent: number;
+};
+
+type SeriesStats = {
+  datasetId: string;
+  seriesId: string;
+  progress: Progress;
+  publishedProgress: Progress;
+  seq: number;
+  throughSeq: number;
+  publishedVersion: number;
+  pendingArchive: boolean;
+  archiveError: string;
+};
+
 type Draft = {
   data: Labelmap;
   label: string;
@@ -90,6 +110,7 @@ export class DatasetWorkspace {
   private lastSignature = '';
   private segmentColors = new Map<number, number[]>();
   private realtime?: RealtimeClient;
+  private statsTimer?: ReturnType<typeof setInterval>;
   private reliable?: ReliableCollaboration;
   private overlay?: CollaborationOverlay;
   private sliceGate?: SliceEditGate;
@@ -243,6 +264,55 @@ export class DatasetWorkspace {
       // Collaborator display is non-critical; never block the workspace on it.
       if (!this.stopped && generation === this.generation) {
         this.update({ collaborators: [] });
+      }
+    }
+  }
+
+  /**
+   * Server-side slice coverage for the current series. Local unsynced drafts are
+   * deliberately excluded: the backend only counts accepted collaboration ops.
+   */
+  private async fetchStats(generation: number) {
+    if (
+      this.stopped ||
+      generation !== this.generation ||
+      !this.state.ready ||
+      this.state.statsLoading ||
+      (typeof document !== 'undefined' && document.visibilityState === 'hidden')
+    ) {
+      return;
+    }
+    this.update({ statsLoading: true });
+    try {
+      const stats = (await this.json(this.segApi('/stats'))) as SeriesStats;
+      if (this.stopped || generation !== this.generation) return;
+      if (
+        !stats?.progress ||
+        !Number.isFinite(stats.progress.totalSlices) ||
+        !Number.isFinite(stats.progress.annotatedSlices)
+      ) {
+        throw new Error('进度响应格式不正确');
+      }
+      this.update({
+        stats,
+        statsError: '',
+        statsUpdatedAt: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      if (this.stopped || generation !== this.generation) return;
+      const status = Number(error?.status);
+      if (status === 401 || status === 403 || status === 404) {
+        this.update({ stats: null, statsError: '进度不可用或影像集已失去访问权限' });
+      } else if (status === 423) {
+        this.update({ statsError: '版本正在更新，进度稍后重试' });
+      } else if (!status || status >= 500) {
+        this.update({ statsError: '进度暂时无法读取，保留上次结果' });
+      } else {
+        this.update({ statsError: error?.message || '进度读取失败' });
+      }
+    } finally {
+      if (!this.stopped && generation === this.generation) {
+        this.update({ statsLoading: false });
       }
     }
   }
@@ -414,24 +484,37 @@ export class DatasetWorkspace {
       });
     }
     await this.reliable.connect();
-    if (this.state.sliceEditing && !this.sliceGate) this.sliceGate = new SliceEditGate({
-      scope: event => this.editSlices(event),
-      holds: ids => this.reliable?.holdsSlices(ids) || false,
-      acquire: async ids => {
-        await this.reliable!.acquireSlices(ids);
-        if (this.state.error?.includes('切片') || this.state.error?.includes('序列编辑权')) this.update({ error: '' });
-      },
-      touch: () => this.reliable?.touch(),
-      error: error => this.fail(error),
-    });
+    if (this.state.sliceEditing && !this.sliceGate)
+      this.sliceGate = new SliceEditGate({
+        scope: event => this.editSlices(event),
+        holds: ids => this.reliable?.holdsSlices(ids) || false,
+        acquire: async ids => {
+          await this.reliable!.acquireSlices(ids);
+          if (this.state.error?.includes('切片') || this.state.error?.includes('序列编辑权'))
+            this.update({ error: '' });
+        },
+        touch: () => this.reliable?.touch(),
+        error: error => this.fail(error),
+      });
   }
 
   private editSlices(event: MouseEvent): string[] | null {
-    if (!this.state.sliceEditing || !this.state.ready || this.state.busy || this.state.collabConflict) return null;
-    const { viewportGridService, cornerstoneViewportService, toolGroupService } = this.runtime.servicesManager.services;
+    if (
+      !this.state.sliceEditing ||
+      !this.state.ready ||
+      this.state.busy ||
+      this.state.collabConflict
+    )
+      return null;
+    const { viewportGridService, cornerstoneViewportService, toolGroupService } =
+      this.runtime.servicesManager.services;
     for (const id of viewportGridService.getState().viewports.keys()) {
       let viewport;
-      try { viewport = cornerstoneViewportService.getCornerstoneViewport(id); } catch { continue; }
+      try {
+        viewport = cornerstoneViewportService.getCornerstoneViewport(id);
+      } catch {
+        continue;
+      }
       if (!viewport?.element?.contains(event.target)) continue;
       const group = toolGroupService.getToolGroupForViewport(id);
       const tool = group?.getActivePrimaryMouseButtonTool?.() || '';
@@ -441,10 +524,20 @@ export class DatasetWorkspace {
       const meta = imageId && cornerstone.metaData.get('instance', imageId);
       const plane = imageId && cornerstone.metaData.get('imagePlaneModule', imageId);
       const normal = viewport.getCamera?.()?.viewPlaneNormal;
-      const row = plane?.rowCosines, col = plane?.columnCosines;
-      const axial = row && col && normal && Math.abs(normal[0] * (row[1]*col[2]-row[2]*col[1])
-        + normal[1] * (row[2]*col[0]-row[0]*col[2]) + normal[2] * (row[0]*col[1]-row[1]*col[0])) > 0.999;
-      const spherical = /SPHERE/.test(group.getToolInstance(tool)?.configuration?.activeStrategy || '');
+      const row = plane?.rowCosines,
+        col = plane?.columnCosines;
+      const axial =
+        row &&
+        col &&
+        normal &&
+        Math.abs(
+          normal[0] * (row[1] * col[2] - row[2] * col[1]) +
+            normal[1] * (row[2] * col[0] - row[0] * col[2]) +
+            normal[2] * (row[0] * col[1] - row[1] * col[0])
+        ) > 0.999;
+      const spherical = /SPHERE/.test(
+        group.getToolInstance(tool)?.configuration?.activeStrategy || ''
+      );
       if ((axial || viewport.type === 'stack') && !spherical) {
         const source = this.sources.find(s => s.sopInstanceUid === meta?.SOPInstanceUID);
         if (source) return [source.id];
@@ -457,7 +550,10 @@ export class DatasetWorkspace {
   }
 
   private signature(data: Labelmap) {
-    return JSON.stringify({ ...data, masks: [...data.masks].sort((a,b) => a.instanceId.localeCompare(b.instanceId)) });
+    return JSON.stringify({
+      ...data,
+      masks: [...data.masks].sort((a, b) => a.instanceId.localeCompare(b.instanceId)),
+    });
   }
 
   private async applyRemote(operation: MaskOperation, data: Labelmap) {
@@ -702,6 +798,8 @@ export class DatasetWorkspace {
       window.addEventListener('medcollab:realtime-preference', this.realtimePreferenceHandler);
       window.addEventListener('beforeunload', this.beforeUnload);
       this.startRealtime(generation);
+      this.fetchStats(generation);
+      this.statsTimer = setInterval(() => this.fetchStats(this.generation), 10000);
     } catch (error) {
       if (generation === this.generation) this.fail(error);
     }
@@ -1190,6 +1288,8 @@ export class DatasetWorkspace {
     this.generation++;
     clearTimeout(this.timer);
     clearInterval(this.poller);
+    clearInterval(this.statsTimer);
+    this.statsTimer = undefined;
     this.subscriptions.splice(0).forEach(f => f());
     this.guard.setReadOnly(false);
     this.guard.clear();
