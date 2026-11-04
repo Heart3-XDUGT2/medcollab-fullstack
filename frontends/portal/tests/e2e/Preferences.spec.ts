@@ -1,0 +1,120 @@
+import { expect, test } from '@playwright/test';
+
+// Isolated component surface, not a substitute for HomePage integration checks.
+const fixture = '/src/features/home/preferences/fixture.html';
+const prefix = 'medcollab.home.display.v1.';
+async function settings(page: import('@playwright/test').Page) {
+  if (!await page.getByTestId('home-display-preferences-panel').isVisible()) await page.getByRole('button', { name: '显示设置', exact: true }).click();
+  return page.getByTestId('home-display-preferences-panel');
+}
+test('immediate display, refresh, reset and identity isolation use only whitelisted local preferences', async ({ page }) => {
+  const writes: string[] = [];
+  page.on('request', request => { if (!['GET', 'HEAD'].includes(request.method()) || new URL(request.url()).pathname.startsWith('/api/')) writes.push(request.method() + ' ' + new URL(request.url()).pathname); });
+  await page.goto(fixture);
+  await expect(page.getByTestId('fixture-persistence')).toHaveText('local');
+  await page.getByLabel('查找验证资料').fill('资料显示验证');
+  const preview = page.getByTestId('preference-preview');
+  const selected = await preview.getAttribute('data-selected');
+  const panel = await settings(page);
+  await panel.getByRole('radio', { name: '资料清单', exact: true }).check();
+  await panel.getByRole('radio', { name: '紧凑', exact: true }).check();
+  await panel.getByLabel('资料分组').selectOption('source');
+  await panel.getByRole('checkbox', { name: '创建者', exact: true }).uncheck();
+  await expect(preview).toHaveAttribute('data-layout', 'list');
+  await expect(preview).toHaveAttribute('data-density', 'compact');
+  await expect(preview.locator('[data-field=owner]')).toHaveCount(0);
+  await expect(preview).toHaveAttribute('data-selected', selected!);
+  await expect(page.getByLabel('查找验证资料')).toHaveValue('资料显示验证');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: '显示设置', exact: true })).toBeFocused();
+  const keyA = await page.evaluate(prefix => Object.keys(localStorage).find(key => key.startsWith(prefix)), prefix);
+  expect(keyA).toMatch(/^medcollab\.home\.display\.v1\.[a-f0-9]{64}$/);
+  const payload = await page.evaluate(key => localStorage.getItem(key!), keyA);
+  for (const excluded of ['fixture-A', 'fixture.invalid', '资料显示验证', 'fixture-one', '/api', 'csrf', 'invite']) expect(payload).not.toContain(excluded);
+  await page.reload();
+  await expect(preview).toHaveAttribute('data-layout', 'list');
+  await expect(preview).toHaveAttribute('data-density', 'compact');
+  await page.getByLabel('测试身份').selectOption('B');
+  await expect(preview).toHaveAttribute('data-layout', 'cards');
+  await expect(preview).toHaveAttribute('data-density', 'comfortable');
+  await (await settings(page)).getByRole('radio', { name: '紧凑', exact: true }).check();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('测试身份').selectOption('realm');
+  await expect(preview).toHaveAttribute('data-density', 'comfortable');
+  await page.getByLabel('测试身份').selectOption('A');
+  await expect(preview).toHaveAttribute('data-layout', 'list');
+  await (await settings(page)).getByRole('button', { name: '恢复默认', exact: true }).click();
+  await expect(preview).toHaveAttribute('data-layout', 'cards');
+  await expect(preview).toHaveAttribute('data-density', 'comfortable');
+  await page.reload();
+  await expect(preview).toHaveAttribute('data-layout', 'cards');
+  await page.getByLabel('测试身份').selectOption('B');
+  await expect(preview).toHaveAttribute('data-density', 'compact');
+  await page.getByLabel('测试身份').selectOption('demo');
+  await (await settings(page)).getByRole('radio', { name: '资料清单', exact: true }).check();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('测试身份').selectOption('anonymous');
+  await expect(preview).toHaveAttribute('data-layout', 'cards');
+  await page.getByLabel('测试身份').selectOption('demo');
+  await expect(preview).toHaveAttribute('data-layout', 'cards');
+  expect(writes).toEqual([]);
+});
+test('malformed and unsupported records recover without exposing contents or touching other keys', async ({ page }) => {
+  await page.goto(fixture);
+  await (await settings(page)).getByRole('radio', { name: '资料清单', exact: true }).check();
+  const key = await page.evaluate(prefix => Object.keys(localStorage).find(key => key.startsWith(prefix)), prefix);
+  await page.evaluate(key => { localStorage.setItem(key!, '{"version":999,"datasetName":"must-not-appear"}'); localStorage.setItem('unrelated', 'untouched'); }, key);
+  await page.reload();
+  const panel = await settings(page);
+  await expect(page.getByTestId('preference-preview')).toHaveAttribute('data-layout', 'cards');
+  await expect(panel.getByRole('status')).toContainText('已失效');
+  await expect(page.locator('body')).not.toContainText('must-not-appear');
+  await panel.getByRole('button', { name: '恢复默认', exact: true }).click();
+  expect(await page.evaluate(() => localStorage.getItem('unrelated'))).toBe('untouched');
+  expect(await page.evaluate(key => localStorage.getItem(key!), key)).toBeNull();
+});
+test('blocked localStorage leaves useful controls and honest reset feedback', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('blocked', 'SecurityError'); } }));
+  await page.goto(fixture);
+  const panel = await settings(page);
+  await panel.getByRole('radio', { name: '资料清单', exact: true }).check();
+  await expect(page.getByTestId('preference-preview')).toHaveAttribute('data-layout', 'list');
+  await expect(panel.getByRole('status')).toContainText('未能记住');
+  await panel.getByRole('button', { name: '恢复默认', exact: true }).click();
+  await expect(page.getByTestId('preference-preview')).toHaveAttribute('data-layout', 'cards');
+  await expect(panel.getByRole('status')).toContainText('旧偏好未能清除');
+});
+test('same-account tabs respond to local changes without inheriting another account', async ({ page, context }) => {
+  await page.goto(fixture);
+  await expect(page.getByTestId('fixture-persistence')).toHaveText('local');
+  const second = await context.newPage();
+  await second.goto(fixture);
+  await expect(second.getByTestId('fixture-persistence')).toHaveText('local');
+  await (await settings(page)).getByRole('radio', { name: '紧凑', exact: true }).check();
+  await expect(second.getByTestId('preference-preview')).toHaveAttribute('data-density', 'compact');
+  await second.getByLabel('测试身份').selectOption('B');
+  await expect(second.getByTestId('preference-preview')).toHaveAttribute('data-density', 'comfortable');
+  await (await settings(page)).getByRole('radio', { name: '资料清单', exact: true }).check();
+  await expect(second.getByTestId('preference-preview')).toHaveAttribute('data-layout', 'cards');
+  await second.close();
+});
+for (const width of [1440, 768, 390]) {
+  test(`settings stay readable and keyboard-operable at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(fixture);
+    const panel = await settings(page);
+    await panel.getByRole('radio', { name: '资料索引', exact: true }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(panel.getByRole('radio', { name: '资料清单', exact: true })).toBeChecked();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const box = await panel.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(width === 390 ? 844 : 960);
+    await panel.getByRole('button', { name: '恢复默认', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: '显示设置', exact: true })).toBeFocused();
+  });
+}

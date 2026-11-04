@@ -1,12 +1,21 @@
 package com.example.demo;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -15,6 +24,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
@@ -30,6 +40,20 @@ public class OrthancService {
             .version(HttpClient.Version.HTTP_1_1).build();
     private final JsonMapper json = JsonMapper.builder().build();
     private final String baseUrl;
+    private final Duration importTimeout;
+    private static final int STREAM_BUFFER_BYTES = 64 * 1024;
+    private static final int MAX_IMPORT_RESPONSE_BYTES = 64 * 1024;
+    private static final ScheduledThreadPoolExecutor STREAM_DEADLINES = deadlines();
+
+    private static ScheduledThreadPoolExecutor deadlines() {
+        var executor = new ScheduledThreadPoolExecutor(1, task -> {
+            Thread thread = new Thread(task, "orthanc-import-deadline");
+            thread.setDaemon(true);
+            return thread;
+        });
+        executor.setRemoveOnCancelPolicy(true);
+        return executor;
+    }
 
     public record Status(boolean connected, String name, String version, long instanceCount) {
     }
@@ -67,7 +91,11 @@ public class OrthancService {
         }
     }
 
-    public OrthancService(@Value("${orthanc.base-url:http://127.0.0.1:8042}") String configuredUrl) {
+    public OrthancService(String configuredUrl) { this(configuredUrl, 1800); }
+
+    @Autowired
+    public OrthancService(@Value("${orthanc.base-url:http://127.0.0.1:8042}") String configuredUrl,
+            @Value("${orthanc.import-timeout-seconds:1800}") long importTimeoutSeconds) {
         URI address = URI.create(configuredUrl.strip());
         if (!("http".equals(address.getScheme()) || "https".equals(address.getScheme()))
                 || address.getHost() == null || address.getRawQuery() != null
@@ -75,6 +103,9 @@ public class OrthancService {
             throw new IllegalArgumentException("orthanc.base-url must be an HTTP(S) server address");
         }
         this.baseUrl = address.toString().replaceAll("/+$", "");
+        if (importTimeoutSeconds <= 0) throw new IllegalArgumentException("orthanc.import-timeout-seconds must be positive");
+        this.importTimeout = Duration.ofSeconds(importTimeoutSeconds);
+        this.importTimeout.toNanos();
     }
 
     public Status status() {
@@ -156,12 +187,139 @@ public class OrthancService {
     }
 
     public ImportResult importDicom(byte[] bytes) {
-        JsonNode result = readJson("POST", "/instances", bytes);
+        return imported(readJson("POST", "/instances", bytes));
+    }
+
+    private static ImportResult imported(JsonNode result) {
+        if (result == null) throw invalidResponse();
         String status = text(result, "Status", "");
         if (!("Success".equals(status) || "AlreadyStored".equals(status))) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Orthanc 未确认影像导入成功，请查看服务日志");
         }
         return new ImportResult(status, checkedId(text(result, "ID", "")));
+    }
+
+    /** A repeatable file publisher stays valid until send and response consumption finish. */
+    public ImportResult importDicomFile(Path file) {
+        final HttpRequest request;
+        try {
+            request = HttpRequest.newBuilder(URI.create(baseUrl + "/instances"))
+                    .timeout(importTimeout).header("Accept", "application/json")
+                    .header("Content-Type", "application/dicom")
+                    .POST(HttpRequest.BodyPublishers.ofFile(file)).build();
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "无法读取导入暂存文件");
+        }
+        long started = System.nanoTime();
+        var response = sendImportStream(request);
+        return consumeImport(response, started, input -> {
+            requireSuccess(response.statusCode(), "POST", "/instances");
+            byte[] reply = input.readNBytes(MAX_IMPORT_RESPONSE_BYTES + 1);
+            if (reply.length > MAX_IMPORT_RESPONSE_BYTES) throw invalidResponse();
+            try { return imported(json.readTree(reply)); }
+            catch (ApiException exception) { throw exception; }
+            catch (Exception exception) { throw invalidResponse(); }
+        });
+    }
+
+    /** Physical deduplication is accepted only after length and SHA-256 agree. */
+    public boolean matchesDicomFile(String instanceId, Path incoming) {
+        final FileDigest expected;
+        try (InputStream input = Files.newInputStream(incoming)) {
+            expected = digest(input, Files.size(incoming));
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "无法核对导入暂存文件");
+        }
+        if (expected == null) throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "导入暂存文件已变化");
+        String path = "/instances/" + checkedId(instanceId) + "/file";
+        var request = HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(importTimeout)
+                .header("Accept", "application/dicom").GET().build();
+        long started = System.nanoTime();
+        var response = sendImportStream(request);
+        return consumeImport(response, started, input -> {
+            requireSuccess(response.statusCode(), "GET", path);
+            final long declaredLength;
+            try {
+                var length = response.headers().firstValueAsLong("Content-Length");
+                if (length.isPresent() && length.getAsLong() < 0) throw incompleteComparison();
+                declaredLength = length.orElse(-1);
+            } catch (NumberFormatException exception) {
+                throw incompleteComparison();
+            }
+            // A declared size mismatch already prevents association; do not download
+            // another object's entire contents just to establish that mismatch.
+            if (declaredLength >= 0 && declaredLength != expected.length()) return false;
+            FileDigest stored = digest(input, expected.length());
+            if (declaredLength >= 0 && (stored == null || stored.length() != declaredLength))
+                throw incompleteComparison();
+            return stored != null && stored.length() == expected.length()
+                    && MessageDigest.isEqual(expected.sha256(), stored.sha256());
+        });
+    }
+
+    private static ApiException incompleteComparison() {
+        return new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "影像核对响应不完整，本次结果尚未确认，请先核对资料库");
+    }
+
+    record FileDigest(long length, byte[] sha256) { }
+
+    static FileDigest digest(InputStream input, long maximum) throws IOException {
+        final MessageDigest digest;
+        try { digest = MessageDigest.getInstance("SHA-256"); }
+        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        byte[] buffer = new byte[STREAM_BUFFER_BYTES];
+        long length = 0;
+        while (true) {
+            int requested = length < maximum ? (int) Math.min(buffer.length, maximum - length) : 1;
+            int read = input.read(buffer, 0, requested);
+            if (read == -1) break;
+            if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Import comparison interrupted");
+            if (read > maximum - length) return null;
+            digest.update(buffer, 0, read);
+            length += read;
+        }
+        return new FileDigest(length, digest.digest());
+    }
+
+    private HttpResponse<InputStream> sendImportStream(HttpRequest request) {
+        try {
+            // A failed POST is never replayed here, including unknown timeout/network results.
+            return client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (HttpTimeoutException exception) {
+            throw importTimedOut();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "导入已中断，请先核对资料库，勿重复上传");
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "导入传输未完成，请先核对资料库，勿重复上传");
+        }
+    }
+
+    @FunctionalInterface private interface StreamReader<T> { T read(InputStream stream) throws IOException; }
+
+    private <T> T consumeImport(HttpResponse<InputStream> response, long started, StreamReader<T> reader) {
+        InputStream body = response.body();
+        AtomicBoolean expired = new AtomicBoolean();
+        long remaining = importTimeout.toNanos() - (System.nanoTime() - started);
+        var deadline = STREAM_DEADLINES.schedule(() -> {
+            expired.set(true);
+            try { body.close(); } catch (IOException ignored) { }
+        }, Math.max(0, remaining), TimeUnit.NANOSECONDS);
+        try (body) {
+            if (remaining <= 0) throw importTimedOut();
+            T result = reader.read(body);
+            if (expired.get()) throw importTimedOut();
+            return result;
+        } catch (IOException exception) {
+            if (expired.get()) throw importTimedOut();
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "导入内容核对未完成，请先核对资料库，勿重复上传");
+        } finally {
+            deadline.cancel(false);
+        }
+    }
+
+    private static ApiException importTimedOut() {
+        return new ApiException(HttpStatus.GATEWAY_TIMEOUT, "导入响应超时，本次结果可能尚未确认，请先核对资料库");
     }
 
     private JsonNode readJson(String method, String path, byte[] body) {
@@ -207,11 +365,14 @@ public class OrthancService {
         int status = response.statusCode();
         log.info("Orthanc 请求：{} {} -> {}，耗时={}ms", method, path, status,
                 (System.nanoTime() - started) / 1_000_000);
-        if (status >= 200 && status < 300) {
-            return response.body();
-        }
+        requireSuccess(status, method, path);
+        return response.body();
+    }
+
+    private static void requireSuccess(int status, String method, String path) {
+        if (status >= 200 && status < 300) return;
         if (status == 404) {
-            if ("DELETE".equals(method)) return new byte[0];
+            if ("DELETE".equals(method)) return;
             throw new ApiException(HttpStatus.NOT_FOUND, "未找到对应的影像或序列，请重新浏览");
         }
         if (status == 413) {

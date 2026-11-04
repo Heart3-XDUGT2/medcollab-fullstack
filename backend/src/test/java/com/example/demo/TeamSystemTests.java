@@ -99,13 +99,16 @@ class TeamSystemTests {
         error(()->datasets.createTeamDataset(id,"no",CAROL),HttpStatus.NOT_FOUND);
     }
 
-    @Test void removedUploaderLosesTeamAccessButFilesRemainAndPersonalSharesStay() {
+    @Test void removedUploaderLosesTeamAccessButFilesRemainAndPersonalSharesStay() throws Exception {
         var t=teams.create("Keep",ALICE);String id=t.team().id();teams.addMember(id,BOB.subject(),ALICE);
         var d=datasets.createTeamDataset(id,"Bob CT",BOB);
         var personal=datasets.create("Alice personal",ALICE);datasets.share(personal.id(),BOB.subject(),ALICE);
         db.update("INSERT INTO dataset_instances VALUES (?,?,?)",d.id(),INSTANCE,"1");
         assertThat(datasets.visibleInstanceCount(BOB)).isEqualTo(1);
         teams.removeMember(id,BOB.subject(),ALICE);
+        var incoming = ImportStreamingTests.file(new byte[]{1,2,3}, 3);
+        error(() -> datasets.importDicomFile(d.id(), incoming, BOB), HttpStatus.NOT_FOUND);
+        verify(incoming, never()).getInputStream();
         error(()->datasets.requireDatasetAccess(d.id(),BOB,false),HttpStatus.NOT_FOUND);
         assertThat(datasets.visibleInstanceCount(BOB)).isZero();
         assertThat(datasets.teamDatasets(id,ALICE).items()).extracting(DatasetService.TeamDatasetItem::id).containsExactly(d.id());
@@ -157,6 +160,9 @@ class TeamSystemTests {
     @Test void deletedDatasetCannotBeOpenedByAnyTeamMember() throws Exception {
         var t=teams.create("Gone",ALICE);teams.addMember(t.team().id(),BOB.subject(),ALICE);
         var d=datasets.createTeamDataset(t.team().id(),"CT",BOB);datasets.deleteTeamDataset(t.team().id(),d.id(),BOB);
+        var incoming = ImportStreamingTests.file(new byte[]{1}, 1);
+        for (var user : List.of(ALICE, BOB)) error(() -> datasets.importDicomFile(d.id(), incoming, user), HttpStatus.NOT_FOUND);
+        verify(incoming, never()).getInputStream();
         for(var user:List.of(ALICE,BOB)) for(String suffix:List.of("/workspace","/dicomweb/studies","/segmentation/sources","/segmentations/series/labelmap"))
             mvc.perform(get("/api/datasets/"+d.id()+suffix).with(login(user))).andExpect(status().isNotFound());
         verifyNoInteractions(orthanc,codec);

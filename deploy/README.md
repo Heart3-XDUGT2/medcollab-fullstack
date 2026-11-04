@@ -57,7 +57,19 @@ node scripts/build.mjs
 
 脚本分别使用 Portal `package.json` 声明的 pnpm 12.4.1 和 OHIF 的 pnpm 12.8.1，并按锁文件安装；它通过 npx 调用版本固定的包管理器，不要求全局安装 pnpm。OHIF 构建设置 `APP_CONFIG=config/medcollab-server.js` 与 `PUBLIC_URL=/imaging/`。Java 使用随项目附带的 Maven Wrapper 执行 `package`，包含现有测试。也可以传入 `portal`、`ohif` 或 `backend` 单独构建。
 
-构建脚本把 npm、pnpm、Maven 下载缓存与临时文件放在仓库根目录 `.runtime/`，保持与工作目录处于同一磁盘。修改 Portal 登录样式后，可运行 `node gateway/prepare-theme.mjs` 同步生成 Keycloak 主题资产。
+构建脚本把 npm、pnpm、Maven 下载缓存与前端临时文件放在仓库根目录 `.runtime/`。Windows 下仅 Java/Maven 构建子进程例外：脚本在可写的 ASCII 系统临时目录中使用 `medcollab-java-tests` 子目录，并只为该子进程设置 `TEMP/TMP/TMPDIR`。这是为避免 Windows JDK / Mockito 在中文 `java.io.tmpdir` 下加载测试代理失败；不搬项目或下载缓存，不跳过测试，不改 POM，也不设置全局 `JAVA_TOOL_OPTIONS`。非 Windows 构建环境保持原样。
+
+若系统临时路径均含非 ASCII 字符或不可写，脚本会明确失败，可在当前终端指定一个绝对、可写、仅含 ASCII 字符的目录：
+
+```powershell
+$env:MEDCOLLAB_JAVA_TMPDIR = 'C:\Users\Public\Temp\medcollab-java-tests'
+node scripts/build.mjs backend
+Remove-Item Env:MEDCOLLAB_JAVA_TMPDIR
+```
+
+示例路径须由当前账号有权创建和写入；覆盖值直接作为目标目录，不再附加子目录。无效或不可写的显式覆盖不会被静默忽略。只测试目录选择逻辑（不启动 Maven）可运行 `node --test scripts/java-build-env.test.mjs`。
+
+修改 Portal 登录样式后，可运行 `node gateway/prepare-theme.mjs` 同步生成 Keycloak 主题资产。
 
 在一个终端运行：
 
@@ -72,6 +84,24 @@ node scripts/start-gateway.mjs
 ```
 
 打开 `http://127.0.0.1:8080/home`，通过登录页注册自己的新测试账号。保持使用 `127.0.0.1`，不要与 `localhost` 混用，以免 Cookie 与 OAuth 回调来源不同。Java 监听 8082，网关监听 8080。后台 H2 数据库和临时文件写入根目录 `.runtime/`；不要把它提交到 Git。端口、回调地址、主题 appUrl 与前端允许的登出来源需要保持一致，本模板固定这些本地地址。
+
+### 文件导入配置
+
+默认单文件上限为 **1 GiB（1,073,741,824 字节）**。Portal 以 `frontends/portal/src/features/home/upload-policy.ts` 统一 API、队列与提示；文件夹仍拆成单文件串行 FormData 请求，不把单文件额度误作整个文件夹总和。文件数、磁盘与服务资源并非无限。
+
+Java 环境变量与配置对应：
+
+| 环境变量 | 默认 | 用途 |
+| --- | --- | --- |
+| `IMPORT_MAX_FILE_BYTES` | `1073741824` | `app.import.max-file-bytes`，并用于 multipart 单文件限制 |
+| `IMPORT_MAX_REQUEST_SIZE` | `1025MB` | 单次 multipart 请求；Spring 配置单位，为 1 GiB 文件留表单开销 |
+| `ORTHANC_IMPORT_TIMEOUT_SECONDS` | `1800` | Orthanc 导入等待期限，秒 |
+
+Portal 导入期限为 30 分钟，其他 API 仍为 15 秒。网关 `/api/import` 上游等待为 30 分钟，POST 导入请求体接收最多 30 分钟；Node 全局接收上限为 30 分钟，并用路由级计时器保持其他请求体接收 5 分钟，请求头仍为 60 秒。请求接收完成、取消或断开会清理计时器；超时停止连接，Portal 按结果未知停止，不自动重试。
+
+服务端限额权威，Portal 不在运行时自动发现部署修改。调低后台上限时，前端预检可能通过但仍收到服务端 413；调高后台上限时，Portal 仍按编译时 1 GiB 限制。需要变更实际额度或期限时，应同步审核 Portal 常量、Java multipart / 导入限制、Orthanc 和网关后重建 / 重启相关层，不仅修改某一项。
+
+本轮不放宽 SEG 或工作台源 CT 原有 64 MiB 安全限制。能够导入较大文件不代表当前医学工作台可以解析全部大型 DICOM。
 
 ## 5. 验证与停止
 

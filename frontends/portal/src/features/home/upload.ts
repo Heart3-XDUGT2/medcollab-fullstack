@@ -1,6 +1,6 @@
 import type { Dataset, HomeApi, Identity } from './api';
-
-export const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
+import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_LIMIT_LABEL } from './upload-policy';
+export { MAX_UPLOAD_BYTES } from './upload-policy';
 
 export type UploadProgress = {
   dataset: Dataset | null;
@@ -73,6 +73,7 @@ function failureOf(error: unknown, signal?: AbortSignal): Failure {
 function isUnconfirmed(failure: Failure) {
   return (
     failure.status === 0 ||
+    failure.status === 408 ||
     failure.status >= 500 ||
     failure.kind === 'aborted' ||
     failure.kind === 'network' ||
@@ -119,7 +120,7 @@ function validate(name: string, files: File[]) {
       throw new Error(`文件“${file.name}”为空或大小无效`);
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      throw new Error(`文件“${file.name}”超过 64 MiB 限制`);
+      throw new Error(`文件“${file.name}”超过 ${UPLOAD_SIZE_LIMIT_LABEL} 限制`);
     }
     if (
       /\.zip$/i.test(file.name) ||

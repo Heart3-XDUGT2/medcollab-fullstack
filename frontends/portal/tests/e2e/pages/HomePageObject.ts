@@ -10,7 +10,7 @@ export class HomePageObject {
   }
 
   async visit() {
-    await this.page.goto('/home?lng=zh');
+    await this.page.goto('/home?lng=zh&view=library');
     await this.root.waitFor({ state: 'visible' });
   }
 
@@ -156,7 +156,7 @@ export class HomePageObject {
   }
 
   datasetCreationTime(name: string) {
-    return this.row(name).locator('time');
+    return this.row(name).locator('.mc-resource-date-cell time, .mc-resource-card-facts time');
   }
 
   get renameMenuItem() {

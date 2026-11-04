@@ -126,14 +126,16 @@ try {
       await page.screenshot({ path: path.join(out, filename), fullPage: false });
       report.captures.push(filename);
     };
-    await page.goto(baseURL + '/home');
+    await page.goto(baseURL + '/home?view=library');
     await expect(page.getByTestId('home-connection-state')).toBeVisible();
     await shot('home-unconfigured');
     await page.getByTestId('home-enter-demo').click();
     await expect(page.getByTestId('home-dataset-row')).toHaveCount(12);
     await shot('home-demo');
     await page.getByTestId('home-search').fill('腹部');
-    await page.getByRole('button', { name: '按来源分组', exact: true }).click();
+    await page.getByRole('button', { name: '显示设置', exact: true }).click();
+    await page.getByLabel('资料分组', { exact: true }).selectOption('source');
+    await page.keyboard.press('Escape');
     await expect(page.getByTestId('home-search')).toHaveValue('腹部');
     await shot('home-grouped');
     await page.getByTestId('home-dataset-select').filter({ hasText: '跨中心腹部影像' }).click();
@@ -231,7 +233,7 @@ try {
       await real.screenshot({ path: path.join(out, filename), fullPage: false });
       report.captures.push(filename);
     };
-    await real.goto(baseURL + '/home');
+    await real.goto(baseURL + '/home?view=library');
     await expect(real.getByTestId('home-dataset-row')).toHaveCount(12);
     await fixtureShot('home');
     await real

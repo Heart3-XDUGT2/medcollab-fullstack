@@ -32,7 +32,7 @@ public class ApiErrorHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, String>> tooLarge() {
-        return error(HttpStatus.PAYLOAD_TOO_LARGE, "单个文件不能超过 64 MB，请分次上传 DICOM 文件");
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "上传超过当前服务的单文件或整请求大小上限，请拆分后重试");
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MissingServletRequestParameterException.class,

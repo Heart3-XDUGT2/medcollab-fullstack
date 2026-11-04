@@ -24,15 +24,16 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 public class ImagingController {
     private static final Logger log = LoggerFactory.getLogger(ImagingController.class);
-    private static final long MAX_FILE_BYTES = 64L * 1024 * 1024;
     private final OrthancService orthanc;
     private final DatasetService datasets;
+    private final ImportLimits importLimits;
     record NameRequest(String name) { }
     record ShareRequest(String subject) { }
 
-    public ImagingController(OrthancService orthanc, DatasetService datasets) {
+    public ImagingController(OrthancService orthanc, DatasetService datasets, ImportLimits importLimits) {
         this.orthanc = orthanc;
         this.datasets = datasets;
+        this.importLimits = importLimits;
     }
 
     @GetMapping("/api/orthanc/status")
@@ -93,16 +94,9 @@ public class ImagingController {
     public ResponseEntity<OrthancService.ImportResult> importDicom(@RequestParam("file") MultipartFile file,
             @RequestParam(value = "datasetId", required = false) String datasetId, HttpServletRequest request) {
         var user = DemoSession.requireIdentity(request);
-        if (file.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "请选择非空的 DICOM 文件");
-        if (file.getSize() > MAX_FILE_BYTES) throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "单个文件不能超过 64 MB");
+        importLimits.validate(file);
         if (datasetId == null || datasetId.isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST, "请先创建或选择一个影像集再导入");
-        final byte[] content;
-        try {
-            content = file.getBytes();
-        } catch (IOException exception) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "无法读取上传文件，请重新选择后重试");
-        }
-        var result = datasets.importDicom(datasetId, content, user);
+        var result = datasets.importDicomFile(datasetId, file, user);
         log.info("DICOM 导入完成：用户={}，影像集={}，结果={}，影像={}", user.username(), datasetId, result.status(), result.id());
         return uncached(result);
     }

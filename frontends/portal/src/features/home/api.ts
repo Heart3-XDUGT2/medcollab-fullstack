@@ -1,3 +1,5 @@
+import { IMPORT_TIMEOUT_MS, MAX_UPLOAD_BYTES, UPLOAD_SIZE_LIMIT_LABEL } from './upload-policy';
+
 export type Dataset = {
   id: string;
   name: string;
@@ -236,7 +238,8 @@ const errorMessages: Record<number, string> = {
   403: '操作未获授权或会话校验已失效，请刷新会话后确认',
   404: '资源不存在或已失去访问权限',
   409: '内容存在冲突，请核对服务器状态后再决定是否重试',
-  413: '文件超过 64 MiB 限制',
+  408: '请求超时，请先核对服务器状态',
+  413: `请求超过服务端上传限制，请核对部署限额（Portal 单文件上限 ${UPLOAD_SIZE_LIMIT_LABEL}）`,
   415: '服务器不支持此文件或请求格式',
   500: '服务器处理失败，请保留当前操作并稍后重试',
   502: '影像服务返回异常，请稍后重试',
@@ -281,7 +284,7 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
         timedOut = true;
         controller.abort();
       },
-      pathname === '/api/import' ? 90000 : 15000
+      pathname === '/api/import' ? IMPORT_TIMEOUT_MS : 15000
     );
     const connectionFailure = (error: unknown) => {
       if (timedOut) return new ApiError('请求超时，请先核对服务器状态', 0, 'timeout');
@@ -495,8 +498,8 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
       validateId(id);
       if (!(file instanceof File) || !file.size)
         throw new ApiError('请选择非空 DICOM 文件', 400, 'validation');
-      if (file.size > 64 * 1024 * 1024)
-        throw new ApiError('单文件不能超过 64 MiB', 413, 'validation');
+      if (file.size > MAX_UPLOAD_BYTES)
+        throw new ApiError(`单文件不能超过 ${UPLOAD_SIZE_LIMIT_LABEL}`, 413, 'validation');
       const body = new FormData();
       body.append('file', file);
       body.append('datasetId', id);
