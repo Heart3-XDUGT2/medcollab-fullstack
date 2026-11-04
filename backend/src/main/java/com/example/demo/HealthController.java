@@ -12,6 +12,7 @@ public class HealthController {
 	@GetMapping("/api/health")
 	public Map<String, String> health() {
 		return Map.ofEntries(
+				Map.entry("homeActivityApi", "v1"),
 				Map.entry("annotationStatsApi", "v1"),
 				Map.entry("teamApi", "team-library-v1"),
 				Map.entry("sharingPolicy", "personal-irrevocable-v1"),

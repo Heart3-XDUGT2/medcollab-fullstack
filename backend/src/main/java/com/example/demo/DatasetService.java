@@ -33,7 +33,7 @@ public class DatasetService {
     private record StoredDataset(String id, String name, boolean publicDataset,
                                  String ownerIssuer, String ownerSubject, String ownerUsername, String createdAt) { }
     private static final String PERSONAL = "NOT EXISTS (SELECT 1 FROM dataset_teams dt WHERE dt.dataset_id=d.id)";
-    private static final String VISIBLE = "(d.deleted_at IS NULL AND ((" + PERSONAL + " AND (d.is_public = TRUE OR (d.owner_issuer = ? AND d.owner_subject = ?) "
+    static final String VISIBLE = "(d.deleted_at IS NULL AND ((" + PERSONAL + " AND (d.is_public = TRUE OR (d.owner_issuer = ? AND d.owner_subject = ?) "
             + "OR EXISTS (SELECT 1 FROM dataset_grants g WHERE g.dataset_id = d.id AND g.user_issuer = ? AND g.user_subject = ?))) "
             + "OR EXISTS (SELECT 1 FROM dataset_teams dt JOIN team_members m ON m.team_id=dt.team_id "
             + "WHERE dt.dataset_id=d.id AND m.user_issuer=? AND m.user_subject=?)))";
@@ -269,11 +269,11 @@ public class DatasetService {
     }
 
     private long count(String id) { return db.queryForObject("SELECT COUNT(*) FROM dataset_instances WHERE dataset_id=?", Long.class, id); }
-    private void validateIdentity(DemoSession.Identity user) {
+    void validateIdentity(DemoSession.Identity user) {
         if (user == null || !issuer.equals(user.issuer()) || user.subject() == null || user.subject().isBlank())
             throw new ApiException(HttpStatus.UNAUTHORIZED, "登录账户不属于当前服务器，请重新登录");
     }
-    private static Object[] identityArgs(DemoSession.Identity user) { return new Object[]{user.issuer(),user.subject(),user.issuer(),user.subject(),user.issuer(),user.subject()}; }
+    static Object[] identityArgs(DemoSession.Identity user) { return new Object[]{user.issuer(),user.subject(),user.issuer(),user.subject(),user.issuer(),user.subject()}; }
     private String teamId(String id) {
         var rows=db.query("SELECT team_id FROM dataset_teams WHERE dataset_id=?",(r,n)->r.getString(1),id);
         return rows.isEmpty()?null:rows.getFirst();

@@ -194,3 +194,6 @@ export type DatasetAnnotationStats = {
   series: SeriesAnnotationStats[];
   generatedAt: string;
 };
+
+// 2026-11-04: account favorites and recent successful opens.
+export type { ActivityDataset, ActivityPage, FavoriteItem, RecentItem, RecentPage, RecentContext, OpenRequest, OpenResult, FavoriteResult, FavoriteState, RecentClearResult, ActivityError } from './home-activity';

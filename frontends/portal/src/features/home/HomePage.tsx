@@ -1,3 +1,4 @@
+import { useHomeActivity } from './useHomeActivity';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -188,6 +189,15 @@ export default function HomePage() {
       }
     },
   });
+  const activity = useHomeActivity({
+    enabled: mode === 'real' && phase === 'ready' && config.apiEnabled,
+    api, identity: phase === 'ready' && mode === 'real' ? identity.current : null,
+    signal: scopeSignal, datasetIds: datasets.map(item => item.id), onBlocked,
+  });
+  const activityDatasets = useMemo(() => [...new Map([
+    ...activity.recent.items.map(item => item.dataset),
+    ...activity.favorites.items.map(item => item.dataset), ...datasets,
+  ].map(item => [item.id, item])).values()], [datasets, activity.recent.items, activity.favorites.items]);
   const activeEntry = entry || preferences.home.defaultEntry;
   useEffect(() => {
     const query = new URLSearchParams(location.search);
@@ -412,7 +422,7 @@ export default function HomePage() {
             a.id.localeCompare(b.id)
       );
   }, [datasets, filter, search, sort]);
-  const selected = datasets.find((item) => item.id === selectedId);
+  const selected = activityDatasets.find((item) => item.id === selectedId);
   const ready = phase === 'ready';
   const authUrl = getAuthUrl(config, 'login');
   const publicSampleUrl = getPublicSampleUrl(config);
@@ -444,6 +454,11 @@ export default function HomePage() {
       setNotice('已停止等待操作，已完成的更改不会回滚；请刷新核对服务端状态。');
   }
   function selectDataset(id: string, trigger?: HTMLButtonElement) {
+    const dataset = activityDatasets.find(item => item.id === id);
+    if (mode === 'real' && dataset?.scope === 'team' && dataset.teamId) {
+      window.location.assign('/teams?team=' + encodeURIComponent(dataset.teamId));
+      return;
+    }
     detailTrigger.current = trigger || datasetTriggers.current.get(id) || null;
     setSelectedId(id);
     setDetailOpen(true);
@@ -982,22 +997,22 @@ export default function HomePage() {
                     selectedId={selectedId}
                     composition={preferences.home}
                     demoActivity={mode === 'demo' ? demoActivity : null}
+                    activity={mode === 'real' ? activity : undefined}
+                    availableDatasets={activityDatasets}
                     teams={teams}
                     teamState={teamState}
                     onRetryTeams={() => setTeamRead((value) => value + 1)}
                     onChoose={(id) => setSelectedId(id || null)}
                     onSelect={selectDataset}
                     onOpen={openWorkspace}
-                    onFavorite={(id) =>
-                      setDemoActivity((current) =>
-                        mode === 'demo' && current ? toggleDemoFavorite(current, id) : current
-                      )
-                    }
-                    onRemoveRecent={(id) =>
-                      setDemoActivity((current) =>
-                        mode === 'demo' && current ? removeDemoRecent(current, id) : current
-                      )
-                    }
+                    onFavorite={(id) => {
+                      if (mode === 'real') void activity.toggleFavorite(id);
+                      else setDemoActivity(current => current ? toggleDemoFavorite(current, id) : current);
+                    }}
+                    onRemoveRecent={(id) => {
+                      if (mode === 'real') void activity.removeRecent(id);
+                      else setDemoActivity(current => current ? removeDemoRecent(current, id) : current);
+                    }}
                     onLibrary={() => setEntry('library')}
                     renderCoverage={(dataset) => (
                       <DatasetCoverage
@@ -1029,6 +1044,7 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
+                    {mode === 'real' && activity.error && <p role="alert">{activity.error} <Button variant="ghost" onClick={activity.refresh}>重新读取</Button></p>}
                     <DatasetCollection
                       datasets={shown}
                       layout={preferences.layout}
@@ -1039,14 +1055,15 @@ export default function HomePage() {
                       onSelect={selectDataset}
                       onOpen={openWorkspace}
                       onAction={openAction}
-                      favoriteIds={mode === 'demo' ? demoActivity?.favorites : undefined}
+                      favoriteIds={mode === 'demo' ? demoActivity?.favorites : activity.favoriteIds}
+                      favoriteDisabled={mode === 'real' && activity.favoriteDisabled}
                       onFavorite={
                         mode === 'demo'
                           ? (id) =>
                               setDemoActivity((current) =>
                                 current ? toggleDemoFavorite(current, id) : current
                               )
-                          : undefined
+                          : (id) => { void activity.toggleFavorite(id); }
                       }
                       renderCoverage={(dataset) => (
                         <DatasetCoverage

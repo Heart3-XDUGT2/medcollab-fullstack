@@ -1,4 +1,5 @@
 import { OHIFWorkspaceDriver } from './OHIFWorkspaceDriver';
+import { RecentOpenReporter } from './RecentOpenReporter';
 import {
   EDIT_LEASE_REQUIRED_MESSAGE,
   ReliableCollaboration,
@@ -85,6 +86,10 @@ export class DatasetWorkspace {
     collabConflict: false,
     sliceEditing: false,
     sliceLeaseCount: 0,
+    stats: null as SeriesStats | null,
+    statsLoading: false,
+    statsError: '',
+    statsUpdatedAt: '',
   };
   private listeners = new Set<() => void>();
   private subscriptions: (() => void)[] = [];
@@ -115,6 +120,7 @@ export class DatasetWorkspace {
   private overlay?: CollaborationOverlay;
   private sliceGate?: SliceEditGate;
   private clientId = '';
+  private recentOpen?: RecentOpenReporter;
   private beforeUnload = (event: BeforeUnloadEvent) => {
     if (this.state.dirty || this.state.pendingOps) {
       event.preventDefault();
@@ -702,6 +708,7 @@ export class DatasetWorkspace {
         query.get('SeriesInstanceUIDs') !== this.selected.seriesInstanceUID
       )
         throw new Error('影像入口不匹配，请从首页“打开工作界面”进入');
+      this.recentOpen = new RecentOpenReporter(this.state.datasetId, this.identity);
       this.sources = (await this.json(this.api('/segmentation/sources'))).items.filter(
         s => s.seriesId === this.selected.id
       );
@@ -760,6 +767,7 @@ export class DatasetWorkspace {
         message: this.currentDraft ? '已恢复本机草稿，尚未发布' : '已加载共享版本',
       });
       this.loadCollaborators(generation).catch(() => {});
+      this.recordUsableImage(generation);
       this.setReadOnly(!!this.currentDraft?.publishAttempted);
       const { segmentationService, cornerstoneViewportService } =
         this.runtime.servicesManager.services;
@@ -803,6 +811,37 @@ export class DatasetWorkspace {
     } catch (error) {
       if (generation === this.generation) this.fail(error);
     }
+  }
+  private recordUsableImage(generation: number) {
+    const reporter = this.recentOpen;
+    const { cornerstone } = this.libraries();
+    const { cornerstoneViewportService, viewportGridService } = this.runtime.servicesManager.services;
+    let finished = false;
+    const check = () => {
+      if (finished || this.stopped || generation !== this.generation) return;
+      try {
+        const viewport = cornerstoneViewportService.getCornerstoneViewport(viewportGridService.getActiveViewportId());
+        const imageId = viewport?.getCurrentImageId?.();
+        if (!imageId || !this.displaySet.imageIds.includes(imageId)) return;
+        const pixels = cornerstone.cache.getImage(imageId)?.getPixelData?.();
+        if (!pixels?.length) return;
+        finished = true;
+        done();
+        void reporter?.opened();
+      } catch { /* The target viewport is still being attached. */ }
+    };
+    const rendered = cornerstone.Enums.Events.IMAGE_RENDERED;
+    const loaded = cornerstone.Enums.Events.IMAGE_LOADED;
+    const done = () => {
+      clearTimeout(timeout);
+      cornerstone.eventTarget.removeEventListener(loaded, check);
+      if (rendered) document.removeEventListener(rendered, check, true);
+    };
+    const timeout = setTimeout(done, 120000);
+    cornerstone.eventTarget.addEventListener(loaded, check);
+    if (rendered) document.addEventListener(rendered, check, true);
+    this.subscriptions.push(done);
+    check();
   }
   private waitForDisplaySet(): Promise<any> {
     const { displaySetService, cornerstoneViewportService, viewportGridService } =
@@ -1281,6 +1320,8 @@ export class DatasetWorkspace {
     }
   }
   close() {
+    this.recentOpen?.close();
+    this.recentOpen = undefined;
     window.removeEventListener('beforeunload', this.beforeUnload);
     window.removeEventListener('medcollab:realtime-preference', this.realtimePreferenceHandler);
     this.stopRealtime();
@@ -1290,6 +1331,10 @@ export class DatasetWorkspace {
     clearInterval(this.poller);
     clearInterval(this.statsTimer);
     this.statsTimer = undefined;
+    this.state.stats = null;
+    this.state.statsLoading = false;
+    this.state.statsError = '';
+    this.state.statsUpdatedAt = '';
     this.subscriptions.splice(0).forEach(f => f());
     this.guard.setReadOnly(false);
     this.guard.clear();

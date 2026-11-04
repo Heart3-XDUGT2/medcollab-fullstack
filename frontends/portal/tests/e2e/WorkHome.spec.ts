@@ -125,7 +125,13 @@ async function fixture(
       return;
     }
     const body =
-      path === '/api/session'
+      path === '/api/me/favorite-datasets'
+        ? { items: [], total: 0, page: 0, size: 20 }
+        : path === '/api/me/favorite-datasets/state'
+          ? { items: datasets.map(dataset => ({datasetId: dataset.id, favorited: false, favoritedAt: null})), total: datasets.length }
+          : path === '/api/me/recent-datasets'
+            ? { items: [], total: 0, page: 0, size: 20, generation: 'fixture-generation', retentionDays: 90, maxItems: 100 }
+            : path === '/api/session'
         ? options.account?.() || session
         : path === '/api/datasets'
           ? values(datasets)
@@ -174,21 +180,23 @@ async function closeDetail(page: Page, width: number) {
   await expect(page.getByTestId('home-detail')).toHaveCount(0);
 }
 
-test('new accounts get an honest work home without favorite/history API calls or business writes', async ({
+test('new accounts read empty real activity without inventing history or business writes', async ({
   page,
 }) => {
   const calls = await fixture(page);
   await page.goto('/home');
   await expect(page.getByTestId('work-home')).toBeVisible();
-  await expect(page.getByText('收藏服务尚未接入', { exact: true })).toBeVisible();
-  await expect(page.getByText('最近打开服务尚未接入', { exact: true })).toBeVisible();
+  await expect(page.getByText('还没有收藏的数据集。', { exact: true })).toBeVisible();
+  await expect(page.getByText('暂无最近打开记录。', { exact: true })).toBeVisible();
   await expect(page.getByTestId('work-continue-target')).toHaveCount(0);
   await page.getByTestId('work-continue-select').selectOption('work-a');
   await expect(page.getByTestId('work-continue-target')).toContainText(datasets[0].name);
   await page.getByTestId('work-continue-open').click();
   await expect(page.getByTestId('home-notice')).toContainText('未被打开');
   await expect(page.getByTestId('work-recent-record')).toHaveCount(0);
-  expect(calls.some((call) => /favorite|recent|labelmap|workspace/.test(call.path))).toBe(false);
+  expect(calls.some((call) => /favorite-datasets/.test(call.path))).toBe(true);
+  expect(calls.some((call) => /recent-datasets/.test(call.path))).toBe(true);
+  expect(calls.some((call) => /labelmap|workspace/.test(call.path))).toBe(false);
   expect(calls.every((call) => call.method === 'GET')).toBe(true);
 });
 

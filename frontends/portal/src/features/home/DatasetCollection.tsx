@@ -23,6 +23,7 @@ type Props = {
   onAction: (kind: ResourceAction, dataset: Dataset, trigger?: HTMLButtonElement) => void;
   registerTrigger: (id: string, element: HTMLButtonElement | null) => void;
   favoriteIds?: readonly string[];
+  favoriteDisabled?: boolean;
   onFavorite?: (id: string) => void;
   renderCoverage?: (dataset: Dataset) => ReactNode;
 };
@@ -56,9 +57,10 @@ function ResourceMenu({
   onAction,
   onFavorite,
   favoriteIds,
+  favoriteDisabled,
 }: { dataset: Dataset } & Pick<
   Props,
-  'onSelect' | 'onOpen' | 'onAction' | 'onFavorite' | 'favoriteIds'
+  'onSelect' | 'onOpen' | 'onAction' | 'onFavorite' | 'favoriteIds' | 'favoriteDisabled'
 >) {
   const trigger = useRef<HTMLButtonElement>(null);
   const origin = () =>
@@ -82,7 +84,7 @@ function ResourceMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="mc-library-menu">
         {onFavorite && (
-          <DropdownMenuItem onSelect={() => onFavorite(dataset.id)} data-cy="home-menu-favorite">
+          <DropdownMenuItem disabled={favoriteDisabled} onSelect={() => onFavorite(dataset.id)} data-cy="home-menu-favorite">
             <Star size={16} />
             {favoriteIds?.includes(dataset.id) ? '取消收藏' : '收藏到首页'}
           </DropdownMenuItem>
@@ -225,6 +227,7 @@ function ResourceCard({ dataset, ...props }: { dataset: Dataset } & Props) {
           <FavoriteButton
             dataset={dataset}
             active={!!props.favoriteIds?.includes(dataset.id)}
+            disabled={props.favoriteDisabled}
             onToggle={props.onFavorite}
           />
         )}
@@ -237,10 +240,12 @@ function FavoriteButton({
   dataset,
   active,
   onToggle,
+  disabled,
 }: {
   dataset: Dataset;
   active: boolean;
   onToggle: (id: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <Button
@@ -250,6 +255,7 @@ function FavoriteButton({
       aria-label={`${active ? '取消收藏' : '收藏'} ${dataset.name}`}
       aria-pressed={active}
       dataCY="home-favorite"
+      disabled={disabled}
       onClick={() => onToggle(dataset.id)}
     >
       <Star size={16} fill={active ? 'currentColor' : 'none'} />

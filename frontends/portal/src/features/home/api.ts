@@ -1,3 +1,4 @@
+import { activityPage, type FavoriteItem, type RecentItem } from './activity';
 import { IMPORT_TIMEOUT_MS, MAX_UPLOAD_BYTES, UPLOAD_SIZE_LIMIT_LABEL } from './upload-policy';
 
 export type Dataset = {
@@ -7,6 +8,9 @@ export type Dataset = {
   ownerUsername: string;
   instanceCount: number;
   createdAt: string;
+  scope?: 'personal' | 'team';
+  teamId?: string | null;
+  teamName?: string | null;
 };
 
 export type Session = {
@@ -361,6 +365,36 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
 
   return {
     getSession,
+    async listFavorites(page = 0, signal?: AbortSignal) {
+      try { return activityPage<FavoriteItem>(await request('/api/me/favorite-datasets?' + new URLSearchParams({page: String(page), size: '20'}), {signal}), 'favorite', page); }
+      catch (error) { if (error instanceof ApiError) throw error; throw new ApiError('收藏响应格式不符合约定', 0, 'protocol'); }
+    },
+    async listRecent(page = 0, signal?: AbortSignal) {
+      try { return activityPage<RecentItem>(await request('/api/me/recent-datasets?' + new URLSearchParams({page: String(page), size: '20'}), {signal}), 'recent', page); }
+      catch (error) { if (error instanceof ApiError) throw error; throw new ApiError('最近记录响应格式不符合约定', 0, 'protocol'); }
+    },
+    async favoriteStates(ids: string[], signal?: AbortSignal): Promise<{datasetId: string; favorited: boolean}[]> {
+      const results: {datasetId: string; favorited: boolean}[] = [];
+      const unique = [...new Set(ids)];
+      for (let i = 0; i < unique.length; i += 100) {
+        const batch = unique.slice(i, i + 100), query = new URLSearchParams();
+        batch.forEach(id => query.append('datasetId', id));
+        const response = await request('/api/me/favorite-datasets/state?' + query, {signal});
+        const values = items(response, (v): v is {datasetId: string; favorited: boolean} =>
+          isObject(v) && nonempty(v.datasetId) && batch.includes(v.datasetId) && typeof v.favorited === 'boolean');
+        results.push(...values);
+      }
+      return results;
+    },
+    async setFavorite(id: string, favorited: boolean, identity: Identity, signal?: AbortSignal) {
+      return validated(await write('/api/me/favorite-datasets/' + validateId(id), favorited ? 'PUT' : 'DELETE', identity, {signal}),
+        (v): v is {success: true; datasetId: string; favorited: boolean} =>
+          isObject(v) && v.success === true && v.datasetId === id && v.favorited === favorited);
+    },
+    async removeRecent(id: string | undefined, identity: Identity, signal?: AbortSignal) {
+      return validated(await write('/api/me/recent-datasets' + (id === undefined ? '' : '/' + validateId(id)), 'DELETE', identity, {signal}),
+        (v): v is {success: true; generation: string} => isObject(v) && v.success === true && nonempty(v.generation));
+    },
     async listTeams(signal?: AbortSignal): Promise<Team[]> {
       return items(await request('/api/teams', { signal }), (value): value is Team =>
         isTeam(value) && value.role !== 'none');
