@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import java.io.InputStream;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Comparator;
@@ -18,6 +19,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import org.springframework.web.multipart.MultipartFile;
 
 /** Business ownership is separate from Orthanc's global DICOM hierarchy. */
 @Service
@@ -45,10 +47,11 @@ public class DatasetService {
     private final TeamService teams;
     private final String issuer;
     private final boolean seedEnabled;
+    private final ImportLimits importLimits;
 
     public DatasetService(JdbcTemplate db, PlatformTransactionManager manager, OrthancService orthanc,
             KeycloakDirectoryService directory, TeamService teams, @Value("${keycloak.issuer-uri}") String issuer,
-            @Value("${app.datasets.seed-enabled:true}") boolean seedEnabled) {
+            @Value("${app.datasets.seed-enabled:true}") boolean seedEnabled, ImportLimits importLimits) {
         this.db = db;
         this.transaction = new TransactionTemplate(manager);
         this.orthanc = orthanc;
@@ -56,6 +59,7 @@ public class DatasetService {
         this.teams = teams;
         this.issuer = issuer;
         this.seedEnabled = seedEnabled;
+        this.importLimits = importLimits;
     }
 
     @PostConstruct
@@ -167,6 +171,26 @@ public class DatasetService {
             db.update("MERGE INTO dataset_instances (dataset_id,instance_id,instance_number) KEY(dataset_id,instance_id) VALUES (?,?,?)",
                     datasetId, result.id(), instance.instanceNumber());
             return result;
+        });
+    }
+
+    /** The HTTP upload route never materializes the whole multipart file in heap. */
+    public OrthancService.ImportResult importDicomFile(String datasetId, MultipartFile file, DemoSession.Identity user) {
+        return transaction.execute(ignored -> {
+            // Keep the same team -> dataset lock order through forwarding and association.
+            requireAccess(datasetId, user, true);
+            try (StagedDicom staged = StagedDicom.copy(file, importLimits)) {
+                OrthancService.ImportResult result = orthanc.importDicomFile(staged.path());
+                if ("AlreadyStored".equals(result.status()) && !orthanc.matchesDicomFile(result.id(), staged.path()))
+                    throw new ApiException(HttpStatus.CONFLICT, "DICOM 标识已存在，但文件内容不同；未加入当前影像集");
+                OrthancService.InstanceItem instance = orthanc.instance(result.id());
+                db.update("MERGE INTO dataset_instances (dataset_id,instance_id,instance_number) KEY(dataset_id,instance_id) VALUES (?,?,?)",
+                        datasetId, result.id(), instance.instanceNumber());
+                return result;
+            } catch (IOException exception) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "导入暂存文件处理失败，本次结果可能尚未确认，请先核对资料库");
+            }
         });
     }
 

@@ -126,6 +126,8 @@ async function mockHomeApi(
       await options.beforeDatasets?.(read);
       const items = options.datasetList?.(read) || datasets;
       json = { items, total: items.length };
+    } else if (entry.pathname === '/api/health' && entry.method === 'GET') {
+      json = { status: 'UP' };
     } else if (entry.pathname === '/api/datasets' && entry.method === 'POST') {
       createWrites++;
       status =
@@ -338,6 +340,7 @@ test.describe('MedCollab home response fixtures', () => {
     expect(requests.map(({ method, pathname }) => ({ method, pathname }))).toEqual([
       { method: 'GET', pathname: '/api/session' },
       { method: 'GET', pathname: '/api/datasets' },
+      { method: 'GET', pathname: '/api/health' },
     ]);
   });
 
@@ -424,14 +427,16 @@ test.describe('MedCollab home response fixtures', () => {
     const selected = home.selectDataset('腹部 CT · 多器官标注集');
     await selected.click();
     await expect(home.detail).toBeVisible();
-    await page.getByRole('button', { name: '按来源分组', exact: true }).click();
+    await page.getByRole('button', { name: '显示设置', exact: true }).click();
+    await page.getByLabel('资料分组', { exact: true }).selectOption('source');
+    await page.keyboard.press('Escape');
     await expect(home.search).toHaveValue('腹部');
     await expect(selected).toHaveAttribute('aria-pressed', 'true');
     await expect(home.detail).toBeVisible();
     await page.getByRole('button', { name: '切换资料概览', exact: true }).click();
     await expect(home.detail).toBeHidden();
     await expect(selected).toHaveAttribute('aria-pressed', 'true');
-    await page.getByRole('button', { name: '连续列表', exact: true }).click();
+    await page.getByRole('button', { name: '资料清单', exact: true }).click();
     await expect(home.search).toHaveValue('腹部');
     await expect(selected).toHaveAttribute('aria-pressed', 'true');
     expect(requests).toEqual([]);
@@ -484,7 +489,8 @@ test.describe('MedCollab home response fixtures', () => {
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await expect(home.account).toHaveText(sessionA.username!);
-    await expect(home.tableHeadings).toHaveText(['数据集', '实例数', '创建时间', '操作']);
+    await page.getByRole('button', { name: '资料清单', exact: true }).click();
+    await expect(home.tableHeadings).toHaveText(['数据集', '创建者', '实例数', '创建时间', '操作']);
     await expect(home.row('Alpha fixture')).not.toContainText('fixture-owner-01');
     await expect(home.row('Alpha fixture')).toContainText('我创建的');
     await expect(home.row('Alpha fixture')).toContainText('fixture-account-a');
@@ -513,6 +519,7 @@ test.describe('MedCollab home response fixtures', () => {
     expect(requests.map(({ method, pathname, search }) => ({ method, pathname, search }))).toEqual([
       { method: 'GET', pathname: '/api/session', search: '' },
       { method: 'GET', pathname: '/api/datasets', search: '' },
+      { method: 'GET', pathname: '/api/health', search: '' },
     ]);
   });
 
@@ -522,13 +529,15 @@ test.describe('MedCollab home response fixtures', () => {
   }) => {
     await configureRealHome(page);
     const freshToken = 'fixture-fresh-write-token';
+    let currentToken = sessionA.csrfToken;
     const requests = await mockHomeApi(page, {
-      session: (read) => ({ ...sessionA, csrfToken: read === 1 ? sessionA.csrfToken : freshToken }),
+      session: () => ({ ...sessionA, csrfToken: currentToken }),
     });
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await home.create.click();
     await home.nameInput.fill('  Created by response fixture  ');
+    currentToken = freshToken;
     await home.nameSave.click();
     await expect(home.actionDialog).toBeHidden();
     await expect(home.row('Created by response fixture')).toBeVisible();
@@ -546,13 +555,15 @@ test.describe('MedCollab home response fixtures', () => {
     homePageObject: home,
   }) => {
     await configureRealHome(page);
+    let currentSession = sessionA;
     const requests = await mockHomeApi(page, {
-      session: (read) => (read === 1 ? sessionA : sessionB),
+      session: () => currentSession,
     });
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await home.create.click();
     await home.nameInput.fill('Old account pending name');
+    currentSession = sessionB;
     await home.nameSave.click();
     await expect(home.notice).toContainText('登录账号已变化');
     await expect(home.actionDialog).toBeHidden();
@@ -626,10 +637,11 @@ test.describe('MedCollab home response fixtures', () => {
       name: 'Account B isolated fixture',
       ownerUsername: sessionB.username!,
     };
+    let currentSession = sessionA;
     const requests = await mockHomeApi(page, {
-      session: (read) => (read <= 2 ? sessionA : read === 3 ? signedOutSession : sessionB),
+      session: () => currentSession,
       createStatus: 403,
-      datasetList: (read) => (read === 1 ? datasets : [accountBDataset]),
+      datasetList: () => (currentSession === sessionB ? [accountBDataset] : datasets),
     });
     await home.visit();
     await expect(home.rows).toHaveCount(3);
@@ -637,12 +649,14 @@ test.describe('MedCollab home response fixtures', () => {
     await home.nameInput.fill('Account A pending operation');
     await home.nameSave.click();
     await expect(home.actionError).toContainText('操作未获授权');
+    currentSession = signedOutSession;
     await home.sessionRefresh.click();
     await expect(home.account).toHaveText('未登录');
     await expect(home.actionDialog).toBeVisible();
     await expect(home.nameInput).toHaveValue('Account A pending operation');
     await expect(home.nameSave).toBeDisabled();
     await expect(home.rows).toHaveCount(0);
+    currentSession = sessionB;
     await home.sessionRefresh.click();
     await expect(home.account).toHaveText(sessionB.username!);
     await expect(home.actionDialog).toBeHidden();
@@ -714,13 +728,15 @@ test.describe('MedCollab home response fixtures', () => {
     const pendingSession = new Promise<void>((resolve) => {
       releaseSession = resolve;
     });
+    let holdSession = false;
     const requests = await mockHomeApi(page, {
-      beforeSession: (read) => (read === 2 ? pendingSession : Promise.resolve()),
+      beforeSession: () => (holdSession ? pendingSession : Promise.resolve()),
     });
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await home.create.click();
     await home.nameInput.fill('Cancelled before request fixture');
+    holdSession = true;
     await home.nameSave.click();
     await expect
       .poll(() => requests.filter((request) => request.pathname === '/api/session').length)
@@ -753,15 +769,17 @@ test.describe('MedCollab home response fixtures', () => {
     const pendingSession = new Promise<void>((resolve) => {
       releaseSession = resolve;
     });
+    let holdSession = false;
     const requests = await mockHomeApi(page, {
       createStatus: 403,
-      beforeSession: (read) => (read === 2 ? pendingSession : Promise.resolve()),
+      beforeSession: () => (holdSession ? pendingSession : Promise.resolve()),
     });
     const pendingName = 'Slow request name fixture';
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await home.create.click();
     await home.nameInput.fill(pendingName);
+    holdSession = true;
     await home.nameSave.click();
     await expect
       .poll(() => requests.filter((request) => request.pathname === '/api/session').length)
@@ -1024,7 +1042,7 @@ test.describe('MedCollab unified-account navigation fixtures', () => {
     await expect(home.ssoRegister).toBeDisabled();
     await expect(home.ssoStatus).toContainText('账号服务尚未接入');
     await home.ssoHome.click();
-    await expect(home.heading).toHaveText('我的数据集');
+    await expect(home.heading).toHaveText('工作首页');
     await home.visitSso();
     await home.ssoPreview.click();
     await expect(signIn.root).toBeVisible();

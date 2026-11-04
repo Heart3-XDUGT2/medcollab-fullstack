@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { root, backend, windows, run } from './common.mjs';
+import { javaBuildEnvironment } from './java-build-env.mjs';
 
 const target = process.argv[2] || 'all';
 if (!['all', 'portal', 'ohif', 'backend'].includes(target)) throw new Error('Usage: node scripts/build.mjs [all|portal|ohif|backend]');
@@ -27,7 +28,8 @@ for (const name of ['portal', 'ohif']) {
   });
 }
 if (target === 'all' || target === 'backend') {
+  const javaEnv = javaBuildEnvironment(buildEnv);
   const args = ['-B', '-Dmaven.repo.local=../.runtime/maven/repository', 'package'];
-  if (windows) run(path.join(backend, 'mvnw.cmd'), args, { cwd: backend, env: buildEnv });
-  else run('sh', ['./mvnw', ...args], { cwd: backend, env: buildEnv });
+  if (windows) run(path.join(backend, 'mvnw.cmd'), args, { cwd: backend, env: javaEnv });
+  else run('sh', ['./mvnw', ...args], { cwd: backend, env: javaEnv });
 }

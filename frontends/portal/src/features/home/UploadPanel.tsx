@@ -1,7 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Button, Icons, Input, Label } from '../../ui';
 import type { Dataset, HomeApi, Identity } from './api';
-import { MAX_UPLOAD_BYTES, runUpload } from './upload';
+import { runUpload } from './upload';
+import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_LIMIT_LABEL } from './upload-policy';
 import type { UploadProgress } from './upload';
 import './upload-panel.css';
 
@@ -276,7 +277,7 @@ export default function UploadPanel(props: Props) {
       <p className="mc-upload-note">
         {mode === 'demo'
           ? '本机演示不会读取或上传文件。'
-          : '支持 DICOM 文件或文件夹，单个文件不超过 64 MiB。不支持 ZIP。'}
+          : `单个文件不超过 ${UPLOAD_SIZE_LIMIT_LABEL}，文件夹按文件逐个导入。不支持 ZIP。`}
       </p>
       {mode === 'real' && !enabled && (
         <p className="mc-upload-access">

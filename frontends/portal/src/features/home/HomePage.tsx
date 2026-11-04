@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { LayoutList, Layers2, PanelRight, ArrowRight } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import {
+  LayoutGrid,
+  LayoutList,
+  PanelRight,
+  UserRound,
+  UsersRound,
+  ArrowUpRight,
+  X,
+  Home as HomeIcon,
+  Files,
+} from 'lucide-react';
 import PortalShell from '../../ui/PortalShell';
 import { personalNavigation } from '../../ui/navigation';
 import {
@@ -12,10 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
 } from '../../ui';
 import {
   ApiError,
@@ -26,12 +32,26 @@ import {
   getPublicSampleUrl,
   identityOf,
 } from './api';
-import type { Dataset, Identity } from './api';
+import type { Dataset, Identity, Team } from './api';
 import { createDemoLibrary } from './demo';
 import type { DemoLibrary } from './demo';
 import UploadPanel from './UploadPanel';
 import SharePanel from './SharePanel';
+import DatasetCollection from './DatasetCollection';
+import { PreferencesButton, useHomePreferences } from './preferences';
+import type { HomeEntry } from './preferences/model';
+import WorkHome from './WorkHome';
+import WorkHomeSettings from './WorkHomeSettings';
+import { createDemoActivity, removeDemoRecent, toggleDemoFavorite } from './demo-work';
+import type { DemoActivity } from './demo-work';
+import {
+  DatasetCoverage,
+  makeSyntheticDatasetStatistics,
+  useAnnotationStatistics,
+} from './statistics';
+import { demoStatistics } from './demo-statistics';
 import './home.css';
+import './work-home.css';
 
 type Filter = 'all' | 'owner' | 'shared' | 'public';
 type Phase = 'loading' | 'unconfigured' | 'signed-out' | 'ready' | 'failed' | 'expired';
@@ -43,8 +63,15 @@ const date = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
   day: '2-digit',
 });
+function explicitEntry(search: string): HomeEntry | null {
+  const query = new URLSearchParams(search);
+  if (filters.some((item) => item.id === query.get('scope'))) return 'library';
+  const view = query.get('view');
+  return view === 'work' || view === 'library' ? view : null;
+}
 
 export default function HomePage() {
+  const location = useLocation();
   const config = useMemo(getHomeConfig, []);
   const api = useMemo(() => createHomeApi(config), [config]);
   const [mode, setMode] = useState<'real' | 'demo'>('real');
@@ -57,6 +84,11 @@ export default function HomePage() {
   });
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('newest');
+  const [entry, setEntry] = useState<HomeEntry | null>(() => explicitEntry(window.location.search));
+  const [demoActivity, setDemoActivity] = useState<DemoActivity | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamState, setTeamState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [teamRead, setTeamRead] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const landingNotice = useRef(
@@ -68,7 +100,6 @@ export default function HomePage() {
       return '';
     })()
   );
-  const [grouped, setGrouped] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -88,11 +119,133 @@ export default function HomePage() {
   const modeRef = useRef<'real' | 'demo'>('real');
   const scopeController = useRef(new AbortController());
   const [scopeSignal, setScopeSignal] = useState(scopeController.current.signal);
+  const actionScope = useRef(new AbortController());
+  const [actionSignal, setActionSignal] = useState(actionScope.current.signal);
   const datasetTriggers = useRef(new Map<string, HTMLButtonElement>());
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const detailTrigger = useRef<HTMLButtonElement | null>(null);
   const actionTrigger = useRef<HTMLElement | null>(null);
+  const display = useHomePreferences({
+    mode: mode === 'demo' ? 'demo' : phase === 'ready' && identity.current ? 'real' : 'anonymous',
+    identity: mode === 'real' && phase === 'ready' ? identity.current : null,
+  });
+  const preferences = display.preferences;
+  const syntheticStatistics = useMemo(() => {
+    if (mode !== 'demo') return undefined;
+    const added = Object.fromEntries(
+      datasets
+        .filter((dataset) => dataset.id.startsWith('demo-created-'))
+        .map((dataset) => [
+          dataset.id,
+          makeSyntheticDatasetStatistics(dataset.id, {
+            totalSlices: 0,
+            annotatedSlices: 0,
+            publishedAnnotatedSlices: 0,
+          }),
+        ])
+    );
+    return { ...demoStatistics, ...added };
+  }, [mode, datasets]);
+  const statistics = useAnnotationStatistics({
+    mode: mode === 'demo' ? 'demo' : phase === 'ready' ? 'real' : 'anonymous',
+    apiEnabled: config.apiEnabled,
+    identity: phase === 'ready' && mode === 'real' ? identity.current : null,
+    scopeSignal,
+    sessionApi: api,
+    demoData: syntheticStatistics,
+    onAccessIssue: (issue) => {
+      if (issue.resource === 'account' && (issue.status === 401 || issue.status === 403)) {
+        onBlocked(issue.status);
+      } else if (
+        issue.resource !== 'account' &&
+        [403, 404].includes(issue.status) &&
+        issue.datasetId
+      ) {
+        const id = issue.datasetId;
+        const interrupted = action?.dataset?.id === id && writeBusy.current;
+        if (action?.dataset?.id === id) {
+          resetActionScope();
+          writeController.current?.abort();
+          writeController.current = null;
+          setOperationBusy(false);
+          setAction(null);
+          setName('');
+          setActionError('');
+          setNeedsVerification(false);
+          actionTrigger.current = null;
+        }
+        if (selectedId === id) {
+          setDetailOpen(false);
+          detailTrigger.current = null;
+        }
+        setDatasets((current) => current.filter((dataset) => dataset.id !== id));
+        setSelectedId((current) => (current === id ? null : current));
+        setNotice(
+          interrupted
+            ? '资料已不存在或失去访问权限，已停止等待操作；服务端可能已处理，不会自动重试。'
+            : '一份资料已不存在或失去访问权限，已从当前页面移除。'
+        );
+      }
+    },
+  });
+  const activeEntry = entry || preferences.home.defaultEntry;
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const scope = query.get('scope'),
+      view = query.get('view');
+    if (filters.some((item) => item.id === scope)) {
+      setEntry('library');
+      setFilter(scope as Filter);
+    } else if (view === 'library' || view === 'work') setEntry(view);
+  }, [location.search]);
+  useEffect(() => {
+    if (phase === 'ready' && display.persistence !== 'loading') {
+      setEntry((current) => current || preferences.home.defaultEntry);
+    }
+  }, [phase, display.persistence, preferences.home.defaultEntry]);
+  const wantsTeams = activeEntry === 'work' && !preferences.home.hidden.includes('teams');
+  useEffect(() => {
+    if (mode !== 'real' || phase !== 'ready' || !wantsTeams || !identity.current) return;
+    const expected = { ...identity.current },
+      epoch = generation.current;
+    const operation = new AbortController();
+    const abort = () => operation.abort();
+    scopeSignal.addEventListener('abort', abort, { once: true });
+    if (scopeSignal.aborted) operation.abort();
+    setTeamState('loading');
+    void (async () => {
+      try {
+        const list = await api.listTeams(operation.signal);
+        const session = await api.getSession(operation.signal),
+          fresh = identityOf(session);
+        if (operation.signal.aborted || epoch !== generation.current) return;
+        if (!fresh || fresh.issuer !== expected.issuer || fresh.subject !== expected.subject) {
+          onBlocked(401, fresh ? 'identity-changed' : undefined);
+          return;
+        }
+        setTeams(list);
+        setTeamState('ready');
+      } catch (failure) {
+        if (operation.signal.aborted || epoch !== generation.current) return;
+        setTeams([]);
+        setTeamState('failed');
+        if (failure instanceof ApiError && [401, 403].includes(failure.status))
+          onBlocked(failure.status, failure.kind);
+      }
+    })();
+    return () => {
+      operation.abort();
+      scopeSignal.removeEventListener('abort', abort);
+    };
+  }, [mode, phase, wantsTeams, scopeSignal, teamRead, api]);
 
+  function resetActionScope() {
+    actionScope.current.abort();
+    actionScope.current = new AbortController();
+    setActionSignal(actionScope.current.signal);
+  }
   function resetScope() {
+    resetActionScope();
     scopeController.current.abort();
     scopeController.current = new AbortController();
     setScopeSignal(scopeController.current.signal);
@@ -109,6 +262,8 @@ export default function HomePage() {
     identity.current = null;
     accountContext.current = null;
     demo.current = null;
+    setDemoActivity(null);
+    setTeams([]);
     setDatasets([]);
     setSelectedId(null);
     setDetailOpen(false);
@@ -119,6 +274,7 @@ export default function HomePage() {
     setSearch('');
     setFilter('all');
     setUsername('');
+    setEntry(explicitEntry(location.search));
   }
   function onBlocked(status: number, kind?: string) {
     if (status === 404) {
@@ -217,6 +373,7 @@ export default function HomePage() {
       controller.current?.abort();
       writeController.current?.abort();
       scopeController.current.abort();
+      actionScope.current.abort();
       media.removeEventListener('change', onChange);
       document.title = previousTitle;
     };
@@ -230,10 +387,11 @@ export default function HomePage() {
     modeRef.current = 'demo';
     setMode('demo');
     demo.current = createDemoLibrary();
+    setDemoActivity(createDemoActivity());
     setDatasets(demo.current.list());
     setFilter('all');
     setSearch('');
-    setSelectedId(null);
+    setSelectedId('demo-abdomen-first');
     setAction(null);
     setNotice('');
     setPhase('ready');
@@ -259,8 +417,11 @@ export default function HomePage() {
   const authUrl = getAuthUrl(config, 'login');
   const publicSampleUrl = getPublicSampleUrl(config);
 
-  function openAction(kind: Action['kind'], dataset?: Dataset) {
+  function openAction(kind: Action['kind'], dataset?: Dataset, trigger?: HTMLButtonElement) {
+    resetActionScope();
     actionTrigger.current =
+      trigger ||
+      (detailOpen && detailTrigger.current?.isConnected ? detailTrigger.current : null) ||
       (dataset ? datasetTriggers.current.get(dataset.id) : null) ||
       (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     setDetailOpen(false);
@@ -271,7 +432,10 @@ export default function HomePage() {
   }
   function closeAction() {
     const interrupted = writeBusy.current;
-    resetScope();
+    resetActionScope();
+    writeController.current?.abort();
+    writeController.current = null;
+    setOperationBusy(false);
     setAction(null);
     setActionError('');
     setNeedsVerification(false);
@@ -279,13 +443,15 @@ export default function HomePage() {
     if (interrupted && modeRef.current === 'real')
       setNotice('已停止等待操作，已完成的更改不会回滚；请刷新核对服务端状态。');
   }
-  function selectDataset(id: string) {
+  function selectDataset(id: string, trigger?: HTMLButtonElement) {
+    detailTrigger.current = trigger || datasetTriggers.current.get(id) || null;
     setSelectedId(id);
     setDetailOpen(true);
   }
   function restoreDatasetFocus(event: Event) {
     event.preventDefault();
-    if (selectedId) datasetTriggers.current.get(selectedId)?.focus({ preventScroll: true });
+    if (detailTrigger.current?.isConnected) detailTrigger.current.focus({ preventScroll: true });
+    else if (selectedId) datasetTriggers.current.get(selectedId)?.focus({ preventScroll: true });
   }
   function onResourceLost() {
     setAction(null);
@@ -434,6 +600,7 @@ export default function HomePage() {
           ? '公共影像面向所有登录账号开放。'
           : '共享成员可编辑并继续共享，个人共享确认后不可撤销。'}
       </p>
+      <DatasetCoverage model={statistics} datasetId={selected.id} variant="detail" active />
       <Button
         className="mc-library-primary"
         onClick={() => {
@@ -451,6 +618,14 @@ export default function HomePage() {
         onClick={() => openAction('rename', selected)}
       >
         重命名
+      </Button>
+      <Button
+        variant="outline"
+        className="mc-library-secondary"
+        onClick={() => openAction('upload', selected)}
+      >
+        <Icons.Upload />
+        追加文件
       </Button>
       {selected.access !== 'public' && (
         <Button
@@ -476,6 +651,7 @@ export default function HomePage() {
             aria-current={filter === item.id ? 'page' : undefined}
             data-cy={`home-filter-${item.id}`}
             onClick={() => {
+              setEntry('library');
               setFilter(item.id);
             }}
           >
@@ -516,9 +692,25 @@ export default function HomePage() {
       busy={busy}
       accountActions={sampleEntry}
     >
-      <div className="mc-library" data-cy="medcollab-home">
+      <div
+        className="mc-library"
+        data-cy="medcollab-home"
+        data-layout={preferences.layout}
+        data-density={preferences.density}
+      >
         <div className="mc-library-body">
           <main className="mc-library-main">
+            <div className="mc-library-space-bar" aria-label="资料空间">
+              <span>
+                <UserRound size={15} />
+                个人资料
+              </span>
+              <Link to="/teams">
+                <UsersRound size={16} />
+                团队影像库
+                <ArrowUpRight size={14} />
+              </Link>
+            </div>
             {mode === 'demo' && (
               <div className="mc-library-demo" role="status" data-cy="home-demo-banner">
                 <Icons.Info aria-hidden="true" />
@@ -539,22 +731,41 @@ export default function HomePage() {
             )}
             <div className="mc-library-heading">
               <div>
-                <h1>我的数据集</h1>
-                <p>{filters.find((item) => item.id === filter)?.label}</p>
+                <h1>{activeEntry === 'work' ? '工作首页' : '我的数据集'}</h1>
+                <p>
+                  {activeEntry === 'work'
+                    ? '个人工作空间'
+                    : filters.find((item) => item.id === filter)?.label}
+                  {ready && (
+                    <span className="mc-library-mobile-count">
+                      {activeEntry === 'work' ? datasets.length : shown.length} 项
+                    </span>
+                  )}
+                  {activeEntry === 'library' && (
+                    <span className="mc-library-mobile-density">
+                      {preferences.density === 'compact' ? '紧凑' : '舒适'}
+                    </span>
+                  )}
+                  {ready && (
+                    <span className="mc-library-heading-count">{datasets.length} 份可访问资料</span>
+                  )}
+                </p>
               </div>
               <div className="mc-library-heading-actions">
                 <Button
-                  className="mc-library-primary"
+                  variant="outline"
+                  className="mc-library-secondary"
                   disabled={!ready}
                   dataCY="home-create"
+                  aria-label="新建数据集"
+                  title="新建数据集"
                   onClick={() => openAction('create')}
                 >
                   <Icons.Plus />
-                  新建数据集
+                  <span className="mc-library-create-label">新建数据集</span>
                 </Button>
                 <Button
-                  variant="outline"
-                  className="mc-library-secondary"
+                  className="mc-library-primary"
                   disabled={!ready}
                   dataCY="home-upload"
                   onClick={() => openAction('upload')}
@@ -564,86 +775,136 @@ export default function HomePage() {
                 </Button>
               </div>
             </div>
-            <div className="mc-library-toolbar">
-              <div className="mc-library-search">
-                <Icons.Search aria-hidden="true" />
-                <Input
-                  aria-label="搜索当前列表"
-                  placeholder="搜索数据集名称、创建者或编号"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  data-cy="home-search"
-                />
-              </div>
-              <label className="mc-library-sort">
-                <span>排序</span>
-                <select
-                  aria-label="影像排序"
-                  value={sort}
-                  onChange={(event) => setSort(event.target.value)}
-                  data-cy="home-sort"
-                >
-                  <option value="newest">创建时间：新到旧</option>
-                  <option value="oldest">创建时间：旧到新</option>
-                  <option value="name">名称</option>
-                </select>
-              </label>
-              <div className="mc-library-view-switch" role="group" aria-label="列表组织方式">
+            <div className="mc-work-navigation">
+              <div role="group" aria-label="个人资料入口">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  aria-label="连续列表"
-                  title="连续列表"
-                  aria-pressed={!grouped}
-                  onClick={() => setGrouped(false)}
+                  aria-pressed={activeEntry === 'work'}
+                  onClick={() => setEntry('work')}
+                  dataCY="home-entry-work"
                 >
-                  <LayoutList />
+                  <HomeIcon size={17} />
+                  工作首页
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  aria-label="按来源分组"
-                  title="按来源分组"
-                  aria-pressed={grouped}
-                  onClick={() => setGrouped(true)}
+                  aria-pressed={activeEntry === 'library'}
+                  onClick={() => setEntry('library')}
+                  dataCY="home-entry-library"
                 >
-                  <Layers2 />
+                  <Files size={17} />
+                  完整资料库
                 </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mc-library-icon-button"
-                aria-label="切换资料概览"
-                title="切换资料概览"
-                aria-pressed={Boolean(selected && detailOpen)}
-                disabled={!ready || (!selected && !shown.length)}
-                onClick={() => {
-                  if (!selected) setSelectedId(shown[0]?.id || null);
-                  setDetailOpen((current) => !current);
-                }}
-              >
-                <PanelRight />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mc-library-icon-button"
-                title="刷新真实会话与列表"
-                aria-label="刷新真实会话与列表"
-                dataCY="home-refresh"
-                onClick={
-                  mode === 'demo'
-                    ? () => {
-                        setDatasets(demo.current?.list() || []);
-                        setNotice('本机示例列表已刷新。');
-                      }
-                    : refresh
-                }
-              >
-                <Icons.Refresh />
-              </Button>
+              <WorkHomeSettings model={display} />
+              {activeEntry === 'work' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="刷新真实会话与列表"
+                  aria-label="刷新真实会话与列表"
+                  dataCY="home-refresh"
+                  onClick={
+                    mode === 'demo' ? () => setNotice('演示资料已就绪，不改变示例历史。') : refresh
+                  }
+                >
+                  <Icons.Refresh />
+                </Button>
+              )}
             </div>
+            {activeEntry === 'library' && (
+              <div className="mc-library-toolbar">
+                <div className="mc-library-search">
+                  <Icons.Search aria-hidden="true" />
+                  <Input
+                    aria-label="搜索当前列表"
+                    placeholder="搜索数据集名称、创建者或编号"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    data-cy="home-search"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      aria-label="清空搜索"
+                      title="清空搜索"
+                      onClick={() => setSearch('')}
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
+                </div>
+                <label className="mc-library-sort">
+                  <span>排序</span>
+                  <select
+                    aria-label="影像排序"
+                    value={sort}
+                    onChange={(event) => setSort(event.target.value)}
+                    data-cy="home-sort"
+                  >
+                    <option value="newest">创建较新</option>
+                    <option value="oldest">创建较早</option>
+                    <option value="name">名称排序</option>
+                  </select>
+                </label>
+                <div className="mc-library-view-switch" role="group" aria-label="资料呈现">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="资料索引"
+                    title="资料索引"
+                    aria-pressed={preferences.layout === 'cards'}
+                    onClick={() => display.update({ layout: 'cards' })}
+                  >
+                    <LayoutGrid />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="资料清单"
+                    title="资料清单"
+                    aria-pressed={preferences.layout === 'list'}
+                    onClick={() => display.update({ layout: 'list' })}
+                  >
+                    <LayoutList />
+                  </Button>
+                </div>
+                <PreferencesButton model={display} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mc-library-icon-button"
+                  aria-label="切换资料概览"
+                  title="切换资料概览"
+                  aria-pressed={Boolean(selected && detailOpen)}
+                  disabled={!ready || (!selected && !shown.length)}
+                  onClick={() => {
+                    if (!selected) setSelectedId(shown[0]?.id || null);
+                    setDetailOpen((current) => !current);
+                  }}
+                >
+                  <PanelRight />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mc-library-icon-button"
+                  title="刷新真实会话与列表"
+                  aria-label="刷新真实会话与列表"
+                  dataCY="home-refresh"
+                  onClick={
+                    mode === 'demo'
+                      ? () => {
+                          setDatasets(demo.current?.list() || []);
+                          setNotice('本机示例列表已刷新。');
+                        }
+                      : refresh
+                  }
+                >
+                  <Icons.Refresh />
+                </Button>
+              </div>
+            )}
             {notice && (
               <div className="mc-library-notice" role="status" data-cy="home-notice">
                 {notice}
@@ -652,10 +913,21 @@ export default function HomePage() {
                 </button>
               </div>
             )}
-            <div className="mc-library-list-summary">
-              <span>{ready ? `${shown.length} 个数据集` : '等待连接'}</span>
-              <span>{grouped ? '按来源分组' : '连续列表'}</span>
-            </div>
+            {activeEntry === 'library' && (
+              <div className="mc-library-list-summary">
+                <span>{ready ? `${shown.length} 个数据集` : '等待连接'}</span>
+                <span>
+                  {preferences.groupBy === 'source'
+                    ? '按来源分组'
+                    : preferences.layout === 'cards'
+                      ? '资料索引'
+                      : '资料清单'}
+                  <span className="mc-library-density-label">
+                    {preferences.density === 'compact' ? '紧凑' : '舒适'}
+                  </span>
+                </span>
+              </div>
+            )}
             <div
               className={`mc-library-content ${selected && detailOpen && !compactDetail ? 'has-detail' : ''}`}
             >
@@ -704,6 +976,38 @@ export default function HomePage() {
                       )}
                     </div>
                   </div>
+                ) : activeEntry === 'work' ? (
+                  <WorkHome
+                    datasets={datasets}
+                    selectedId={selectedId}
+                    composition={preferences.home}
+                    demoActivity={mode === 'demo' ? demoActivity : null}
+                    teams={teams}
+                    teamState={teamState}
+                    onRetryTeams={() => setTeamRead((value) => value + 1)}
+                    onChoose={(id) => setSelectedId(id || null)}
+                    onSelect={selectDataset}
+                    onOpen={openWorkspace}
+                    onFavorite={(id) =>
+                      setDemoActivity((current) =>
+                        mode === 'demo' && current ? toggleDemoFavorite(current, id) : current
+                      )
+                    }
+                    onRemoveRecent={(id) =>
+                      setDemoActivity((current) =>
+                        mode === 'demo' && current ? removeDemoRecent(current, id) : current
+                      )
+                    }
+                    onLibrary={() => setEntry('library')}
+                    renderCoverage={(dataset) => (
+                      <DatasetCoverage
+                        model={statistics}
+                        datasetId={dataset.id}
+                        variant="detail"
+                        active
+                      />
+                    )}
+                  />
                 ) : shown.length === 0 ? (
                   <div className="mc-library-empty" data-cy="home-empty">
                     <Icons.Series aria-hidden="true" />
@@ -725,134 +1029,42 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
-                    <table className="mc-library-table" data-cy="home-datasets">
-                      <thead>
-                        <tr>
-                          <th>数据集</th>
-                          <th className="is-number">实例数</th>
-                          <th>创建时间</th>
-                          <th>
-                            <span className="sr-only">操作</span>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(grouped
-                          ? (['owner', 'shared', 'public'] as const).flatMap((access) =>
-                              shown.filter((item) => item.access === access)
-                            )
-                          : shown
-                        ).map((item, index, ordered) => (
-                          <React.Fragment key={item.id}>
-                            {grouped &&
-                              (index === 0 || ordered[index - 1].access !== item.access) && (
-                                <tr className="mc-library-group-heading">
-                                  <td colSpan={4}>
-                                    {accessLabels[item.access]}{' '}
-                                    <span>
-                                      {
-                                        shown.filter((dataset) => dataset.access === item.access)
-                                          .length
-                                      }
-                                    </span>
-                                  </td>
-                                </tr>
-                              )}
-                            <tr
-                              key={item.id}
-                              className={selectedId === item.id ? 'is-selected' : ''}
-                              data-cy="home-dataset-row"
-                            >
-                              <td>
-                                <button
-                                  className="mc-library-file-name"
-                                  ref={(element) => {
-                                    if (element) datasetTriggers.current.set(item.id, element);
-                                    else datasetTriggers.current.delete(item.id);
-                                  }}
-                                  onClick={() => selectDataset(item.id)}
-                                  aria-pressed={selectedId === item.id}
-                                  title={`查看 ${item.name} 的资料概览`}
-                                  data-cy="home-dataset-select"
-                                >
-                                  <span>
-                                    <strong>{item.name}</strong>
-                                    <small>
-                                      <span className={`mc-source-dot access-${item.access}`} />
-                                      {accessLabels[item.access]}
-                                      <span aria-hidden="true"> · </span>
-                                      {item.ownerUsername || '未提供'}
-                                    </small>
-                                  </span>
-                                </button>
-                              </td>
-                              <td className="is-number">
-                                <span className="mc-library-mobile-label">实例数</span>
-                                {item.instanceCount.toLocaleString('zh-CN')}
-                              </td>
-                              <td className="mc-library-row-date">
-                                <span className="mc-library-mobile-label">创建时间</span>
-                                <time dateTime={item.createdAt}>
-                                  {date.format(new Date(item.createdAt))}
-                                </time>
-                              </td>
-                              <td className="mc-library-row-actions">
-                                <Button
-                                  variant="ghost"
-                                  className="mc-library-row-open"
-                                  dataCY="home-row-open"
-                                  onClick={() => openWorkspace(item)}
-                                >
-                                  打开
-                                  <ArrowRight size={15} />
-                                </Button>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="mc-library-icon-button"
-                                      aria-label={`${item.name} 的更多操作`}
-                                      title="更多操作"
-                                      dataCY="home-dataset-more"
-                                    >
-                                      <Icons.More />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="mc-library-menu">
-                                    <DropdownMenuItem onSelect={() => selectDataset(item.id)}>
-                                      资料概览
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      data-cy="home-menu-rename"
-                                      onSelect={() => openAction('rename', item)}
-                                    >
-                                      重命名
-                                    </DropdownMenuItem>
-                                    {item.access !== 'public' && (
-                                      <DropdownMenuItem
-                                        data-cy="home-menu-share"
-                                        onSelect={() => openAction('share', item)}
-                                      >
-                                        按账号共享
-                                      </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem
-                                      data-cy="home-menu-open"
-                                      onSelect={() => openWorkspace(item)}
-                                    >
-                                      打开工作界面
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </td>
-                            </tr>
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
+                    <DatasetCollection
+                      datasets={shown}
+                      layout={preferences.layout}
+                      density={preferences.density}
+                      grouped={preferences.groupBy === 'source'}
+                      fields={preferences.fields}
+                      selectedId={selectedId}
+                      onSelect={selectDataset}
+                      onOpen={openWorkspace}
+                      onAction={openAction}
+                      favoriteIds={mode === 'demo' ? demoActivity?.favorites : undefined}
+                      onFavorite={
+                        mode === 'demo'
+                          ? (id) =>
+                              setDemoActivity((current) =>
+                                current ? toggleDemoFavorite(current, id) : current
+                              )
+                          : undefined
+                      }
+                      renderCoverage={(dataset) => (
+                        <DatasetCoverage
+                          model={statistics}
+                          datasetId={dataset.id}
+                          variant="compact"
+                        />
+                      )}
+                      registerTrigger={(id, element) => {
+                        if (element) datasetTriggers.current.set(id, element);
+                        else datasetTriggers.current.delete(id);
+                      }}
+                    />
                     <p className="mc-library-list-foot">
-                      显示 {shown.length} 项 / 本次载入 {datasets.length} 项
+                      <span>
+                        显示 {shown.length} 项 / 本次载入 {datasets.length} 项
+                      </span>
+                      <span>MedCollab</span>
                     </p>
                   </>
                 )}
@@ -866,7 +1078,10 @@ export default function HomePage() {
                       size="icon"
                       className="mc-library-icon-button"
                       aria-label="关闭资料概览"
-                      onClick={() => setDetailOpen(false)}
+                      onClick={() => {
+                        setDetailOpen(false);
+                        detailTrigger.current?.focus({ preventScroll: true });
+                      }}
                     >
                       <Icons.Close />
                     </Button>
@@ -997,9 +1212,10 @@ export default function HomePage() {
                 mode={mode}
                 api={api}
                 identity={identity.current}
-                scopeSignal={scopeSignal}
+                scopeSignal={actionSignal}
                 enabled={ready}
                 loginUrl={authUrl}
+                targetDataset={action.dataset}
                 onBusyChange={setOperationBusy}
                 onBlocked={onBlocked}
                 onCompleted={() => {
@@ -1014,7 +1230,7 @@ export default function HomePage() {
                 api={api}
                 demo={demo.current}
                 identity={identity.current}
-                scopeSignal={scopeSignal}
+                scopeSignal={actionSignal}
                 enabled={ready}
                 loginUrl={authUrl}
                 onBusyChange={setOperationBusy}

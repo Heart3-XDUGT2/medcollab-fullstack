@@ -40,7 +40,7 @@
 
     <section id="import-section" hidden aria-labelledby="import-title">
       <h3 id="import-title">导入 DICOM</h3>
-      <p>选择整个文件夹（含子文件夹）或多个文件。每批导入会新建一个属于你的私有影像集，按所选文件逐张上传。每个文件不超过 64 MB。</p>
+      <p>选择整个文件夹（含子文件夹）或多个文件。每批导入新建一个属于你的影像集，逐文件上传。默认单文件不超过 1 GiB，实际以服务配置为准；上传成功不表示工作台支持该文件，源 CT / SEG 处理仍有独立的 64 MiB 限制。</p>
       <form id="import-form">
         <p>
           <label for="dicom-folder">选择文件夹</label>
@@ -303,7 +303,7 @@ async function request(path, options = {}) {
   }
   const controller = new AbortController();
   pendingRequests.add(controller);
-  const timeout = setTimeout(() => controller.abort(), path.endsWith('/publish') ? 180000 : 90000);
+  const timeout = setTimeout(() => controller.abort(), path === '/api/import' ? 30 * 60 * 1000 : path.endsWith('/publish') ? 180000 : 90000);
   try {
     const response = await fetch(path, {
       ...options,
@@ -505,7 +505,7 @@ byId('import-form').addEventListener('submit', (event) => {
       const result = document.createElement('li');
       try {
         if (file.size === 0) throw new ApiError('文件为空。', 400);
-        if (file.size > 64 * 1024 * 1024) throw new ApiError('文件超过 64 MB。', 400);
+        if (file.size > 1024 * 1024 * 1024) throw new ApiError('文件超过默认单文件 1 GiB 上限。', 413);
         const form = new FormData();
         form.append('file', file, file.name);
         form.append('datasetId', batchDataset.id);

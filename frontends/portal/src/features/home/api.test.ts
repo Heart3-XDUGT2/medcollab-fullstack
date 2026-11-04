@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi, type Mock } from 'vitest';
+import { IMPORT_TIMEOUT_MS, MAX_UPLOAD_BYTES } from './upload-policy';
 import {
   ApiError,
   buildWorkspaceUrl,
@@ -370,6 +371,32 @@ describe('Java session and response contract', () => {
       vi.useRealTimers();
     }
   });
+  test('allows an import longer than 90 seconds but aborts at 30 minutes without retrying', async () => {
+    vi.useFakeTimers();
+    try {
+      let started;
+      const importStarted = new Promise(resolve => { started = resolve; });
+      const mock = vi.fn().mockResolvedValueOnce(response(session())).mockImplementationOnce(
+        (_url, options) => new Promise((_resolve, reject) => {
+          started(options.signal);
+          options.signal.addEventListener('abort', () => reject(new DOMException('deadline', 'AbortError')));
+        })
+      );
+      const pending = client(mock).importFile(dataset.id, new File(['fixture'], 'source.dcm'), identity);
+      const expectation = expect(pending).rejects.toMatchObject({ status: 0, kind: 'timeout' });
+      const signal = await importStarted as AbortSignal;
+      await vi.advanceTimersByTimeAsync(90000);
+      expect(signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(IMPORT_TIMEOUT_MS - 90001);
+      expect(signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expectation;
+      expect(mock).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('fresh-session writes and safe logout', () => {
@@ -482,19 +509,39 @@ describe('fresh-session writes and safe logout', () => {
     });
     expect(mock).not.toHaveBeenCalled();
   });
-  test('validates a nonempty single file within 64 MiB before any request', async () => {
+  test('validates a nonempty single file within 1 GiB before any request', async () => {
+    expect(MAX_UPLOAD_BYTES).toBe(1073741824);
     const mock = vi.fn();
     const api = client(mock);
     await expect(
       api.importFile('dataset-a', new File([], 'empty.dcm'), identity)
     ).rejects.toMatchObject({ status: 400 });
     const large = new File(['x'], 'large.dcm');
-    Object.defineProperty(large, 'size', { value: 64 * 1024 * 1024 + 1 });
+    Object.defineProperty(large, 'size', { value: MAX_UPLOAD_BYTES + 1 });
     await expect(api.importFile('dataset-a', large, identity)).rejects.toMatchObject({
       status: 413,
+      message: '单文件不能超过 1 GiB',
     });
     expect(mock).not.toHaveBeenCalled();
   });
+  test.each([65 * 1024 * 1024, 600 * 1024 * 1024, MAX_UPLOAD_BYTES])(
+    'accepts a declared %i-byte file using FormData without reading or allocating its content',
+    async bytes => {
+      const mock = vi.fn().mockResolvedValueOnce(response(session())).mockResolvedValueOnce(response({ status: 'Success', id: 'stored' }));
+      const large = new File(['x'], 'large.dcm');
+      Object.defineProperty(large, 'size', { value: bytes });
+      const reads = ['arrayBuffer', 'text', 'stream', 'slice'].map(method => {
+        const read = vi.fn(() => { throw new Error('Do not read the entire file'); });
+        Object.defineProperty(large, method, { value: read });
+        return read;
+      });
+      await expect(client(mock).importFile(dataset.id, large, identity)).resolves.toMatchObject({ status: 'Success' });
+      expect(mock.mock.calls[1][1].body).toBeInstanceOf(FormData);
+      expect(mock.mock.calls[1][1].body.get('file').size).toBe(bytes);
+      expect(mock.mock.calls[1][1].headers).toEqual({ 'X-REQUEST-CSRF': 'test-csrf-one' });
+      reads.forEach(read => expect(read).not.toHaveBeenCalled());
+    }
+  );
   test.each(['Success', 'AlreadyStored'])(
     'single multipart import supports %s without manual Content-Type',
     async (status) => {

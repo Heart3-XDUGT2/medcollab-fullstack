@@ -34,7 +34,7 @@
 <p><label>选择文件 <input id="files" type="file" multiple></label></p>
 <p><label>或选择整个文件夹 <input id="folder" type="file" webkitdirectory multiple></label></p>
 <p><button id="upload-files" type="button">上传所选文件</button> <button id="upload-folder" type="button">上传所选文件夹</button></p>
-<p>逐文件上传，每个文件不超过 64 MB。失败后请核对数据集再重新选择；页面不会自动重试。影像显示与掩码发布使用现有工作台。</p>
+<p>逐文件上传，默认单文件不超过 1 GiB，实际以上游服务配置为准。失败后先核对数据集，页面不会自动重试。上传成功不表示当前工作台支持该文件；源 CT / SEG 处理仍有独立的 64 MiB 限制。</p>
 </section>
 </fieldset>
 <script src="/teams.js"></script></body></html>

@@ -52,6 +52,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
   const detailSequence = useRef(0);
   const selectedRef = useRef<string | null>(null);
   const teamTitle = useRef<HTMLHeadingElement>(null);
+  const entryTeam = useRef(new URLSearchParams(window.location.search).get('team'));
   const loginUrl = getAuthUrl(config, 'login');
 
   function clearTeam() {
@@ -94,6 +95,11 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
       await verify(identity, signal);
       if (!signal.aborted && mounted.current && sequence === indexSequence.current) {
         setTeams(list); setIndexRead('ready');
+        if (entryTeam.current) {
+          const requested = list.find(item => item.id === entryTeam.current);
+          entryTeam.current = null;
+          if (requested) selectTeam(requested);
+        }
       }
     } catch (failure) {
       if (!signal.aborted && mounted.current && sequence === indexSequence.current) {

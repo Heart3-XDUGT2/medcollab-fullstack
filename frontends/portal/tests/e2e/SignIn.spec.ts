@@ -12,13 +12,13 @@ test.describe('MedCollab sign-in preview', () => {
     expect(new URL(page.url()).pathname).toBe('/home');
     await expect(page).not.toHaveURL(/\/sign-in(?:[/?#]|$)/);
     await expect(signIn.root).toBeHidden();
-    await expect(home.heading).toHaveText('我的数据集');
+    await expect(home.heading).toHaveText('工作首页');
     await signIn.visit();
     await expect(signIn.form).toBeVisible();
     await expect(signIn.images).toHaveCount(0);
     await expect(signIn.returnHome).toHaveAttribute('href', '/home?lng=zh');
     await signIn.returnHome.click();
-    await expect(home.heading).toHaveText('我的数据集');
+    await expect(home.heading).toHaveText('工作首页');
     await expect(page).toHaveURL(/\/home(?:\?|$)/);
   });
 

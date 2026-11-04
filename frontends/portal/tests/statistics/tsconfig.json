@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "./main.tsx",
+    "../../src/features/home/statistics/**/*.ts",
+    "../../src/features/home/statistics/**/*.tsx",
+    "../e2e/Statistics.spec.ts"
+  ],
+  "exclude": []
+}

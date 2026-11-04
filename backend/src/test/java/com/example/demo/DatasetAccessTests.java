@@ -18,6 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -111,6 +113,7 @@ class DatasetAccessTests {
         mvc.perform(multipart("/api/import").file(file()).param("datasetId", mine.id()).with(login(BOB)).with(csrf()))
                 .andExpect(status().isNotFound());
         verify(orthanc, never()).importDicom(any());
+        verify(orthanc, never()).importDicomFile(any());
         assertThat(datasets.instances(mine.id(), ALICE).total()).isZero();
     }
 
@@ -135,6 +138,8 @@ class DatasetAccessTests {
         assertThat(datasets.list(BOB).items().getFirst().access()).isEqualTo("shared");
         when(orthanc.importDicom(any())).thenReturn(new OrthancService.ImportResult("AlreadyStored", ONE));
         when(orthanc.file(ONE)).thenReturn(new byte[]{1,2,3});
+        when(orthanc.importDicomFile(any())).thenReturn(new OrthancService.ImportResult("AlreadyStored", ONE));
+        when(orthanc.matchesDicomFile(org.mockito.ArgumentMatchers.eq(ONE), any())).thenReturn(true);
         mvc.perform(patch("/api/datasets/"+mine.id()).with(login(BOB)).with(csrf())
                         .contentType("application/json").content("{\"name\":\"Shared edit\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Shared edit"));
@@ -149,6 +154,70 @@ class DatasetAccessTests {
         mvc.perform(delete("/api/datasets/"+mine.id()+"/shares/carol-sub").with(login(BOB)).with(csrf())).andExpect(status().isConflict());
         assertThat(datasets.list(CAROL).items()).hasSize(1);
         assertThatThrownBy(() -> datasets.revoke(mine.id(), ALICE.subject(), BOB)).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void diskImportChecksMembershipBeforeOpeningMultipartStream() throws Exception {
+        var mine = datasets.create("Private", ALICE);
+        var incoming = ImportStreamingTests.file(new byte[]{1,2,3}, 3);
+        assertThatThrownBy(() -> datasets.importDicomFile(mine.id(), incoming, BOB))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(HttpStatus.NOT_FOUND));
+        verify(incoming, never()).getInputStream();
+        verify(incoming, never()).getBytes();
+        verify(orthanc, never()).importDicomFile(any());
+        verify(orthanc, never()).importDicom(any());
+    }
+
+    @Test
+    void diskDedupMismatchDoesNotGrantPixelsAndAlwaysRemovesStagingFile() throws Exception {
+        var mine = datasets.create("Incoming", ALICE);
+        Path[] captured = new Path[1];
+        when(orthanc.importDicomFile(any())).thenAnswer(call -> {
+            captured[0] = call.getArgument(0);
+            assertThat(Files.exists(captured[0])).isTrue();
+            return new OrthancService.ImportResult("AlreadyStored", ONE);
+        });
+        when(orthanc.matchesDicomFile(org.mockito.ArgumentMatchers.eq(ONE), any())).thenReturn(false);
+        var incoming = ImportStreamingTests.file(new byte[]{1,2,3}, 3);
+        assertThatThrownBy(() -> datasets.importDicomFile(mine.id(), incoming, ALICE))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(Files.exists(captured[0])).isFalse();
+        assertThat(datasets.instances(mine.id(), ALICE).items()).isEmpty();
+        verify(orthanc, never()).file(any());
+        verify(orthanc, never()).importDicom(any());
+        verify(incoming, never()).getBytes();
+    }
+
+    @Test
+    void verifiedDiskDedupAssociatesOnlyItsInstanceAndCleansUp() throws Exception {
+        var mine = datasets.create("Incoming", ALICE);
+        Path[] captured = new Path[1];
+        when(orthanc.importDicomFile(any())).thenAnswer(call -> {
+            captured[0] = call.getArgument(0);
+            return new OrthancService.ImportResult("AlreadyStored", ONE);
+        });
+        when(orthanc.matchesDicomFile(org.mockito.ArgumentMatchers.eq(ONE), any())).thenReturn(true);
+        datasets.importDicomFile(mine.id(), ImportStreamingTests.file(new byte[]{1,2,3}, 3), ALICE);
+        assertThat(Files.exists(captured[0])).isFalse();
+        assertThat(datasets.instances(mine.id(), ALICE).items()).extracting(OrthancService.InstanceItem::id).containsExactly(ONE);
+        verify(orthanc, never()).file(any());
+        verify(orthanc, never()).importDicom(any());
+    }
+
+    @Test
+    void diskForwardingFailureIsNotReplayedAndLeavesNoMembershipOrTemporaryFile() throws Exception {
+        var mine = datasets.create("Incoming", ALICE);
+        Path[] captured = new Path[1];
+        when(orthanc.importDicomFile(any())).thenAnswer(call -> {
+            captured[0] = call.getArgument(0);
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "fixture transport failed");
+        });
+        assertThatThrownBy(() -> datasets.importDicomFile(mine.id(), ImportStreamingTests.file(new byte[]{1}, 1), ALICE))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+        assertThat(Files.exists(captured[0])).isFalse();
+        assertThat(datasets.instances(mine.id(), ALICE).items()).isEmpty();
+        verify(orthanc, org.mockito.Mockito.times(1)).importDicomFile(any());
+        verify(orthanc, never()).importDicom(any());
     }
 
     @Test

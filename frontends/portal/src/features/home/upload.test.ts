@@ -47,7 +47,7 @@ describe('upload queue validation', () => {
     Object.defineProperty(tooLarge, 'size', { value: MAX_UPLOAD_BYTES + 1 });
     await expect(
       runUpload(client, { name: '影像集', files: [file('valid.dcm'), tooLarge], identity })
-    ).rejects.toThrow('64 MiB');
+    ).rejects.toThrow('1 GiB');
     expect(client.createDataset).not.toHaveBeenCalled();
   });
 
@@ -63,7 +63,7 @@ describe('upload queue validation', () => {
     expect(client.createDataset).not.toHaveBeenCalled();
   });
 
-  test('accepts the 64 MiB boundary and does not infer valid DICOM from a suffix', async () => {
+  test('accepts the 1 GiB boundary and does not infer valid DICOM from a suffix', async () => {
     const client = api();
     const boundary = file('DICOMDIR');
     Object.defineProperty(boundary, 'size', { value: MAX_UPLOAD_BYTES });
@@ -79,6 +79,21 @@ describe('upload queue validation', () => {
 });
 
 describe('confirmed serial upload outcomes', () => {
+  test('two 600 MiB files stay serial and are not rejected as a folder larger than 1 GiB', async () => {
+    const client = api();
+    const files = [file('first-large.dcm'), file('second-large.dcm')];
+    files.forEach(item => Object.defineProperty(item, 'size', { value: 600 * 1024 * 1024 }));
+    let finishFirst;
+    client.importFile.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
+    const completion = runUpload(client, { name: '大文件夹', files, identity });
+    await Promise.resolve();
+    expect(client.importFile).toHaveBeenCalledTimes(1);
+    finishFirst(result());
+    const state = await completion;
+    expect(client.importFile).toHaveBeenCalledTimes(2);
+    expect(state).toMatchObject({ total: 2, completed: 2, success: 2, stopped: false });
+  });
+
   test('starts the next file only after the current request completes', async () => {
     const client = api();
     let finishFirst;
@@ -337,6 +352,7 @@ describe('cancellation and unknown results', () => {
   test.each([
     { status: 0, kind: 'network' },
     { status: 0, kind: 'protocol' },
+    { status: 408, kind: 'http' },
     { status: 503, kind: 'http' },
   ])('stops with an unknown outcome rather than claiming rollback: %j', async (failure) => {
     const client = api();

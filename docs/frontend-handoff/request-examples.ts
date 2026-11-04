@@ -11,6 +11,7 @@ import type {
 } from './contracts';
 
 const encode = encodeURIComponent;
+const MAX_IMPORT_BYTES = 1024 * 1024 * 1024;
 const datasetPath = (id: string) => `/api/datasets/${encode(id)}`;
 const segmentationPath = (datasetId: string, seriesId: string) =>
   `${datasetPath(datasetId)}/segmentations/${encode(seriesId)}`;
@@ -101,7 +102,8 @@ export async function createDataset(name: string, identity: Identity, signal?: A
 export async function importOne(
   datasetId: string, file: File, identity: Identity, signal?: AbortSignal
 ): Promise<ImportResult> {
-  if (!file.size || file.size > 64 * 1024 * 1024) throw new Error('文件需非空且不超过 64 MiB');
+  if (!file.size || file.size > MAX_IMPORT_BYTES) throw new Error('文件需非空且不超过 1 GiB');
+  // Portal adds a 30-minute import deadline; this example retains the caller's cancellation signal.
   const form = new FormData(); form.append('file', file); form.append('datasetId', datasetId);
   return await (await write('/api/import', 'POST', identity, { form, signal })).json() as ImportResult;
 }

@@ -125,7 +125,7 @@
       let complete = 0;
       try {
         for (const f of files) {
-          if (!f.size || f.size > 64 * 1024 * 1024) throw new Error(`文件大小不符合要求：${f.name}`);
+          if (!f.size || f.size > 1024 * 1024 * 1024) throw new Error(`文件为空或超过默认单文件 1 GiB 上限：${f.name}`);
           show(`正在上传 ${complete + 1}/${files.length}：${f.name}`);
           const form = new FormData(); form.append('file', f); form.append('datasetId', datasetId); await write('/api/import', 'POST', form); complete++;
         }

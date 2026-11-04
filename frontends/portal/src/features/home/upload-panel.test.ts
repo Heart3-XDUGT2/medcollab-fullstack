@@ -4,6 +4,7 @@ import { Simulate } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import UploadPanel from './UploadPanel';
 import { ApiError, Dataset, HomeApi } from './api';
+import { MAX_UPLOAD_BYTES } from './upload-policy';
 
 vi.mock('../../ui', async () => {
   const React = await import('react');
@@ -142,6 +143,19 @@ describe('upload panel operation isolation', () => {
     await submit();
     expect(api.createDataset).toHaveBeenCalledTimes(1);
     expect(props.onCompleted).toHaveBeenCalledTimes(1);
+  });
+  test('shows the 1 GiB single-file policy and rejects one byte over it without a request', async () => {
+    await render();
+    expect(container.textContent).toContain('单个文件不超过 1 GiB');
+    expect(container.textContent).toContain('文件夹按文件逐个导入');
+    const oversized = file('too-large.dcm');
+    Object.defineProperty(oversized, 'size', { value: MAX_UPLOAD_BYTES + 1 });
+    changeName();
+    select([oversized]);
+    await submit();
+    expect(container.textContent).toContain('超过 1 GiB 限制');
+    expect(api.createDataset).not.toHaveBeenCalled();
+    expect(api.importFile).not.toHaveBeenCalled();
   });
 
   test('appends to an existing target and displays the destination without a creation field', async () => {

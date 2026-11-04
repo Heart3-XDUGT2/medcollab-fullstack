@@ -411,14 +411,19 @@ paths:
       x-csrf-required: true
       x-required-one-of: [multipart.datasetId, query.datasetId]
       description: |
-        每请求一个非空有效 DICOM，file 最大 67108864 字节（64 MiB），
-        multipart 总请求上限 65 MiB。datasetId 至少从 multipart 或 query 提供一个，
+        每请求一个非空有效 DICOM，默认单文件最大 1073741824 字节（1 GiB），
+        multipart 单请求默认 1025MB，为一个文件与表单开销预留空间。
+        文件夹总和不按单文件 1 GiB 上限限制，仍逐文件串行请求。
+        datasetId 至少从 multipart 或 query 提供一个，
         当前客户端固定发送 multipart 字段；不要重复给出冲突值。
         不手工设置 Content-Type，浏览器生成 boundary。不靠文件后缀判断 CT。
         Success 和 AlreadyStored 都是成功；同 UID 不同字节是 409。
         逐文件导入非整批事务，没有 ZIP/文件夹路径参数/服务器进度 API。
-        取消、网络或 5xx 可能使本次结果未知，不自动回滚已完成项，也不盲目重试。
+        Portal 导入期限与网关导入请求体接收上限均为 30 分钟；普通 API 期限仍为 15 秒。
+        取消、网络、408 或 5xx 可能使本次结果未知，不自动回滚已完成项，也不盲目重试。
         导入外部 SEG 不会自动登记为标注工作区的共享发布版本。
+        SEG 与工作台源 CT 的独立 64 MiB 安全限制不随上传额度变更。
+        服务端可配置导入限额，Portal 不自动发现；修改部署时需协调各层。
       parameters:
         - name: datasetId
           in: query
@@ -439,7 +444,7 @@ paths:
                   type: string
                   format: binary
                   description: 非空、有效 DICOM；最大字节数见 x-max-bytes，非字符长度约束
-                  x-max-bytes: 67108864
+                  x-max-bytes: 1073741824
                 datasetId:
                   type: string
                   minLength: 1
@@ -459,6 +464,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/ResourceNotFound'
+        '408':
+          description: 请求体接收超时或连接终止；导入结果需核对，Portal 不自动重试
         '409':
           description: 同一 DICOM 标识已存在但字节不同，本次未关联到当前集合
           content:

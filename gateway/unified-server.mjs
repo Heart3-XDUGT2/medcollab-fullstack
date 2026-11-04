@@ -4,9 +4,12 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachCollaborationProxy } from './websocket-proxy.mjs';
+import { enforceRequestBodyTimeout, SERVER_TIMEOUTS, upstreamTimeoutMs } from './request-timeouts.mjs';
+import { parseLogoutOrigins } from './runtime-config.mjs';
 const folder = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORTAL_PORT || 8080);
 const javaPort = Number(process.env.PORTAL_JAVA_PORT || 8082);
+const logoutOrigins = parseLogoutOrigins(process.env.PORTAL_LOGOUT_ORIGINS);
 if (![port, javaPort].every(p => Number.isInteger(p) && p >= 1024 && p <= 65535) || port === javaPort) throw new Error('Invalid Portal/Java ports');
 const root = await fs.realpath(path.resolve(folder, '../frontends/portal/dist'));
 const imagingRoot = path.resolve(folder, '../frontends/ohif/platform/app/dist');
@@ -21,7 +24,8 @@ function safeHeaders(headers) {
   for (const name of [...hopHeaders, ...(headers.connection || '').toLowerCase().split(',').map(s => s.trim())]) delete result[name];
   return result;
 }
-const server = http.createServer(async (request, response) => {
+const server = http.createServer(SERVER_TIMEOUTS, async (request, response) => {
+  enforceRequestBodyTimeout(request, response);
   const json = (status, body) => { response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(body)); };
   try {
     const url = new URL(request.url, `http://127.0.0.1:${port}`);
@@ -36,8 +40,7 @@ const server = http.createServer(async (request, response) => {
         incoming.on('error', () => response.destroy());
         incoming.pipe(response);
       });
-      const imagingRequest = url.pathname.startsWith('/api/datasets/') || url.pathname.startsWith('/api/import');
-      upstream.setTimeout(imagingRequest ? 240000 : 30000, () => upstream.destroy(new Error('Upstream timeout')));
+      upstream.setTimeout(upstreamTimeoutMs(url.pathname), () => upstream.destroy(new Error('Upstream timeout')));
       upstream.on('error', () => {
         if (!response.headersSent && !response.destroyed) json(503, { error: 'Java 服务暂不可用，请通过一键启动入口启动服务器。' });
         else response.destroy();
@@ -52,7 +55,7 @@ const server = http.createServer(async (request, response) => {
     if (['/sign-in', '/account/sign-in'].includes(url.pathname)) { response.writeHead(302, { Location: '/auth/login', 'Cache-Control': 'no-store' }); response.end(); return; }
     if (url.pathname === '/config.js') {
       response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
-      response.end('window.config = ' + JSON.stringify({ medcollab: { apiEnabled: true, authOrigin: `http://127.0.0.1:${port}`, logoutOrigins: ['http://127.0.0.1:8081'], workspacePath: '/workspace', publicSamplePath: null } }) + ';'); return;
+      response.end('window.config = ' + JSON.stringify({ medcollab: { apiEnabled: true, authOrigin: `http://127.0.0.1:${port}`, logoutOrigins, workspacePath: '/workspace', publicSamplePath: null } }) + ';'); return;
     }
     if (url.pathname === '/workspace') {
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
