@@ -7,6 +7,34 @@ window.config = {
   extensions: [],
   modes: [],
   showStudyList: false,
+  whiteLabeling: {
+    createLogoComponentFn: function (React) {
+      return React.createElement(
+        'span',
+        {
+          'data-cy': 'medcollab-brand',
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: '#182524',
+            whiteSpace: 'nowrap',
+          },
+        },
+        React.createElement('img', {
+          src: '/brand/medcollab-mark.svg',
+          alt: '',
+          width: 25,
+          height: 28,
+        }),
+        React.createElement(
+          'span',
+          { style: { fontSize: '18px', fontWeight: 650, lineHeight: '28px' } },
+          'MedCollab'
+        )
+      );
+    },
+  },
   maxNumberOfWebWorkers: 3,
   showLoadingIndicator: true,
   showWarningMessageForCrossOrigin: false,

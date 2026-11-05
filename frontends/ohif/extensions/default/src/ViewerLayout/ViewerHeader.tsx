@@ -50,6 +50,20 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
     });
   };
 
+  const isDatasetWorkspace = new URLSearchParams(location.search).has('datasetId');
+  const homeButtonLabel = isDatasetWorkspace ? '首页' : '工作台';
+  const onClickHomeButton = async () => {
+    if (!isDatasetWorkspace) {
+      navigate('/workbench');
+      return;
+    }
+    const workspace = (servicesManager.services as any).annotationWorkspaceService;
+    if (workspace?.getEditState().caseId && !(await workspace.close())) {
+      return;
+    }
+    window.location.assign('/home');
+  };
+
   const { t } = useTranslation();
   const { show } = useModal();
 
@@ -133,13 +147,12 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
               variant="ghost"
               size="sm"
               className="hover:bg-muted text-primary h-7 px-2 text-[13px]"
-              title="工作台"
-              aria-label="工作台"
+              title={homeButtonLabel}
+              aria-label={homeButtonLabel}
               data-cy="workbench-btn"
-              onClick={() => new URLSearchParams(window.location.search).has('datasetId')
-                ? window.location.assign('/home') : navigate('/workbench')}
+              onClick={onClickHomeButton}
             >
-              工作台
+              {homeButtonLabel}
             </Button>
           </div>
         }
