@@ -23,6 +23,15 @@ const api = () => ({
 });
 
 describe('upload queue validation', () => {
+  test.each(['scan.nii', 'scan.NII', 'scan.nii.gz', 'scan.NII.GZ'])(
+    'rejects unsupported NIfTI %s before creating or importing anything',
+    async name => {
+      const client = api();
+      await expect(runUpload(client, { name: '影像集', files: [file(name)], identity })).rejects.toThrow('NIfTI');
+      expect(client.createDataset).not.toHaveBeenCalled();
+      expect(client.importFile).not.toHaveBeenCalled();
+    }
+  );
   test.each(['ct.nii', 'ct.NII', 'ct.nii.gz', 'ct.NII.GZ'])('rejects NIfTI and mixed batches before any write: %s', async name => {
     const client = api();
     await expect(runUpload(client, { name: '影像集', files: [file(), file(name)], identity })).rejects.toThrow('暂不支持 NIfTI');

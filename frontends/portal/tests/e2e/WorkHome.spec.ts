@@ -94,6 +94,7 @@ async function fixture(
     account?: () => typeof session;
     teams?: boolean;
     statistics?: boolean;
+    activity?: boolean;
     beforeStats?: (id: string) => Promise<void>;
     statsStatus?: (id: string) => number;
   } = {}
@@ -138,7 +139,7 @@ async function fixture(
           : path === '/api/teams'
             ? values(options.teams ? [team] : [])
             : path === '/api/health'
-              ? { status: 'UP', ...(options.statistics ? { annotationStatsApi: 'v1' } : {}) }
+              ? { status: 'UP', ...(options.activity === false ? {} : { homeActivityApi: 'v1' }), ...(options.statistics ? { annotationStatsApi: 'v1' } : {}) }
               : path === `/api/teams/${team.id}`
                 ? team
                 : path === `/api/teams/${team.id}/datasets`
@@ -175,6 +176,11 @@ async function seed(page: Page, preferences: unknown, slow = false) {
   );
 }
 async function closeDetail(page: Page, width: number) {
+  await page.getByTestId('home-detail').evaluate(async element => {
+    await Promise.all(element.getAnimations({ subtree: true })
+      .filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity)
+      .map(animation => animation.finished.catch(() => undefined)));
+  });
   if (width <= 1200) await page.keyboard.press('Escape');
   else await page.getByRole('button', { name: '关闭资料概览', exact: true }).click();
   await expect(page.getByTestId('home-detail')).toHaveCount(0);
@@ -200,6 +206,36 @@ test('new accounts read empty real activity without inventing history or busines
   expect(calls.every((call) => call.method === 'GET')).toBe(true);
 });
 
+test('legacy services show unsupported activity without calling missing endpoints', async ({ page }) => {
+  const calls = await fixture(page, { activity: false });
+  await page.goto('/home?view=work');
+  await expect(page.getByTestId('work-module-favorites')).toContainText('当前服务未提供收藏功能');
+  await expect(page.getByTestId('work-module-recent')).toContainText('当前服务未提供最近打开功能');
+  expect(calls.some(call => call.path.startsWith('/api/me/'))).toBe(false);
+  await expect(page.getByTestId('work-module-favorites').getByRole('button', { name: '重新读取' })).toHaveCount(0);
+  await expect(page.getByTestId('home-favorite').first()).toBeDisabled();
+});
+
+test('a recent endpoint mismatch does not hide the successfully loaded favorite list', async ({ page }) => {
+  await fixture(page);
+  await page.route('**/api/me/recent-datasets?*', route => route.fulfill({ status: 404, json: {} }));
+  await page.goto('/home?view=work');
+  await expect(page.getByTestId('work-module-favorites')).toContainText('还没有收藏的数据集');
+  await expect(page.getByTestId('work-module-recent')).toContainText('接口与当前服务不匹配');
+  await expect(page.getByTestId('work-module-recent')).not.toContainText('失去访问权限');
+  await expect(page.getByTestId('home-favorite').first()).toBeEnabled();
+});
+
+test('a failed favorite-state read preserves lists and disables favorite mutations', async ({ page }) => {
+  await fixture(page);
+  await page.route('**/api/me/favorite-datasets/state?*', route => route.fulfill({ status: 503, json: {} }));
+  await page.goto('/home?view=work');
+  await expect(page.getByTestId('work-module-favorites')).toContainText('还没有收藏的数据集');
+  await expect(page.getByTestId('work-module-recent')).toContainText('暂无最近打开记录');
+  await expect(page.getByTestId('work-home')).toContainText('收藏状态');
+  await expect(page.getByTestId('home-favorite').first()).toBeDisabled();
+});
+
 test('entry switches retain library search, sort, selection and display layout', async ({
   page,
 }) => {
@@ -208,7 +244,7 @@ test('entry switches retain library search, sort, selection and display layout',
   await expect(page.getByTestId('home-dataset-row')).toHaveCount(2);
   await page.getByTestId('home-search').fill('腹部');
   await page.getByTestId('home-sort').selectOption('name');
-  await page.getByRole('button', { name: '资料清单', exact: true }).click();
+  await page.getByRole('button', { name: '对比表格', exact: true }).click();
   await page.getByTestId('home-dataset-select').first().click();
   await closeDetail(page, 1440);
   await page.getByTestId('home-entry-work').click();
@@ -291,9 +327,9 @@ test('home settings reorder/hide modules, persist enums only, and leave original
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('work-home-settings')).toBeFocused();
   await expect(page.locator('.mc-work-module > header h2')).toHaveText([
+    '继续研究',
+    '数据集2',
     '我的收藏',
-    '继续工作',
-    '资料库入口',
     '我的团队',
   ]);
   await page.reload();
@@ -345,6 +381,7 @@ for (const width of [1440, 390]) {
     await page.getByTestId('work-clear-recent').click();
     await expect(page.getByTestId('work-recent-record')).toHaveCount(0);
     await page
+      .getByTestId('work-module-favorites')
       .getByRole('button', { name: '取消收藏 腹部 CT · 多器官标注集', exact: true })
       .click();
     await expect(page.getByTestId('work-favorite-record')).toHaveCount(2);
@@ -530,7 +567,7 @@ for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
     const calls = await fixture(page, { statistics: true });
     await page.goto('/home?view=library');
-    await page.getByRole('button', { name: '资料清单', exact: true }).click();
+    await page.getByRole('button', { name: '对比表格', exact: true }).click();
     await page.getByTestId('home-display-preferences').click();
     await page
       .getByTestId('home-display-preferences-panel')
@@ -551,6 +588,9 @@ for (const width of [1440, 768, 390]) {
           element.scrollHeight > element.clientHeight + 1
       );
     expect(clipped).toBe(false);
+    const readsBeforeDetail = calls.filter(
+      (call) => call.path === '/api/datasets/work-b/annotation-stats'
+    ).length;
     await longName.click();
     const detail = page.getByTestId('home-detail');
     await expect(detail.locator('.mc-coverage--detail')).toContainText('60 / 300 帧');
@@ -561,7 +601,7 @@ for (const width of [1440, 768, 390]) {
     await expect(longName).toBeFocused();
     expect(
       calls.filter((call) => call.path === '/api/datasets/work-b/annotation-stats')
-    ).toHaveLength(1);
+    ).toHaveLength(readsBeforeDetail);
     expect(calls.some((call) => /labelmap|\/file$/.test(call.path))).toBe(false);
   });
 }

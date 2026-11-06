@@ -4,7 +4,10 @@ import path from 'node:path';
 
 selectors.setTestIdAttribute('data-cy');
 const base = process.env.PORTAL_E2E_BASE_URL || 'http://127.0.0.1:60833';
-const out = path.resolve('.runtime/work-home', process.env.QA_ROUND || 'round-1');
+const out = path.resolve(
+  process.env.QA_OUTPUT_ROOT || '.runtime/work-home',
+  process.env.QA_ROUND || 'round-1'
+);
 await fs.mkdir(out, { recursive: true });
 const browser = await chromium.launch({
   executablePath:
@@ -169,17 +172,48 @@ try {
     });
     async function shot(name) {
       if (
+        process.env.QA_SCOPE === 'top-navigation' &&
+        ![
+          'real-work-current',
+          'real-work-many',
+          'home-settings',
+          'library-30-compact',
+          'empty-work',
+          'unsupported-statistics',
+          'demo-work',
+          'account-menu',
+        ].includes(name)
+      )
+        return;
+      if (
         process.env.QA_SCOPE === 'compact-confirmation' &&
         !['real-work-current', 'library-30-compact', 'library-300-compact'].includes(name)
       )
         return;
-      if (name === 'library-30-compact' || name === 'library-300-compact') {
-        await expect.poll(() => page.locator('.mc-resource-table [data-cy="dataset-coverage"]').evaluateAll(nodes =>
-          nodes.filter(node => {
-            const rect = node.getBoundingClientRect();
-            return rect.top < innerHeight && rect.bottom > 0;
-          }).every(node => node.getAttribute('data-status') === 'ready')
-        ), { timeout: 15000 }).toBe(true);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      if (
+        [
+          'library-30-compact',
+          'library-300-compact',
+          'real-work-current',
+          'real-work-many',
+          'demo-work',
+        ].includes(name)
+      ) {
+        await expect
+          .poll(
+            () =>
+              page.locator('[data-cy="dataset-coverage"]').evaluateAll((nodes) =>
+                nodes
+                  .filter((node) => {
+                    const rect = node.getBoundingClientRect();
+                    return rect.top < innerHeight && rect.bottom > 0;
+                  })
+                  .every((node) => node.getAttribute('data-status') === 'ready')
+              ),
+            { timeout: 15000 }
+          )
+          .toBe(true);
       }
       await page.evaluate(() => document.fonts.ready);
       await page.mouse.move(0, 0);
@@ -189,7 +223,11 @@ try {
       const file = `${width}-${name}.png`;
       await page.screenshot({ path: path.join(out, file) });
       report.screenshots.push(file);
-      if (['real-work-current', 'demo-work', 'demo-cleared', 'empty-work'].includes(name)) {
+      if (
+        ['real-work-current', 'real-work-many', 'demo-work', 'demo-cleared', 'empty-work'].includes(
+          name
+        )
+      ) {
         const full = `${width}-${name}-full.png`;
         await page.screenshot({ path: path.join(out, full), fullPage: true });
         report.screenshots.push(full);
@@ -212,6 +250,17 @@ try {
             }));
           return {
             heading: document.querySelector('h1')?.textContent,
+            scrollY: window.scrollY,
+            permanentSidebarCount: document.querySelectorAll('.mc-shell-sidebar').length,
+            sourceTotal: document.querySelector('[data-cy="home-scope-all"] strong')?.textContent,
+            headingHeight: document.querySelector('h1')?.getBoundingClientRect().height,
+            headingLineHeight: document.querySelector('h1')
+              ? parseFloat(getComputedStyle(document.querySelector('h1')).lineHeight)
+              : null,
+            overviewRight: document.querySelector('.mc-scope-bar')?.getBoundingClientRect().right,
+            datasetPreviewRight: document
+              .querySelector('.mc-work-dataset-preview')
+              ?.getBoundingClientRect().right,
             moduleOrder: [...document.querySelectorAll('.mc-work-module > header h2')].map(
               (node) => node.textContent
             ),
@@ -272,6 +321,16 @@ try {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('work-home-settings')).toBeFocused();
     count = 30;
+    if (process.env.QA_SCOPE === 'top-navigation') {
+      await work();
+      await shot('real-work-many');
+      await page.getByRole('button', { name: '账号菜单', exact: true }).click();
+      await shot('account-menu');
+      await page.keyboard.press('Escape');
+    }
+    const beforeLibrary = calls.filter((call) =>
+      call.pathname.endsWith('/annotation-stats')
+    ).length;
     await page.goto(base + '/home?view=library');
     await expect(page.getByTestId('home-dataset-row')).toHaveCount(count);
     await page.getByRole('button', { name: '资料清单', exact: true }).click();
@@ -283,9 +342,8 @@ try {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(500);
     await shot('library-30-compact');
-    const statisticReads = calls.filter((call) =>
-      call.pathname.endsWith('/annotation-stats')
-    ).length;
+    const statisticReads =
+      calls.filter((call) => call.pathname.endsWith('/annotation-stats')).length - beforeLibrary;
     if (statisticReads > 25)
       report.errors.push(
         `${width}: initial visible library read too many statistics (${statisticReads})`
@@ -332,7 +390,10 @@ try {
         'demo-chest-joint': '胸部影像 · 联合整理',
         'demo-abdomen-long': names[1],
       }[id];
-      await page.getByRole('button', { name: `取消收藏 ${name}`, exact: true }).click();
+      await page
+        .getByTestId('work-module-favorites')
+        .getByRole('button', { name: `取消收藏 ${name}`, exact: true })
+        .click();
     }
     await page.getByTestId('work-clear-recent').click();
     await expect(page.getByTestId('work-favorite-record')).toHaveCount(0);

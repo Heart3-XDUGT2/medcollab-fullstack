@@ -55,7 +55,7 @@
 .portal-button--icon {
   width: 44px;
   height: 44px;
-  padding: 10px;
+  padding: 0;
 }
 .portal-input {
   display: flex;

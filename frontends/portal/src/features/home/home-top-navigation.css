@@ -1,0 +1,284 @@
+.mc-scope-overview {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 16px 0;
+  margin-bottom: 20px;
+  border-top: 1px solid var(--mc-border);
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-scope-total {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px 0 0;
+  min-height: 48px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--mc-ink);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.mc-scope-total > strong {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.mc-scope-total > span {
+  font-size: 14px;
+}
+.mc-scope-total small {
+  display: block;
+  color: var(--mc-muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.mc-scope-total[aria-pressed='true'] > strong {
+  color: var(--mc-primary-hover);
+}
+.mc-scope-breakdown {
+  min-width: 0;
+  flex: 1;
+  max-width: none;
+}
+.mc-scope-bar {
+  display: flex;
+  height: 6px;
+  background: #e5eaed;
+  overflow: hidden;
+}
+.mc-scope-bar span {
+  display: block;
+  height: 100%;
+}
+.mc-scope-bar .is-owner,
+.mc-scope-legend .is-owner {
+  background: #007fa3;
+}
+.mc-scope-bar .is-shared,
+.mc-scope-legend .is-shared {
+  background: #84939c;
+}
+.mc-scope-bar .is-public,
+.mc-scope-legend .is-public {
+  background: #438970;
+}
+.mc-scope-legend {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 24px;
+}
+.mc-scope-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--mc-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.mc-scope-legend button i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.mc-scope-legend button strong {
+  font-weight: 500;
+  color: var(--mc-ink);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.mc-scope-legend button[aria-pressed='true'] {
+  color: var(--mc-primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+.mc-scope-legend button:hover,
+.mc-scope-total:hover {
+  color: var(--mc-primary-hover);
+}
+.mc-scope-overview button:focus-visible {
+  outline: 2px solid var(--mc-primary);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.mc-shell--top .mc-library-heading {
+  margin-bottom: 18px;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.mc-home-utilities {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mc-shell--top .mc-library-heading h1 {
+  font-size: 24px;
+}
+.mc-shell--top [data-entry='work'] .mc-library-heading p {
+  display: none;
+}
+.mc-shell--top .mc-library-heading-actions {
+  flex-wrap: wrap;
+}
+.mc-shell--top .mc-library-heading-actions > .portal-button {
+  min-height: 42px;
+}
+.mc-shell--top .mc-work-modules {
+  gap: 24px 32px;
+}
+.mc-shell--top .mc-work-module.is-library {
+  grid-column: 1 / -1;
+}
+.mc-shell--top .mc-work-module > header {
+  margin-bottom: 12px;
+  padding-bottom: 0;
+  border: 0;
+}
+.mc-work-module.is-library > header button {
+  width: auto;
+  padding: 4px 0;
+  font-size: 13px;
+  gap: 8px;
+  color: var(--mc-primary-hover);
+}
+.mc-work-dataset-preview > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+.mc-work-dataset-preview > footer > button {
+  gap: 8px;
+  color: var(--mc-primary-hover);
+  padding-right: 0;
+}
+.mc-work-dataset-preview .mc-resource-card-title strong {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  -webkit-line-clamp: unset;
+}
+.mc-work-dataset-preview .mc-resource-card {
+  background: #fff;
+}
+.mc-shell--top .mc-work-module.is-unavailable {
+  align-self: start;
+}
+.mc-work-module.is-unavailable > header {
+  display: none;
+}
+.mc-work-module.is-unavailable .mc-work-unavailable {
+  min-height: 0;
+  padding: 4px 0;
+}
+.mc-work-module.is-unavailable .mc-work-unavailable p {
+  margin: 0;
+  font-size: 12px;
+}
+.mc-work-module.is-unavailable .mc-work-unavailable strong {
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+.mc-shell--top .mc-work-empty,
+.mc-shell--top .mc-work-loading {
+  min-height: 0;
+}
+.mc-shell--top .mc-work-continue-picker {
+  margin-bottom: 10px;
+}
+.mc-shell--top .mc-work-continue-target {
+  padding-bottom: 4px;
+}
+.mc-shell--top .mc-library-demo {
+  margin-bottom: 16px;
+}
+@media (min-width: 1001px) {
+  .mc-work-dataset-preview .mc-resource-card-grid.is-small-collection {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .mc-work-dataset-preview .is-small-collection > .mc-resource-card:last-child:nth-child(odd) {
+    display: flex;
+    grid-column: auto;
+    min-height: 176px;
+  }
+  .mc-work-dataset-preview
+    .is-small-collection
+    > .mc-resource-card:last-child:nth-child(odd)
+    .mc-resource-card-facts {
+    margin: 10px 0 8px;
+    align-self: stretch;
+  }
+}
+@media (max-width: 768px) {
+  .mc-scope-overview {
+    gap: 20px;
+    padding: 12px 0;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .mc-scope-total {
+    min-height: 36px;
+    gap: 10px;
+  }
+  .mc-scope-total > strong {
+    font-size: 24px;
+  }
+  .mc-scope-total > span {
+    font-size: 13px;
+  }
+  .mc-scope-breakdown {
+    flex-basis: 100%;
+  }
+  .mc-scope-legend {
+    gap: 10px;
+  }
+  .mc-scope-legend button {
+    min-height: 44px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .mc-scope-legend button strong {
+    font-size: 16px;
+  }
+  .mc-shell--top .mc-library-heading h1 {
+    font-size: 22px;
+  }
+  .mc-shell--top .mc-library-heading-actions {
+    gap: 6px;
+  }
+  .mc-shell--top .mc-library-heading-actions > .portal-button {
+    min-height: 44px;
+  }
+  .mc-shell--top .mc-library-heading > div:first-child {
+    min-width: 110px;
+  }
+  [data-ready='false'] .mc-library-heading > div:first-child {
+    flex-basis: 100%;
+  }
+  .mc-home-utilities > .portal-button {
+    min-height: 44px;
+  }
+  .mc-shell--top .mc-work-modules {
+    gap: 20px;
+  }
+  .mc-work-dataset-preview .mc-resource-card {
+    min-height: 0;
+  }
+}

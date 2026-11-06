@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Copy, Files, LogOut, MoreHorizontal, Plus, RefreshCw, Search, Upload, UserRound, UsersRound } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, Label } from '../../ui';
 import { ApiError, buildWorkspaceUrl, createHomeApi, getAuthUrl, getHomeConfig, identityOf } from '../home/api';
 import type { Dataset, HomeApi, HomeConfig, Identity, Session, Team, TeamDataset, TeamInvite, TeamMember, User } from '../home/api';
 import UploadPanel from '../home/UploadPanel';
 import PortalShell from '../../ui/PortalShell';
+import { checkHomeReturnIdentity, clearHomeReturn } from '../home/home-return';
 import './teams.css';
 
 type Props = { config?: HomeConfig; api?: HomeApi };
@@ -25,6 +27,8 @@ function Avatar({ name, team = false }: { name: string; team?: boolean }) {
 }
 
 export default function TeamsPage({ config: providedConfig, api: providedApi }: Props) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [config] = useState(() => providedConfig || getHomeConfig());
   const api = useMemo(() => providedApi || createHomeApi(config), [providedApi, config]);
   const [session, setSession] = useState<Session | null>(null);
@@ -52,7 +56,6 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
   const detailSequence = useRef(0);
   const selectedRef = useRef<string | null>(null);
   const teamTitle = useRef<HTMLHeadingElement>(null);
-  const entryTeam = useRef(new URLSearchParams(window.location.search).get('team'));
   const loginUrl = getAuthUrl(config, 'login');
 
   function clearTeam() {
@@ -64,6 +67,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
     setInvite(null); setAction(null); setUploadBusy(false); setDetailLoading(false);
   }
   function invalidate(message: string) {
+    clearHomeReturn();
     pageScope.current.abort(); pageScope.current = new AbortController();
     indexSequence.current++;
     account.current = null;
@@ -86,6 +90,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
       const fresh = await api.getSession(signal);
       if (signal.aborted || !mounted.current || sequence !== indexSequence.current) return;
       const identity = identityOf(fresh);
+      checkHomeReturnIdentity(identity);
       if (!identity) { invalidate('请登录后访问团队。'); return; }
       if (account.current && !sameIdentity(identity, account.current)) {
         invalidate('账号已变化，请重新载入当前账号的团队。'); return;
@@ -95,11 +100,6 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
       await verify(identity, signal);
       if (!signal.aborted && mounted.current && sequence === indexSequence.current) {
         setTeams(list); setIndexRead('ready');
-        if (entryTeam.current) {
-          const requested = list.find(item => item.id === entryTeam.current);
-          entryTeam.current = null;
-          if (requested) selectTeam(requested);
-        }
       }
     } catch (failure) {
       if (!signal.aborted && mounted.current && sequence === indexSequence.current) {
@@ -147,6 +147,22 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
     selectedRef.current = next.id; setSelected(next.id); setTab('datasets'); setQuery('');
     void loadTeam(next.id);
   }
+  function navigateTeam(next: Team | null) {
+    const query = new URLSearchParams(location.search);
+    if (next) query.set('team', next.id);
+    else query.delete('team');
+    navigate({ pathname: location.pathname, search: query.toString() });
+    if (next) selectTeam(next);
+    else clearTeam();
+  }
+  useEffect(() => {
+    if (indexRead !== 'ready' || !account.current) return;
+    const id = new URLSearchParams(location.search).get('team');
+    if (id === selectedRef.current) return;
+    const requested = teams.find(item => item.id === id);
+    if (requested) selectTeam(requested);
+    else if (selectedRef.current) clearTeam();
+  }, [location.search, indexRead, teams]);
   function reloadTeam() {
     if (!selectedRef.current) return;
     teamScope.current.abort(); teamScope.current = new AbortController();
@@ -256,10 +272,10 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
           <div className="mc-team-toolbar"><div className="mc-team-search"><Search size={17} /><Input aria-label="搜索我的团队" placeholder="搜索团队名称或 ID" value={query} disabled={!hasIndex} onChange={e => setQuery(e.target.value)} /></div><span>{hasIndex ? `${indexRead === 'stale' ? '上次结果：' : ''}${visibleTeams.length} 个团队${indexRead === 'stale' ? '（刷新未成功）' : ''}` : '团队数量未知'}</span><Button variant="ghost" size="icon" title="刷新团队" aria-label="刷新团队" onClick={() => void loadIndex()} disabled={loading}><RefreshCw size={17} /></Button></div>
           {loading && !hasIndex ? <Loading /> : !enabled ? <Empty title={config.apiEnabled ? '登录后查看团队' : '团队服务尚未配置'} /> : !hasIndex ? <Empty title="团队列表读取失败"><Button variant="outline" onClick={() => void loadIndex()}>重新读取团队</Button></Empty> : !visibleTeams.length ? <Empty title={indexRead === 'stale' ? query ? '上次结果中没有匹配的团队' : '上次读取没有团队，当前状态待确认' : query ? '没有匹配的团队' : '还没有加入团队'}>{!query && indexRead === 'ready' && <Button variant="outline" onClick={() => setAction({ kind: 'find' })}>查找团队</Button>}</Empty> : <div className="mc-team-list">
             <div className="mc-team-list-head"><span>团队</span><span>组长</span><span>成员数</span><span /></div>
-            {visibleTeams.map(item => <button key={item.id} className="mc-team-list-row" onClick={() => selectTeam(item)}><div className="mc-team-list-name"><Avatar name={item.name} team /><span><strong>{item.name}</strong><small>{item.id}<span className="mc-team-tag">{item.role === 'leader' ? '组长' : '成员'}</span></small></span></div><span className="mc-team-leader">{item.leaderUsername}</span><span className="mc-team-num">{item.memberCount.toLocaleString()}<small> 位成员</small></span><ArrowRight size={17} /></button>)}
+            {visibleTeams.map(item => <button key={item.id} className="mc-team-list-row" onClick={() => navigateTeam(item)}><div className="mc-team-list-name"><Avatar name={item.name} team /><span><strong>{item.name}</strong><small>{item.id}<span className="mc-team-tag">{item.role === 'leader' ? '组长' : '成员'}</span></small></span></div><span className="mc-team-leader">{item.leaderUsername}</span><span className="mc-team-num">{item.memberCount.toLocaleString()}<small> 位成员</small></span><ArrowRight size={17} /></button>)}
           </div>}
         </> : <>
-          <button className="mc-team-back" onClick={clearTeam}><ArrowLeft size={16} />我的团队</button>
+          <button className="mc-team-back" onClick={() => navigateTeam(null)}><ArrowLeft size={16} />我的团队</button>
           {detailLoading && !team ? <Loading /> : team && <>
             <header className="mc-team-profile"><Avatar name={team.name} team /><div><h1 ref={teamTitle} tabIndex={-1}>{team.name}</h1><p><span className="mc-team-tag">{team.role === 'leader' ? '组长' : '成员'}</span><span>{team.memberCount.toLocaleString()} 位成员</span></p><small>{team.id}<Button variant="ghost" size="icon" aria-label="复制团队 ID" title="复制团队 ID" onClick={() => void navigator.clipboard.writeText(team.id).then(() => setNotice('团队 ID 已复制。')).catch(() => setError('无法复制，请手动选择团队 ID。'))}><Copy size={14} /></Button></small></div>
               <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" aria-label="团队操作" title="团队操作"><MoreHorizontal size={19} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
@@ -283,10 +299,10 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
     {action && action.kind !== 'upload' && <TeamAction key={`${action.kind}:${'team' in action ? action.team.id : ''}`} action={action} api={api} signal={activeScope} execute={execute} searchRecords={searchRecords} onReconcile={() => { if (selectedRef.current) reloadTeam(); else void loadIndex(); }} onClose={closeAction} onJoined={next => { setAction({ kind: 'join', team: next }); }} onDone={result => {
       setAction(null);
       if (action.kind === 'create') {
-        const created = result as TeamInvite; selectTeam(created.team); setInvite(created); void loadIndex();
+        const created = result as TeamInvite; navigateTeam(created.team); setInvite(created); void loadIndex();
       } else if (action.kind === 'rotate') setInvite(result as TeamInvite);
-      else if (action.kind === 'join') { selectTeam(result as Team); void loadIndex(); setNotice('已加入团队。'); }
-      else if (action.kind === 'leave') { clearTeam(); void loadIndex(); setNotice('已退出团队。上传的资料仍保留在团队库中。'); }
+      else if (action.kind === 'join') { navigateTeam(result as Team); void loadIndex(); setNotice('已加入团队。'); }
+      else if (action.kind === 'leave') { navigateTeam(null); void loadIndex(); setNotice('已退出团队。上传的资料仍保留在团队库中。'); }
       else { if (selectedRef.current) void loadTeam(selectedRef.current); void loadIndex(); setNotice('操作已完成，正在核对最新状态。'); }
     }} />}
     {action?.kind === 'upload' && <Dialog open onOpenChange={open => { if (!open) closeAction(); }}><DialogContent className="mc-team-dialog" onEscapeKeyDown={e => { if (uploadBusy) e.preventDefault(); }} onInteractOutside={e => { if (uploadBusy) e.preventDefault(); }}><DialogHeader><DialogTitle>{action.dataset ? '追加团队资料' : '上传到团队'}</DialogTitle><DialogDescription>{action.team.name}</DialogDescription></DialogHeader><UploadPanel key={`${session?.issuer}:${session?.subject}:${action.team.id}:${action.dataset?.id || 'new'}`} mode="real" api={uploadApi} identity={account.current} scopeSignal={teamScope.current.signal} enabled={enabled && !!team} loginUrl={loginUrl} targetDataset={action.dataset} destinationLabel={action.team.name} onBusyChange={setUploadBusy} onBlocked={() => { if (selectedRef.current) void loadTeam(selectedRef.current); }} onCompleted={() => { if (selectedRef.current) void loadTeam(selectedRef.current); }} onClose={() => { setAction(null); reloadTeam(); }} /></DialogContent></Dialog>}

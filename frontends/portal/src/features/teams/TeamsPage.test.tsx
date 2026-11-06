@@ -1,4 +1,5 @@
 import React, { act } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -35,7 +36,7 @@ describe('real team page context boundaries', () => {
   let root: Root, container: HTMLDivElement, api: HomeApi;
   const find = (label: string) => [...container.querySelectorAll('button')].find(b => b.textContent?.trim() === label)!;
   const click = async (label: string) => { await act(async () => find(label).click()); };
-  const render = async () => { await act(async () => root.render(<TeamsPage api={api} config={config} />)); };
+  const render = async () => { await act(async () => root.render(<MemoryRouter initialEntries={['/teams']}><TeamsPage api={api} config={config} /></MemoryRouter>)); };
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div'); document.body.append(container); root = createRoot(container);

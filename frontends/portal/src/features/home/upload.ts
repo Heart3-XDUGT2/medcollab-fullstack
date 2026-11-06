@@ -109,6 +109,13 @@ function uploadFailureMessage(failure: Failure) {
   return failure.message;
 }
 
+export function unsupportedUploadFormat(file: Pick<File, 'name' | 'type'>): string | null {
+  if (/\.nii(?:\.gz)?$/i.test(file.name)) return '.nii/.nii.gz（NIfTI）暂不支持导入；当前仅支持 DICOM 文件/文件夹。';
+  if (/\.zip$/i.test(file.name) || ['application/zip', 'application/x-zip-compressed'].includes(file.type.toLowerCase()))
+    return '暂不支持 ZIP，请选择 DICOM 文件或文件夹';
+  return null;
+}
+
 function validate(name: string, files: File[]) {
   if (!name || name.length > 200) {
     throw new Error('影像集名称需为 1 至 200 个字符');
@@ -126,12 +133,8 @@ function validate(name: string, files: File[]) {
     if (file.size > MAX_UPLOAD_BYTES) {
       throw new Error(`文件“${file.name}”超过 ${UPLOAD_SIZE_LIMIT_LABEL} 限制`);
     }
-    if (
-      /\.zip$/i.test(file.name) ||
-      ['application/zip', 'application/x-zip-compressed'].includes(file.type.toLowerCase())
-    ) {
-      throw new Error('暂不支持 ZIP，请选择 DICOM 文件或文件夹');
-    }
+    const unsupported = unsupportedUploadFormat(file);
+    if (unsupported) throw new Error(unsupported);
   }
 }
 

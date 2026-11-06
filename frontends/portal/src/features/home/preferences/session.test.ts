@@ -58,15 +58,15 @@ describe('preference persistence and lifecycle boundaries', () => {
     const sameSubjectOtherIssuer = make(account('A', 'issuer-two')); await flush();
     expect(sameSubjectOtherIssuer.getSnapshot().preferences).toBe(DEFAULT_HOME_PREFERENCES);
   });
-  test('new cards default never overwrites an existing valid personal list preference', async () => {
-    expect(DEFAULT_HOME_PREFERENCES.layout).toBe('cards');
-    values.set(keyA, encodePreferences({ ...DEFAULT_HOME_PREFERENCES, layout: 'list' }));
+  test.each(['cards', 'list'] as const)('new rows default never overwrites saved %s preference', async layout => {
+    expect(DEFAULT_HOME_PREFERENCES.layout).toBe('rows');
+    values.set(keyA, encodePreferences({ ...DEFAULT_HOME_PREFERENCES, layout }));
     const session = make(account()); await flush();
-    expect(session.getSnapshot().preferences.layout).toBe('list');
+    expect(session.getSnapshot().preferences.layout).toBe(layout);
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(storage.removeItem).not.toHaveBeenCalled();
     session.reset();
-    expect(session.getSnapshot().preferences.layout).toBe('cards');
+    expect(session.getSnapshot().preferences.layout).toBe('rows');
     expect(values.has(keyA)).toBe(false);
   });
   test.each(['demo', 'anonymous'] as const)('%s never reads, derives an account key or writes storage', async mode => {
@@ -174,7 +174,7 @@ describe('preference persistence and lifecycle boundaries', () => {
     expect(storage.getItem.mock.calls.every(([key]) => key === keyB)).toBe(true);
     expect(storage.setItem.mock.calls.every(([key]) => key === keyB)).toBe(true);
     expect(storage.removeItem).not.toHaveBeenCalled();
-    expect(current.getSnapshot().preferences.layout).toBe('cards');
+    expect(current.getSnapshot().preferences.layout).toBe('rows');
   });
   test('changes made while loading win over a late saved display snapshot', async () => {
     const delayed = deferred<string>(); environment.createKey = vi.fn(() => delayed.promise);

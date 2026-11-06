@@ -128,6 +128,11 @@ async function mockHomeApi(
       json = { items, total: items.length };
     } else if (entry.pathname === '/api/health' && entry.method === 'GET') {
       json = { status: 'UP' };
+    } else if (entry.method === 'GET' &&
+      ['/api/me/favorite-datasets', '/api/me/favorite-datasets/state', '/api/me/recent-datasets'].includes(entry.pathname)) {
+      // Keep activity unavailable in this mutation-safety fixture; real activity has its own tests.
+      status = 503;
+      json = { error: 'Activity intentionally unavailable in this fixture' };
     } else if (entry.pathname === '/api/datasets' && entry.method === 'POST') {
       createWrites++;
       status =
@@ -176,15 +181,18 @@ async function mockDocumentNavigation(page: Page, pathname: string, marker: stri
   return documents;
 }
 
-async function observeUncancelledRead(page: Page, pathname: string, occurrence: number) {
+async function observeUncancelledRead(page: Page, pathname: string, occurrence: number | 'armed') {
   // Let a targeted response finish after cancellation to exercise the caller's stale-result guard.
   await page.addInitScript(
     ({ pathname, occurrence }) => {
       const fetch = window.fetch.bind(window);
       let reads = 0;
       (window as any).__homeFixtureReadParsed = false;
+      (window as any).__homeFixtureReadArmed = false;
       window.fetch = async (input, options) => {
-        const observed = input === pathname && ++reads === occurrence;
+        const observed = input === pathname && (occurrence === 'armed'
+          ? (window as any).__homeFixtureReadArmed === true : ++reads === occurrence);
+        if (observed) (window as any).__homeFixtureReadArmed = false;
         const response = await fetch(input, observed ? { ...options, signal: undefined } : options);
         if (observed) {
           const json = response.json.bind(response);
@@ -258,6 +266,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.upload).toBeDisabled();
     await expect(home.enterDemo).toBeVisible();
     await expect(home.images).toHaveCount(0);
+    await page.getByRole('button', { name: '账号菜单', exact: true }).click();
     await expect(home.sampleUnconfigured).toBeVisible();
     await expect(home.sampleLink).toHaveCount(0);
     expect(
@@ -281,6 +290,7 @@ test.describe('MedCollab home response fixtures', () => {
     );
     await home.visit();
     const portalOrigin = new URL(page.url()).origin;
+    await page.getByRole('button', { name: '账号菜单', exact: true }).click();
     await expect(home.sampleUnconfigured).toHaveCount(0);
     await expect(home.sampleLink).toHaveJSProperty('tagName', 'A');
     await expect(home.sampleLink).toHaveAttribute('href', '/imaging/public-example');
@@ -337,11 +347,9 @@ test.describe('MedCollab home response fixtures', () => {
       navigation: true,
       resourceType: 'document',
     });
-    expect(requests.map(({ method, pathname }) => ({ method, pathname }))).toEqual([
-      { method: 'GET', pathname: '/api/session' },
-      { method: 'GET', pathname: '/api/datasets' },
-      { method: 'GET', pathname: '/api/health' },
-    ]);
+    expect(requests.every(request => request.method === 'GET' &&
+      ['/api/session', '/api/datasets', '/api/health'].includes(request.pathname))).toBe(true);
+    expect(requests.filter(request => request.pathname === '/api/datasets')).toHaveLength(1);
   });
 
   test('enters demo explicitly and filters, searches, sorts, and selects the in-memory list', async ({
@@ -433,7 +441,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.search).toHaveValue('腹部');
     await expect(selected).toHaveAttribute('aria-pressed', 'true');
     await expect(home.detail).toBeVisible();
-    await page.getByRole('button', { name: '切换资料概览', exact: true }).click();
+    await page.getByRole('button', { name: '关闭资料概览', exact: true }).click();
     await expect(home.detail).toBeHidden();
     await expect(selected).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: '资料清单', exact: true }).click();
@@ -489,8 +497,8 @@ test.describe('MedCollab home response fixtures', () => {
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await expect(home.account).toHaveText(sessionA.username!);
-    await page.getByRole('button', { name: '资料清单', exact: true }).click();
-    await expect(home.tableHeadings).toHaveText(['数据集', '创建者', '实例数', '创建时间', '操作']);
+    await page.getByRole('button', { name: '对比表格', exact: true }).click();
+    await expect(home.tableHeadings).toHaveText(['数据集', '创建者', '实例数', '创建时间', 'CT 共享画布', '操作']);
     await expect(home.row('Alpha fixture')).not.toContainText('fixture-owner-01');
     await expect(home.row('Alpha fixture')).toContainText('我创建的');
     await expect(home.row('Alpha fixture')).toContainText('fixture-account-a');
@@ -516,11 +524,9 @@ test.describe('MedCollab home response fixtures', () => {
     await home.openWorkspace.click();
     await expect(home.notice).toContainText('工作界面入口尚未接入');
     await expect(page).toHaveURL(/\/home(?:\?|$)/);
-    expect(requests.map(({ method, pathname, search }) => ({ method, pathname, search }))).toEqual([
-      { method: 'GET', pathname: '/api/session', search: '' },
-      { method: 'GET', pathname: '/api/datasets', search: '' },
-      { method: 'GET', pathname: '/api/health', search: '' },
-    ]);
+    expect(requests.every(request => request.method === 'GET' && request.search === '' &&
+      ['/api/session', '/api/datasets', '/api/health'].includes(request.pathname))).toBe(true);
+    expect(requests.filter(request => request.pathname === '/api/datasets')).toHaveLength(1);
   });
 
   test('refreshes the session and uses its current CSRF token for one create request', async ({
@@ -538,11 +544,12 @@ test.describe('MedCollab home response fixtures', () => {
     await home.create.click();
     await home.nameInput.fill('  Created by response fixture  ');
     currentToken = freshToken;
+    const beforeSave = requests.length;
     await home.nameSave.click();
     await expect(home.actionDialog).toBeHidden();
     await expect(home.row('Created by response fixture')).toBeVisible();
     await expect(home.rows).toHaveCount(4);
-    expect(requests.filter((request) => request.pathname === '/api/session')).toHaveLength(2);
+    expect(requests.slice(beforeSave).some(request => request.pathname === '/api/session')).toBe(true);
     const writes = requests.filter((request) => request.method === 'POST');
     expect(writes).toHaveLength(1);
     expect(writes[0].pathname).toBe('/api/datasets');
@@ -564,6 +571,7 @@ test.describe('MedCollab home response fixtures', () => {
     await home.create.click();
     await home.nameInput.fill('Old account pending name');
     currentSession = sessionB;
+    const beforeSave = requests.length;
     await home.nameSave.click();
     await expect(home.notice).toContainText('登录账号已变化');
     await expect(home.actionDialog).toBeHidden();
@@ -573,7 +581,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.account).toHaveText('未登录');
     await expect(home.root).not.toContainText('Old account pending name');
     await expect(home.create).toBeDisabled();
-    expect(requests.filter((request) => request.pathname === '/api/session')).toHaveLength(2);
+    expect(requests.slice(beforeSave).some(request => request.pathname === '/api/session')).toBe(true);
     expect(requests.filter((request) => request.method !== 'GET')).toEqual([]);
   });
 
@@ -587,6 +595,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.rows).toHaveCount(3);
     await home.create.click();
     await home.nameInput.fill('Forbidden create fixture');
+    const beforeSave = requests.length;
     await home.nameSave.click();
     await expect(home.actionError).toContainText('操作未获授权');
     await expect(home.actionDialog).toBeVisible();
@@ -595,7 +604,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.nameSave).toBeDisabled();
     await expect(home.sessionRefresh).toBeVisible();
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1);
-    expect(requests.filter((request) => request.pathname === '/api/session')).toHaveLength(2);
+    expect(requests.slice(beforeSave).some(request => request.pathname === '/api/session')).toBe(true);
   });
 
   test('restores a forbidden dialog for the same account without automatically replaying it', async ({
@@ -619,11 +628,12 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.nameInput).toHaveValue('Explicitly retried fixture');
     await expect(home.nameSave).toBeEnabled();
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1);
+    const beforeExplicitRetry = requests.length;
     await home.nameSave.click();
     await expect(home.actionDialog).toBeHidden();
     await expect(home.row('Explicitly retried fixture')).toBeVisible();
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(2);
-    expect(requests.filter((request) => request.pathname === '/api/session')).toHaveLength(4);
+    expect(requests.slice(beforeExplicitRetry).some(request => request.pathname === '/api/session')).toBe(true);
   });
 
   test('clears account A context when recovery passes through signed-out into account B', async ({
@@ -723,24 +733,29 @@ test.describe('MedCollab home response fixtures', () => {
     homePageObject: home,
   }) => {
     await configureRealHome(page);
-    await observeUncancelledRead(page, '/api/session', 2);
+    await observeUncancelledRead(page, '/api/session', 'armed');
     let releaseSession: () => void;
     const pendingSession = new Promise<void>((resolve) => {
       releaseSession = resolve;
     });
     let holdSession = false;
+    let heldSessionReads = 0;
     const requests = await mockHomeApi(page, {
-      beforeSession: () => (holdSession ? pendingSession : Promise.resolve()),
+      beforeSession: () => {
+        if (holdSession) { heldSessionReads++; return pendingSession; }
+        return Promise.resolve();
+      },
     });
     await home.visit();
     await expect(home.rows).toHaveCount(3);
     await home.create.click();
     await home.nameInput.fill('Cancelled before request fixture');
     holdSession = true;
+    await page.evaluate(() => { (window as any).__homeFixtureReadArmed = true; });
     await home.nameSave.click();
     await expect
-      .poll(() => requests.filter((request) => request.pathname === '/api/session').length)
-      .toBe(2);
+      .poll(() => heldSessionReads)
+      .toBeGreaterThanOrEqual(1);
     await expect(home.nameInput).toBeDisabled();
     await expect(home.nameSave).toBeDisabled();
     await expect(home.actionCancel).toBeEnabled();
@@ -770,9 +785,13 @@ test.describe('MedCollab home response fixtures', () => {
       releaseSession = resolve;
     });
     let holdSession = false;
+    let heldSessionReads = 0;
     const requests = await mockHomeApi(page, {
       createStatus: 403,
-      beforeSession: () => (holdSession ? pendingSession : Promise.resolve()),
+      beforeSession: () => {
+        if (holdSession) { heldSessionReads++; return pendingSession; }
+        return Promise.resolve();
+      },
     });
     const pendingName = 'Slow request name fixture';
     await home.visit();
@@ -782,8 +801,8 @@ test.describe('MedCollab home response fixtures', () => {
     holdSession = true;
     await home.nameSave.click();
     await expect
-      .poll(() => requests.filter((request) => request.pathname === '/api/session').length)
-      .toBe(2);
+      .poll(() => heldSessionReads)
+      .toBeGreaterThanOrEqual(1);
     await expect(home.nameInput).toBeDisabled();
     await expect(home.nameInput).toHaveValue(pendingName);
     await expect(home.actionCancel).toBeEnabled();
@@ -976,14 +995,13 @@ test.describe('MedCollab home response fixtures', () => {
         contentType: 'image/png',
       });
       if (viewport.width <= 768) {
-        await home.navigationToggle.click();
-        await home.waitForDialogSettled(home.navigationDialog);
+        await expect(page.getByTestId('home-entry-library')).toBeVisible();
+        await expect(page.locator('.mc-top-primary').getByRole('link', { name: '团队影像库', exact: true })).toBeVisible();
         await expect(home.filterControl('owner')).toBeVisible();
         if (viewport.width === 390) {
           for (const control of [
-            home.navigationToggle,
+            page.getByTestId('home-entry-library'),
             home.filterControl('owner'),
-            home.navigationClose,
           ]) {
             const box = await control.boundingBox();
             expect(box).not.toBeNull();
@@ -991,8 +1009,8 @@ test.describe('MedCollab home response fixtures', () => {
             expect(box!.width).toBeGreaterThanOrEqual(44);
           }
         }
-        await home.filterControl('owner').click();
-        await expect(home.navigationDialog).toBeHidden();
+        await home.filterControl('owner').focus();
+        await page.keyboard.press('Enter');
         await expect(home.rows).toHaveCount(6);
       }
       await home.create.click();

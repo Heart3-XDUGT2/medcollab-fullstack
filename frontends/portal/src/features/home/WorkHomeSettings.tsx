@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '../../ui';
 import type { HomePreferencesModel } from './preferences/useHomePreferences';
-import { DEFAULT_HOME_COMPOSITION, HOME_MODULE_LABELS } from './preferences/model';
+import { DEFAULT_HOME_COMPOSITION, HOME_MODULE_LABELS, homeModuleGroups } from './preferences/model';
 import type { HomeEntry, HomeModule } from './preferences/model';
 
 export default function WorkHomeSettings({ model }: { model: HomePreferencesModel }) {
@@ -21,11 +21,13 @@ export default function WorkHomeSettings({ model }: { model: HomePreferencesMode
     setNotice('');
   }, [model.update]);
   const values = model.preferences.home;
+  const groups = homeModuleGroups(values, true);
   function move(module: HomeModule, direction: number) {
     const order = [...values.order];
-    const index = order.indexOf(module),
-      next = index + direction;
-    if (next < 0 || next >= order.length) return;
+    const lane: readonly HomeModule[] = module === 'continue' || module === 'library' ? groups.primary : groups.reference;
+    const neighbor = lane[lane.indexOf(module) + direction];
+    if (!neighbor) return;
+    const index = order.indexOf(module), next = order.indexOf(neighbor);
     [order[index], order[next]] = [order[next], order[index]];
     model.update({ home: { ...values, order } });
     setNotice(`${HOME_MODULE_LABELS[module]}已${direction < 0 ? '上移' : '下移'}。`);
@@ -71,9 +73,9 @@ export default function WorkHomeSettings({ model }: { model: HomePreferencesMode
             <option value="library">完整资料库</option>
           </select>
         </label>
-        <fieldset className="mc-work-module-settings">
-          <legend>首页内容与顺序</legend>
-          {values.order.map((module, index) => (
+        {([['主要内容', groups.primary], ['参考信息', groups.reference]] as const).map(([label, modules]) => <fieldset key={label} className="mc-work-module-settings">
+          <legend>{label}</legend>
+          {modules.map((module, index) => (
             <div key={module}>
               <label>
                 <input
@@ -105,7 +107,7 @@ export default function WorkHomeSettings({ model }: { model: HomePreferencesMode
               <Button
                 variant="ghost"
                 size="icon"
-                disabled={index === values.order.length - 1}
+                disabled={index === modules.length - 1}
                 title={`下移${HOME_MODULE_LABELS[module]}`}
                 aria-label={`下移${HOME_MODULE_LABELS[module]}`}
                 onClick={() => move(module, 1)}
@@ -114,7 +116,7 @@ export default function WorkHomeSettings({ model }: { model: HomePreferencesMode
               </Button>
             </div>
           ))}
-        </fieldset>
+        </fieldset>)}
         <p className="mc-work-settings-status" role="status">
           {model.persistence === 'unavailable'
             ? '浏览器未能保存本次更改，刷新后可能恢复旧设置。'

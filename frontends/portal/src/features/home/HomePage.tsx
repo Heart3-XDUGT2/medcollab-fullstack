@@ -1,17 +1,7 @@
 import { useHomeActivity } from './useHomeActivity';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import {
-  LayoutGrid,
-  LayoutList,
-  PanelRight,
-  UserRound,
-  UsersRound,
-  ArrowUpRight,
-  X,
-  Home as HomeIcon,
-  Files,
-} from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowDownUp, LayoutGrid, LayoutList, Table2, X } from 'lucide-react';
 import PortalShell from '../../ui/PortalShell';
 import { personalNavigation } from '../../ui/navigation';
 import {
@@ -44,6 +34,9 @@ import { PreferencesButton, useHomePreferences } from './preferences';
 import type { HomeEntry } from './preferences/model';
 import WorkHome from './WorkHome';
 import WorkHomeSettings from './WorkHomeSettings';
+import ScopeOverview from './ScopeOverview';
+import { useViewFeedback } from '../../ui/motion';
+import { checkHomeReturnIdentity, clearHomeReturn, rememberHomeReturn, takeHomeReturn } from './home-return';
 import { createDemoActivity, removeDemoRecent, toggleDemoFavorite } from './demo-work';
 import type { DemoActivity } from './demo-work';
 import {
@@ -54,6 +47,9 @@ import {
 import { demoStatistics } from './demo-statistics';
 import './home.css';
 import './work-home.css';
+import './home-top-navigation.css';
+import './section-motion.css';
+import './research-desk.css';
 
 type Filter = 'all' | 'owner' | 'shared' | 'public';
 type Phase = 'loading' | 'unconfigured' | 'signed-out' | 'ready' | 'failed' | 'expired';
@@ -67,13 +63,14 @@ const date = new Intl.DateTimeFormat('zh-CN', {
 });
 function explicitEntry(search: string): HomeEntry | null {
   const query = new URLSearchParams(search);
-  if (filters.some((item) => item.id === query.get('scope'))) return 'library';
   const view = query.get('view');
-  return view === 'work' || view === 'library' ? view : null;
+  if (view === 'work' || view === 'library') return view;
+  return filters.some((item) => item.id === query.get('scope')) ? 'library' : null;
 }
 
 export default function HomePage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const config = useMemo(getHomeConfig, []);
   const api = useMemo(() => createHomeApi(config), [config]);
   const [mode, setMode] = useState<'real' | 'demo'>('real');
@@ -85,6 +82,7 @@ export default function HomePage() {
     return filters.some((item) => item.id === value) ? (value as Filter) : 'all';
   });
   const [search, setSearch] = useState('');
+  const [workSearch, setWorkSearch] = useState('');
   const [sort, setSort] = useState('newest');
   const [entry, setEntry] = useState<HomeEntry | null>(() => explicitEntry(window.location.search));
   const [demoActivity, setDemoActivity] = useState<DemoActivity | null>(null);
@@ -93,6 +91,8 @@ export default function HomePage() {
   const [teamRead, setTeamRead] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const returnRead = useRef(true);
+  const returnScroll = useRef<number | null>(null);
   const landingNotice = useRef(
     (() => {
       const query = new URLSearchParams(window.location.search);
@@ -192,22 +192,44 @@ export default function HomePage() {
   });
   const activity = useHomeActivity({
     enabled: mode === 'real' && phase === 'ready' && config.apiEnabled,
-    api, identity: phase === 'ready' && mode === 'real' ? identity.current : null,
-    signal: scopeSignal, datasetIds: datasets.map(item => item.id), onBlocked,
+    api,
+    identity: phase === 'ready' && mode === 'real' ? identity.current : null,
+    signal: scopeSignal,
+    datasetIds: datasets.map((item) => item.id),
+    onBlocked,
   });
-  const activityDatasets = useMemo(() => [...new Map([
-    ...activity.recent.items.map(item => item.dataset),
-    ...activity.favorites.items.map(item => item.dataset), ...datasets,
-  ].map(item => [item.id, item])).values()], [datasets, activity.recent.items, activity.favorites.items]);
+  const activityDatasets = useMemo(
+    () => [
+      ...new Map(
+        [
+          ...activity.recent.items.map((item) => item.dataset),
+          ...activity.favorites.items.map((item) => item.dataset),
+          ...datasets,
+        ].map((item) => [item.id, item])
+      ).values(),
+    ],
+    [datasets, activity.recent.items, activity.favorites.items]
+  );
   const activeEntry = entry || preferences.home.defaultEntry;
+  function navigateHome(next: HomeEntry, scope: Filter = filter) {
+    setEntry(next); setFilter(scope);
+    const query = new URLSearchParams(location.search);
+    query.set('view', next);
+    if (scope === 'all') query.delete('scope'); else query.set('scope', scope);
+    const search = `?${query.toString()}`;
+    if (search !== location.search) navigate({ pathname: '/home', search });
+  }
+  function rememberTeamReturn(event?: React.MouseEvent<HTMLAnchorElement>) {
+    if (event && (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented)) return;
+    if (mode === 'real' && phase === 'ready' && identity.current) {
+      rememberHomeReturn(identity.current, { search, workSearch, sort, selectedId, scrollY: window.scrollY });
+    } else clearHomeReturn();
+  }
   useEffect(() => {
     const query = new URLSearchParams(location.search);
-    const scope = query.get('scope'),
-      view = query.get('view');
-    if (filters.some((item) => item.id === scope)) {
-      setEntry('library');
-      setFilter(scope as Filter);
-    } else if (view === 'library' || view === 'work') setEntry(view);
+    const scope = query.get('scope');
+    setEntry(explicitEntry(location.search));
+    setFilter(filters.some(item => item.id === scope) ? scope as Filter : 'all');
   }, [location.search]);
   useEffect(() => {
     if (phase === 'ready' && display.persistence !== 'loading') {
@@ -269,7 +291,8 @@ export default function HomePage() {
     writeBusy.current = value;
     setBusy(value);
   }
-  function clearAccount() {
+  function clearAccount(resetEntry = false) {
+    clearHomeReturn();
     identity.current = null;
     accountContext.current = null;
     demo.current = null;
@@ -283,9 +306,15 @@ export default function HomePage() {
     setActionError('');
     setNeedsVerification(false);
     setSearch('');
+    setWorkSearch('');
     setFilter('all');
     setUsername('');
-    setEntry(explicitEntry(location.search));
+    if (resetEntry) {
+      const query = new URLSearchParams(location.search);
+      query.delete('view'); query.delete('scope');
+      setEntry(null);
+      navigate({ pathname: location.pathname, search: query.toString() }, { replace: true });
+    } else setEntry(explicitEntry(location.search));
   }
   function onBlocked(status: number, kind?: string) {
     if (status === 404) {
@@ -294,10 +323,11 @@ export default function HomePage() {
       generation.current++;
       controller.current?.abort();
       resetScope();
-      clearAccount();
+      clearAccount(true);
       setPhase('expired');
       setNotice('登录账号已变化，已清除原账号的资料与待提交操作。请重新读取会话。');
     } else if (status === 401 || status === 403) {
+      clearHomeReturn();
       generation.current++;
       controller.current?.abort();
       resetScope();
@@ -313,7 +343,7 @@ export default function HomePage() {
     const epoch = ++generation.current;
     const interrupted = writeBusy.current;
     if (modeRef.current === 'demo') {
-      clearAccount();
+      clearAccount(true);
       setFilter('all');
       setSearch('');
     }
@@ -335,13 +365,14 @@ export default function HomePage() {
       const session = await api.getSession(signal);
       if (epoch !== generation.current) return;
       const nextIdentity = identityOf(session);
+      checkHomeReturnIdentity(nextIdentity);
       if (
         nextIdentity &&
         accountContext.current &&
         (nextIdentity.issuer !== accountContext.current.issuer ||
           nextIdentity.subject !== accountContext.current.subject)
       ) {
-        clearAccount();
+        clearAccount(true);
         setNotice('当前账号已变化，原账号的待提交操作已清除。');
       }
       identity.current = nextIdentity;
@@ -356,10 +387,21 @@ export default function HomePage() {
       if (epoch !== generation.current) return;
       setDatasets(items);
       setSelectedId((current) => (items.some((item) => item.id === current) ? current : null));
+      if (returnRead.current) {
+        returnRead.current = false;
+        const state = takeHomeReturn(nextIdentity);
+        if (state) {
+          setSearch(state.search); setSort(state.sort);
+          setWorkSearch(state.workSearch || '');
+          setSelectedId(items.some(item => item.id === state.selectedId) ? state.selectedId : null);
+          returnScroll.current = state.scrollY;
+        }
+      }
       setNeedsVerification(false);
       setPhase('ready');
     } catch (error) {
       if (epoch !== generation.current) return;
+      if (error instanceof ApiError && [401, 403].includes(error.status)) clearHomeReturn();
       identity.current = null;
       setDatasets([]);
       setPhase(
@@ -423,8 +465,26 @@ export default function HomePage() {
             a.id.localeCompare(b.id)
       );
   }, [datasets, filter, search, sort]);
+  const workShown = useMemo(() => {
+    const query = workSearch.trim().toLocaleLowerCase();
+    return datasets.filter(item => (filter === 'all' || item.access === filter) &&
+      (!query || `${item.name} ${item.ownerUsername} ${item.id}`.toLocaleLowerCase().includes(query)))
+      .sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name, 'zh-CN') :
+        (Date.parse(a.createdAt) - Date.parse(b.createdAt)) * (sort === 'oldest' ? 1 : -1) || a.id.localeCompare(b.id));
+  }, [datasets, filter, workSearch, sort]);
   const selected = activityDatasets.find((item) => item.id === selectedId);
   const ready = phase === 'ready';
+  useLayoutEffect(() => {
+    if (!ready || display.persistence === 'loading' || returnScroll.current === null) return;
+    const top = returnScroll.current, epoch = generation.current;
+    returnScroll.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (epoch === generation.current) window.scrollTo({ top, behavior: 'auto' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready, display.persistence, activeEntry]);
+  const contentSurface = useRef<HTMLDivElement>(null);
+  useViewFeedback(contentSurface, ready ? activeEntry : null);
   const authUrl = getAuthUrl(config, 'login');
   const publicSampleUrl = getPublicSampleUrl(config);
 
@@ -455,7 +515,7 @@ export default function HomePage() {
       setNotice('已停止等待操作，已完成的更改不会回滚；请刷新核对服务端状态。');
   }
   function selectDataset(id: string, trigger?: HTMLButtonElement) {
-    const dataset = activityDatasets.find(item => item.id === id);
+    const dataset = activityDatasets.find((item) => item.id === id);
     if (mode === 'real' && dataset?.scope === 'team' && dataset.teamId) {
       window.location.assign('/teams?team=' + encodeURIComponent(dataset.teamId));
       return;
@@ -655,29 +715,6 @@ export default function HomePage() {
     </>
   );
 
-  const navigation = (
-    <>
-      {filters.map((item) => {
-        const Icon = item.icon;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            className={filter === item.id ? 'is-active' : ''}
-            aria-current={filter === item.id ? 'page' : undefined}
-            data-cy={`home-filter-${item.id}`}
-            onClick={() => {
-              setEntry('library');
-              setFilter(item.id);
-            }}
-          >
-            <Icon aria-hidden="true" />
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </>
-  );
   const sampleEntry =
     publicSampleUrl || !config.apiEnabled ? (
       <div className="mc-library-sidebar-foot">
@@ -697,36 +734,76 @@ export default function HomePage() {
         )}
       </div>
     ) : null;
-
+  const utilities = (
+    <div className="mc-home-utilities">
+      {activeEntry === 'work' && <WorkHomeSettings model={display} />}
+      {activeEntry === 'work' && (
+        <Button
+          variant="ghost"
+          size="icon"
+          title="刷新真实会话与列表"
+          aria-label="刷新真实会话与列表"
+          dataCY="home-refresh"
+          onClick={mode === 'demo' ? () => setNotice('演示资料已就绪，不改变示例历史。') : refresh}
+        >
+          <Icons.Refresh />
+        </Button>
+      )}
+    </div>
+  );
+  const layoutControls = (
+    <div className="mc-library-view-switch" role="group" aria-label="资料呈现">
+      <Button variant="ghost" size="icon" aria-label="资料清单" title="资料清单"
+        aria-pressed={preferences.layout === 'rows'} onClick={() => display.update({ layout: 'rows' })}><LayoutList /></Button>
+      <Button variant="ghost" size="icon" aria-label="资料索引" title="资料索引"
+        aria-pressed={preferences.layout === 'cards'} onClick={() => display.update({ layout: 'cards' })}><LayoutGrid /></Button>
+      <Button variant="ghost" size="icon" aria-label="对比表格" title="对比表格"
+        aria-pressed={preferences.layout === 'list'} onClick={() => display.update({ layout: 'list' })}><Table2 /></Button>
+    </div>
+  );
   return (
     <PortalShell
       activeSection="home"
       username={username}
       mode={mode}
-      homeNavigation={navigation}
       onLogout={mode === 'demo' || (ready && identity.current) ? logout : undefined}
       busy={busy}
       accountActions={sampleEntry}
+      primaryNavigation={
+        <>
+          <button
+            type="button"
+            aria-current={activeEntry === 'work' ? 'page' : undefined}
+            aria-pressed={activeEntry === 'work'}
+            onClick={() => navigateHome('work')}
+            data-cy="home-entry-work"
+          >
+            工作首页
+          </button>
+          <button
+            type="button"
+            aria-current={activeEntry === 'library' ? 'page' : undefined}
+            aria-pressed={activeEntry === 'library'}
+            onClick={() => navigateHome('library')}
+            data-cy="home-entry-library"
+          >
+            完整资料库
+          </button>
+          <Link to="/teams" onClick={rememberTeamReturn}>团队影像库</Link>
+        </>
+      }
     >
       <div
         className="mc-library"
         data-cy="medcollab-home"
         data-layout={preferences.layout}
         data-density={preferences.density}
+        data-entry={activeEntry}
+        data-ready={ready}
+        data-research-desk
       >
         <div className="mc-library-body">
           <main className="mc-library-main">
-            <div className="mc-library-space-bar" aria-label="资料空间">
-              <span>
-                <UserRound size={15} />
-                个人资料
-              </span>
-              <Link to="/teams">
-                <UsersRound size={16} />
-                团队影像库
-                <ArrowUpRight size={14} />
-              </Link>
-            </div>
             {mode === 'demo' && (
               <div className="mc-library-demo" role="status" data-cy="home-demo-banner">
                 <Icons.Info aria-hidden="true" />
@@ -789,45 +866,17 @@ export default function HomePage() {
                   <Icons.Upload />
                   上传 DICOM
                 </Button>
+                {(activeEntry === 'work' || !ready) && utilities}
               </div>
             </div>
-            <div className="mc-work-navigation">
-              <div role="group" aria-label="个人资料入口">
-                <Button
-                  variant="ghost"
-                  aria-pressed={activeEntry === 'work'}
-                  onClick={() => setEntry('work')}
-                  dataCY="home-entry-work"
-                >
-                  <HomeIcon size={17} />
-                  工作首页
-                </Button>
-                <Button
-                  variant="ghost"
-                  aria-pressed={activeEntry === 'library'}
-                  onClick={() => setEntry('library')}
-                  dataCY="home-entry-library"
-                >
-                  <Files size={17} />
-                  完整资料库
-                </Button>
-              </div>
-              <WorkHomeSettings model={display} />
-              {activeEntry === 'work' && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="刷新真实会话与列表"
-                  aria-label="刷新真实会话与列表"
-                  dataCY="home-refresh"
-                  onClick={
-                    mode === 'demo' ? () => setNotice('演示资料已就绪，不改变示例历史。') : refresh
-                  }
-                >
-                  <Icons.Refresh />
-                </Button>
-              )}
-            </div>
+            {ready && activeEntry === 'library' && (
+              <ScopeOverview
+                datasets={datasets}
+                scope={filter}
+                onChange={scope => navigateHome(activeEntry, scope)}
+                utilities={utilities}
+              />
+            )}
             {activeEntry === 'library' && (
               <div className="mc-library-toolbar">
                 <div className="mc-library-search">
@@ -863,44 +912,8 @@ export default function HomePage() {
                     <option value="name">名称排序</option>
                   </select>
                 </label>
-                <div className="mc-library-view-switch" role="group" aria-label="资料呈现">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="资料索引"
-                    title="资料索引"
-                    aria-pressed={preferences.layout === 'cards'}
-                    onClick={() => display.update({ layout: 'cards' })}
-                  >
-                    <LayoutGrid />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="资料清单"
-                    title="资料清单"
-                    aria-pressed={preferences.layout === 'list'}
-                    onClick={() => display.update({ layout: 'list' })}
-                  >
-                    <LayoutList />
-                  </Button>
-                </div>
+                {layoutControls}
                 <PreferencesButton model={display} />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="mc-library-icon-button"
-                  aria-label="切换资料概览"
-                  title="切换资料概览"
-                  aria-pressed={Boolean(selected && detailOpen)}
-                  disabled={!ready || (!selected && !shown.length)}
-                  onClick={() => {
-                    if (!selected) setSelectedId(shown[0]?.id || null);
-                    setDetailOpen((current) => !current);
-                  }}
-                >
-                  <PanelRight />
-                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -937,7 +950,7 @@ export default function HomePage() {
                     ? '按来源分组'
                     : preferences.layout === 'cards'
                       ? '资料索引'
-                      : '资料清单'}
+                      : preferences.layout === 'rows' ? '资料清单' : '对比表格'}
                   <span className="mc-library-density-label">
                     {preferences.density === 'compact' ? '紧凑' : '舒适'}
                   </span>
@@ -946,6 +959,7 @@ export default function HomePage() {
             )}
             <div
               className={`mc-library-content ${selected && detailOpen && !compactDetail ? 'has-detail' : ''}`}
+              ref={contentSurface}
             >
               <section className="mc-library-files" aria-label="影像列表">
                 {!ready ? (
@@ -1008,18 +1022,83 @@ export default function HomePage() {
                     onOpen={openWorkspace}
                     onFavorite={(id) => {
                       if (mode === 'real') void activity.toggleFavorite(id);
-                      else setDemoActivity(current => current ? toggleDemoFavorite(current, id) : current);
+                      else
+                        setDemoActivity((current) =>
+                          current ? toggleDemoFavorite(current, id) : current
+                        );
                     }}
                     onRemoveRecent={(id) => {
                       if (mode === 'real') void activity.removeRecent(id);
-                      else setDemoActivity(current => current ? removeDemoRecent(current, id) : current);
+                      else
+                        setDemoActivity((current) =>
+                          current ? removeDemoRecent(current, id) : current
+                        );
                     }}
-                    onLibrary={() => setEntry('library')}
+                    onBrowseAll={() => { setSearch(workSearch); navigateHome('library'); }}
+                    onLeaveHome={rememberTeamReturn}
+                    collectionCount={
+                      workShown.length
+                    }
+                    collectionQuery={workSearch}
+                    onClearCollectionQuery={() => setWorkSearch('')}
+                    collectionPresentation={<>
+                      <label className="mc-desk-sort"><ArrowDownUp size={16} aria-hidden="true" /><span>排序</span><select aria-label="首页资料排序" title={sort === 'name' ? '名称排序' : sort === 'oldest' ? '创建较早' : '创建较新'} value={sort} onChange={event => setSort(event.target.value)}><option value="newest">创建较新</option><option value="oldest">创建较早</option><option value="name">名称排序</option></select></label>
+                      {layoutControls}
+                      <PreferencesButton model={display} />
+                    </>}
+                    collectionTools={<div className="mc-desk-collection-tools">
+                      <ScopeOverview datasets={datasets} scope={filter} onChange={scope => navigateHome(activeEntry, scope)} compact />
+                      <div className="mc-desk-search">
+                        <Icons.Search aria-hidden="true" />
+                        <Input aria-label="搜索首页资料" placeholder="搜索名称或创建者" value={workSearch} onChange={event => setWorkSearch(event.target.value)} data-cy="work-search" />
+                        {workSearch && <button aria-label="清空首页搜索" onClick={() => setWorkSearch('')}><X size={15} /></button>}
+                      </div>
+                    </div>}
+                    collection={
+                      <DatasetCollection
+                        datasets={workShown.slice(0, 6)}
+                        presentation="desk"
+                        layout={preferences.layout}
+                        density={preferences.density}
+                        grouped={preferences.groupBy === 'source'}
+                        fields={preferences.fields}
+                        selectedId={selectedId}
+                        onSelect={selectDataset}
+                        onOpen={openWorkspace}
+                        onAction={openAction}
+                        favoriteIds={
+                          mode === 'demo' ? demoActivity?.favorites : activity.favoriteIds
+                        }
+                        favoriteDisabled={mode === 'real' && activity.favoriteDisabled}
+                        onFavorite={
+                          mode === 'demo'
+                            ? (id) =>
+                                setDemoActivity((current) =>
+                                  current ? toggleDemoFavorite(current, id) : current
+                                )
+                            : (id) => {
+                                void activity.toggleFavorite(id);
+                              }
+                        }
+                        renderCoverage={(dataset) => (
+                          <DatasetCoverage
+                            model={statistics}
+                            datasetId={dataset.id}
+                            variant="desk"
+                          />
+                        )}
+                        registerTrigger={(id, element) => {
+                          if (element) datasetTriggers.current.set(id, element);
+                          else datasetTriggers.current.delete(id);
+                        }}
+                      />
+                    }
                     renderCoverage={(dataset) => (
                       <DatasetCoverage
                         model={statistics}
                         datasetId={dataset.id}
-                        variant="detail"
+                        variant="desk"
+                        showArchive
                         active
                       />
                     )}
@@ -1045,8 +1124,16 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
-                    {mode === 'real' && activity.error && <p role="alert">{activity.error} <Button variant="ghost" onClick={activity.refresh}>重新读取</Button></p>}
+                    {mode === 'real' && activity.error && (
+                      <p role="alert">
+                        {activity.error}{' '}
+                        <Button variant="ghost" onClick={activity.refresh}>
+                          重新读取
+                        </Button>
+                      </p>
+                    )}
                     <DatasetCollection
+                      presentation="desk"
                       datasets={shown}
                       layout={preferences.layout}
                       density={preferences.density}
@@ -1064,13 +1151,15 @@ export default function HomePage() {
                               setDemoActivity((current) =>
                                 current ? toggleDemoFavorite(current, id) : current
                               )
-                          : (id) => { void activity.toggleFavorite(id); }
+                          : (id) => {
+                              void activity.toggleFavorite(id);
+                            }
                       }
                       renderCoverage={(dataset) => (
                         <DatasetCoverage
                           model={statistics}
                           datasetId={dataset.id}
-                          variant="compact"
+                          variant="desk"
                         />
                       )}
                       registerTrigger={(id, element) => {

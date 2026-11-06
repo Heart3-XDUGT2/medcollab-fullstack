@@ -19,13 +19,20 @@ export type HomeComposition = Readonly<{
   order: readonly HomeModule[];
   hidden: readonly HomeModule[];
 }>;
+export function homeModuleGroups(composition: HomeComposition, includeHidden = false) {
+  const visible = composition.order.filter(module => includeHidden || !composition.hidden.includes(module));
+  return {
+    primary: visible.filter(module => module === 'continue' || module === 'library'),
+    reference: visible.filter(module => module !== 'continue' && module !== 'library'),
+  };
+}
 export const DEFAULT_HOME_COMPOSITION: HomeComposition = Object.freeze({
   defaultEntry: 'work',
-  order: HOME_MODULES,
+  order: Object.freeze(['continue', 'library', 'recent', 'favorites', 'teams'] as const),
   hidden: Object.freeze([]),
 });
 export type HomePreferences = Readonly<{
-  layout: 'list' | 'cards';
+  layout: 'rows' | 'list' | 'cards';
   density: 'comfortable' | 'compact';
   groupBy: 'none' | 'source';
   fields: Readonly<{ owner: boolean; instances: boolean; createdAt: boolean }>;
@@ -62,7 +69,7 @@ function freeze(value: HomePreferences): HomePreferences {
   });
 }
 export const DEFAULT_HOME_PREFERENCES: HomePreferences = freeze({
-  layout: 'cards',
+  layout: 'rows',
   density: 'comfortable',
   groupBy: 'none',
   fields: { owner: true, instances: true, createdAt: true },
@@ -76,7 +83,7 @@ function valid(value: unknown): value is HomePreferences {
   return (
     record(value) &&
     only(value, ['layout', 'density', 'groupBy', 'fields', 'home']) &&
-    ['list', 'cards'].includes(value.layout as string) &&
+    ['rows', 'list', 'cards'].includes(value.layout as string) &&
     ['comfortable', 'compact'].includes(value.density as string) &&
     ['none', 'source'].includes(value.groupBy as string) &&
     record(value.fields) &&

@@ -1,5 +1,5 @@
 import { useRef, type ReactNode, type RefCallback } from 'react';
-import { ArrowUpRight, Info, MoreHorizontal, PencilLine, Share2, Star, Upload, Trash2 } from 'lucide-react';
+import { ArrowUpRight, MoreHorizontal, PencilLine, Share2, Star, Upload, Trash2 } from 'lucide-react';
 import {
   Button,
   DropdownMenu,
@@ -8,12 +8,14 @@ import {
   DropdownMenuItem,
 } from '../../ui';
 import type { Dataset } from './api';
+import { useConfirmedFeedback, useReflowMotion } from '../../ui/motion';
 
 export type ResourceFields = { owner: boolean; instances: boolean; createdAt: boolean };
 type ResourceAction = 'rename' | 'share' | 'upload' | 'delete';
 type Props = {
+  presentation?: 'standard' | 'desk';
   datasets: Dataset[];
-  layout: 'list' | 'cards';
+  layout: 'rows' | 'list' | 'cards';
   density: 'comfortable' | 'compact';
   grouped: boolean;
   fields: ResourceFields;
@@ -52,15 +54,14 @@ export function SourceLabel({ access }: { access: Dataset['access'] }) {
 
 function ResourceMenu({
   dataset,
-  onSelect,
-  onOpen,
   onAction,
   onFavorite,
   favoriteIds,
   favoriteDisabled,
+  layout,
 }: { dataset: Dataset } & Pick<
   Props,
-  'onSelect' | 'onOpen' | 'onAction' | 'onFavorite' | 'favoriteIds' | 'favoriteDisabled'
+  'onAction' | 'onFavorite' | 'favoriteIds' | 'favoriteDisabled' | 'layout'
 >) {
   const trigger = useRef<HTMLButtonElement>(null);
   const origin = () =>
@@ -83,16 +84,16 @@ function ResourceMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="mc-library-menu">
-        {onFavorite && (
-          <DropdownMenuItem disabled={favoriteDisabled} onSelect={() => onFavorite(dataset.id)} data-cy="home-menu-favorite">
+        {onFavorite && layout === 'list' && (
+          <DropdownMenuItem
+            disabled={favoriteDisabled}
+            onSelect={() => onFavorite(dataset.id)}
+            data-cy="home-menu-favorite"
+          >
             <Star size={16} />
             {favoriteIds?.includes(dataset.id) ? '取消收藏' : '收藏到首页'}
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onSelect(dataset.id, origin())}>
-          <Info size={16} />
-          资料概览
-        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => onAction('upload', dataset, origin())}
           data-cy="home-menu-append"
@@ -116,10 +117,6 @@ function ResourceMenu({
             按账号共享
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onOpen(dataset)} data-cy="home-menu-open">
-          <ArrowUpRight size={16} />
-          打开工作界面
-        </DropdownMenuItem>
         {dataset.access === 'owner' && dataset.canDelete === true && dataset.scope !== 'team' && (
           <DropdownMenuItem onSelect={() => onAction('delete', dataset, origin())} data-cy="home-menu-delete">
             <Trash2 size={16} />删除个人数据集
@@ -165,6 +162,7 @@ function ResourceCard({ dataset, ...props }: { dataset: Dataset } & Props) {
       className={`mc-resource-card ${selected ? 'is-selected' : ''}`}
       data-cy="home-dataset-row"
       data-has-facts={fields.instances || fields.createdAt}
+      data-motion-item={`dataset:${dataset.id}`}
     >
       <div className="mc-resource-card-title">
         <NameButton
@@ -219,15 +217,6 @@ function ResourceCard({ dataset, ...props }: { dataset: Dataset } & Props) {
           {dataset.instanceCount ? '进入工作台' : '打开'}
           <ArrowUpRight size={16} />
         </Button>
-        <button
-          type="button"
-          className="mc-resource-detail-link"
-          onClick={(event) => props.onSelect(dataset.id, event.currentTarget)}
-          aria-label={`查看 ${dataset.name} 的资料概览`}
-        >
-          <Info size={15} />
-          详情
-        </button>
         {props.onFavorite && (
           <FavoriteButton
             dataset={dataset}
@@ -237,6 +226,36 @@ function ResourceCard({ dataset, ...props }: { dataset: Dataset } & Props) {
           />
         )}
       </footer>
+    </article>
+  );
+}
+
+function DeskResource({ dataset, ...props }: { dataset: Dataset } & Props) {
+  return (
+    <article className={`mc-desk-resource ${dataset.id === props.selectedId ? 'is-selected' : ''}`}
+      data-cy="home-dataset-row" data-motion-item={`dataset:${dataset.id}`}
+      data-has-facts={props.fields.instances || props.fields.createdAt}>
+      <div className="mc-desk-resource-identity">
+        <NameButton dataset={dataset} selected={dataset.id === props.selectedId}
+          onSelect={props.onSelect} registerTrigger={props.registerTrigger} />
+        <div className="mc-desk-resource-context">
+          <SourceLabel access={dataset.access} />
+          {props.fields.owner && <span>{dataset.ownerUsername || '未提供'}</span>}
+          {props.onFavorite && <FavoriteButton dataset={dataset}
+            active={!!props.favoriteIds?.includes(dataset.id)} disabled={props.favoriteDisabled}
+            onToggle={props.onFavorite} />}
+        </div>
+      </div>
+      {(props.fields.instances || props.fields.createdAt) && <div className="mc-desk-resource-facts">
+        {props.fields.instances && <span>{number.format(dataset.instanceCount)} <small>实例</small></span>}
+        {props.fields.createdAt && <time dateTime={dataset.createdAt}>{date.format(new Date(dataset.createdAt))}</time>}
+      </div>}
+      {props.renderCoverage && <div className="mc-resource-coverage">{props.renderCoverage(dataset)}</div>}
+      <div className="mc-desk-resource-actions">
+        <Button variant="ghost" size="icon" onClick={() => props.onOpen(dataset)}
+          title={`打开 ${dataset.name}`} aria-label={`打开 ${dataset.name}`} dataCY="home-row-open"><ArrowUpRight size={18} /></Button>
+        <ResourceMenu dataset={dataset} {...props} />
+      </div>
     </article>
   );
 }
@@ -252,8 +271,11 @@ function FavoriteButton({
   onToggle: (id: string) => void;
   disabled?: boolean;
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  useConfirmedFeedback(trigger, active, !disabled);
   return (
     <Button
+      ref={trigger}
       variant="ghost"
       size="icon"
       title={`${active ? '取消收藏' : '收藏'} ${dataset.name}`}
@@ -274,7 +296,8 @@ function ResourceTable({ datasets, ...props }: Props) {
         .map((access) => ({ access, items: datasets.filter((item) => item.access === access) }))
         .filter((group) => group.items.length)
     : [{ access: null, items: datasets }];
-  const columnCount = 2 + Object.values(fields).filter(Boolean).length;
+  const separateCoverage = props.presentation === 'desk' && !!props.renderCoverage;
+  const columnCount = 2 + Object.values(fields).filter(Boolean).length + Number(separateCoverage);
   return (
     <table className="mc-resource-table" data-cy="home-datasets">
       <thead>
@@ -283,6 +306,7 @@ function ResourceTable({ datasets, ...props }: Props) {
           {fields.owner && <th data-field="owner">创建者</th>}
           {fields.instances && <th data-field="instances">实例数</th>}
           {fields.createdAt && <th data-field="createdAt">创建时间</th>}
+          {separateCoverage && <th>CT 共享画布</th>}
           <th data-field="actions">
             <span className="sr-only">操作</span>
           </th>
@@ -303,6 +327,7 @@ function ResourceTable({ datasets, ...props }: Props) {
               key={dataset.id}
               className={dataset.id === props.selectedId ? 'is-selected' : ''}
               data-cy="home-dataset-row"
+              data-motion-item={`dataset:${dataset.id}`}
             >
               <td className="mc-resource-name-cell">
                 <NameButton
@@ -313,7 +338,7 @@ function ResourceTable({ datasets, ...props }: Props) {
                 >
                   <SourceLabel access={dataset.access} />
                 </NameButton>
-                {props.renderCoverage && (
+                {props.renderCoverage && !separateCoverage && (
                   <div className="mc-resource-coverage">{props.renderCoverage(dataset)}</div>
                 )}
               </td>
@@ -337,6 +362,7 @@ function ResourceTable({ datasets, ...props }: Props) {
                   </time>
                 </td>
               )}
+              {separateCoverage && <td className="mc-desk-table-coverage">{props.renderCoverage?.(dataset)}</td>}
               <td className="mc-resource-actions-cell">
                 <div>
                   <Button
@@ -360,9 +386,21 @@ function ResourceTable({ datasets, ...props }: Props) {
 }
 
 export default function DatasetCollection(props: Props) {
+  const surface = useRef<HTMLDivElement>(null);
+  useReflowMotion(
+    surface,
+    JSON.stringify([
+      props.layout,
+      props.density,
+      props.grouped,
+      props.fields,
+      props.selectedId,
+      props.datasets.map((dataset) => dataset.id),
+    ])
+  );
   if (props.layout === 'list')
     return (
-      <div className="mc-resource-table-scroll">
+      <div className={`mc-resource-table-scroll ${props.presentation === 'desk' ? 'mc-desk-table' : ''}`} ref={surface}>
         <ResourceTable {...props} />
       </div>
     );
@@ -375,7 +413,7 @@ export default function DatasetCollection(props: Props) {
         .filter((group) => group.items.length)
     : [{ access: null, items: props.datasets }];
   return (
-    <div className="mc-resource-index" data-cy="home-datasets">
+    <div className={`mc-resource-index ${props.layout === 'rows' ? 'mc-desk-index' : props.presentation === 'desk' ? 'mc-desk-cards' : ''}`} data-cy="home-datasets" ref={surface}>
       {groups.map((group) => (
         <section
           key={group.access || 'all'}
@@ -393,9 +431,12 @@ export default function DatasetCollection(props: Props) {
           )}
           <div
             className={`mc-resource-card-grid ${group.items.length <= 3 ? 'is-small-collection' : ''}`}
+            data-resource-count={group.items.length}
           >
             {group.items.map((dataset) => (
-              <ResourceCard key={dataset.id} dataset={dataset} {...props} />
+              props.layout === 'rows'
+                ? <DeskResource key={dataset.id} dataset={dataset} {...props} />
+                : <ResourceCard key={dataset.id} dataset={dataset} {...props} />
             ))}
           </div>
         </section>

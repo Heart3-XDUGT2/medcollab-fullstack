@@ -23,7 +23,11 @@ dataset, upload or manage it, and reach a separately owned workspace.
 All surfaces use Operate mode:
 
 - Dataset home: filters, local search/sort, create, rename, upload, share and
-  focus-managed details.
+  focus-managed details. User-adopted Research Desk A adds continuation, an aligned
+  directory and real recent/favorite/team references using existing authorized
+  data and activity/statistics models. It does not recover annotation state;
+  saved composition/display choices remain authoritative. Team and login visual
+  defaults are not redesigned by this adoption.
 - Account entry: one real server-driven account route and registration route.
 - Password preview: isolated form appearance, no password API or fake session.
 - Teams: independent team libraries, membership, invite-code joining, leader

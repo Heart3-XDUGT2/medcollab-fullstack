@@ -6,6 +6,7 @@ import type { AnnotationProgress } from './contract';
 import { useDatasetStatistics } from './hooks';
 import type { StatisticsModel, StatisticsStatus } from './store';
 import './statistics.css';
+import { useDisclosureMotion } from '../../../ui/motion';
 
 const messages: Record<StatisticsStatus, string> = {
   idle: '统计尚未读取',
@@ -41,13 +42,16 @@ export default function DatasetCoverage({
   datasetId,
   variant = 'compact',
   active,
+  showArchive = false,
 }: {
   model: StatisticsModel;
   datasetId: string;
-  variant?: 'compact' | 'detail';
+  variant?: 'compact' | 'detail' | 'desk';
   active?: boolean;
+  showArchive?: boolean;
 }) {
   const element = useRef<HTMLDivElement>(null);
+  const disclosure = useDisclosureMotion();
   const [observed, setObserved] = useState<{
     model: StatisticsModel;
     id: string;
@@ -102,6 +106,10 @@ export default function DatasetCoverage({
           </Button>
         )}
       </div>
+      {variant === 'detail' && data && !empty && <div className="mc-desk-coverage-track" aria-hidden="true">
+        <span style={{ width: `${data.progress.ratio * 100}%` }} />
+        {published > 0 && <i style={{ left: `${data.publishedProgress.ratio * 100}%` }} />}
+      </div>}
       {data ? (
         <>
           <CoverageLine label="共享画布" progress={data.progress} />
@@ -160,8 +168,8 @@ export default function DatasetCoverage({
       aria-label="CT 帧覆盖率"
       aria-busy={loading}
     >
-      {variant === 'compact' ? (
-        <details key={datasetId} className="mc-coverage-disclosure">
+      {variant !== 'detail' ? (
+        <details key={datasetId} className="mc-coverage-disclosure" onToggle={disclosure}>
           <summary
             data-cy="coverage-summary"
             title="CT 统计详情"
@@ -175,7 +183,14 @@ export default function DatasetCoverage({
                 empty ? (
                   <span>无可标注 CT</span>
                 ) : (
-                  <>
+                  variant === 'desk' ? <span className="mc-desk-coverage-summary">
+                    <span className="mc-desk-coverage-line"><span>共享画布</span><strong>{formatCoverage(data.progress)}</strong><small>{count.format(data.progress.annotatedSlices)} / {count.format(data.progress.totalSlices)} 帧</small></span>
+                    <span className="mc-desk-coverage-track" aria-hidden="true">
+                      <span style={{ width: `${data.progress.ratio * 100}%` }} />
+                      {published > 0 && <i style={{ left: `${data.publishedProgress.ratio * 100}%` }} />}
+                    </span>
+                    {showArchive && <span className="mc-desk-coverage-caption"><span>{published > 0 ? `已归档 ${count.format(data.publishedProgress.annotatedSlices)} / ${count.format(data.publishedProgress.totalSlices)} 帧` : '尚未发布 SEG'}</span><span>{data.pendingArchive ? '有操作待归档' : '无待归档操作'}</span></span>}
+                  </span> : <>
                     <span className="mc-coverage-summary-value">
                       CT 共享画布 <strong>{formatCoverage(data.progress)}</strong>
                     </span>

@@ -356,8 +356,10 @@
   overflow-wrap: anywhere;
 }
 .mc-resource-card-footer > [data-cy='home-favorite'] {
-  margin-left: 4px;
-  width: 32px;
+  margin-left: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   color: var(--mc-primary-hover);
 }
 .is-small-collection > .mc-resource-card:last-child:nth-child(odd) .mc-resource-coverage {

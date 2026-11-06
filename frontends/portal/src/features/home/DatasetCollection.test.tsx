@@ -50,6 +50,21 @@ describe('dataset presentation without business-state ownership', () => {
   });
 
   test.each(['cards', 'list'] as const)(
+    'desk %s respects hidden fields while keeping identities, selection, open and statistics',
+    (layout) => {
+      const values = { ...props(), layout, fields: { owner: false, instances: false, createdAt: false } };
+      act(() => root.render(<DatasetCollection {...values} presentation="desk" renderCoverage={item => <span>真实模型入口 {item.id}</span>} />));
+      expect(host.querySelectorAll('[data-cy="home-dataset-row"]')).toHaveLength(2);
+      expect(host.textContent).not.toContain('创建者甲');
+      expect(host.textContent).not.toContain('1,248');
+      expect(host.querySelector('time')).toBeNull();
+      expect(host.textContent).toContain('真实模型入口 a');
+      expect(host.textContent).toContain('与我共享');
+      act(() => host.querySelector<HTMLButtonElement>('[data-cy="home-row-open"]')!.click());
+      expect(values.onOpen).toHaveBeenCalledWith(datasets[0]);
+    }
+  );
+  test.each(['cards', 'list'] as const)(
     '%s renders the same identities, honest zero and creation dates',
     (layout) => {
       const values = { ...props(), layout };
