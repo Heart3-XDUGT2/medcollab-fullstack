@@ -18,6 +18,7 @@ public class HealthController {
 				Map.entry("sharingPolicy", "personal-irrevocable-v1"),
 				Map.entry("workspaceApi", "dicomweb-labelmap-v1"),
 				Map.entry("segmentationStorage", "latest-only-v1"),
+				Map.entry("segmentationStorageGuard", "single-process-rw-v1"),
 				Map.entry("status", "UP"),
 				Map.entry("message", "Java 服务器运行正常"),
 				Map.entry("application", "medical-annotation-demo"),

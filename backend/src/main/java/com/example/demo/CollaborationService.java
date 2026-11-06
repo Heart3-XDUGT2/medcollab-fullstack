@@ -48,6 +48,7 @@ public class CollaborationService {
     private final DatasetService datasets;
     private final SegmentationService segmentations;
     private final AnnotationActivityRecorder activity;
+    private final SegmentationStorageGuard storage;
     private final JsonMapper json = JsonMapper.builder().build();
     private final Set<String> archiving = ConcurrentHashMap.newKeySet();
     private final long archiveMillis;
@@ -55,9 +56,10 @@ public class CollaborationService {
 
     public CollaborationService(JdbcTemplate db, PlatformTransactionManager manager, DatasetService datasets,
             SegmentationService segmentations, AnnotationActivityRecorder activity, @Value("${app.collaboration.archive-ms:20000}") long archiveMillis,
-            @Value("${app.collaboration.archive-operations:100}") int archiveOperations) {
+            @Value("${app.collaboration.archive-operations:100}") int archiveOperations, SegmentationStorageGuard storage) {
         this.db=db; this.tx=new TransactionTemplate(manager); this.datasets=datasets; this.segmentations=segmentations;
         this.activity=activity;
+        this.storage=storage;
         this.archiveMillis=Math.max(1000,archiveMillis); this.archiveOperations=Math.max(1,archiveOperations);
     }
 
@@ -332,6 +334,10 @@ public class CollaborationService {
     }
 
     public void archive(String datasetId,String seriesId) {
+        storage.reference(() -> { archiveProtected(datasetId,seriesId); return null; });
+    }
+
+    private void archiveProtected(String datasetId,String seriesId) {
         String key=datasetId+":"+seriesId;
         if(!archiving.add(key)) return;
         try {

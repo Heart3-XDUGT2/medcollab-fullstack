@@ -48,10 +48,12 @@ public class DatasetService {
     private final String issuer;
     private final boolean seedEnabled;
     private final ImportLimits importLimits;
+    private final SegmentationStorageGuard storage;
 
     public DatasetService(JdbcTemplate db, PlatformTransactionManager manager, OrthancService orthanc,
             KeycloakDirectoryService directory, TeamService teams, @Value("${keycloak.issuer-uri}") String issuer,
-            @Value("${app.datasets.seed-enabled:true}") boolean seedEnabled, ImportLimits importLimits) {
+            @Value("${app.datasets.seed-enabled:true}") boolean seedEnabled, ImportLimits importLimits,
+            SegmentationStorageGuard storage) {
         this.db = db;
         this.transaction = new TransactionTemplate(manager);
         this.orthanc = orthanc;
@@ -60,6 +62,7 @@ public class DatasetService {
         this.issuer = issuer;
         this.seedEnabled = seedEnabled;
         this.importLimits = importLimits;
+        this.storage = storage;
     }
 
     @PostConstruct
@@ -159,7 +162,7 @@ public class DatasetService {
     }
 
     public OrthancService.ImportResult importDicom(String datasetId, byte[] bytes, DemoSession.Identity user) {
-        return transaction.execute(ignored -> {
+        return storage.reference(() -> transaction.execute(ignored -> {
             // Lock the dataset for mutations so a concurrent share revocation completes before or after this import.
             requireAccess(datasetId, user, true);
             OrthancService.ImportResult result = orthanc.importDicom(bytes);
@@ -171,12 +174,12 @@ public class DatasetService {
             db.update("MERGE INTO dataset_instances (dataset_id,instance_id,instance_number) KEY(dataset_id,instance_id) VALUES (?,?,?)",
                     datasetId, result.id(), instance.instanceNumber());
             return result;
-        });
+        }));
     }
 
     /** The HTTP upload route never materializes the whole multipart file in heap. */
     public OrthancService.ImportResult importDicomFile(String datasetId, MultipartFile file, DemoSession.Identity user) {
-        return transaction.execute(ignored -> {
+        return storage.reference(() -> transaction.execute(ignored -> {
             // Keep the same team -> dataset lock order through forwarding and association.
             requireAccess(datasetId, user, true);
             try (StagedDicom staged = StagedDicom.copy(file, importLimits)) {
@@ -191,7 +194,7 @@ public class DatasetService {
                 throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
                         "导入暂存文件处理失败，本次结果可能尚未确认，请先核对资料库");
             }
-        });
+        }));
     }
 
     public OrthancService.Items<ShareItem> shares(String id, DemoSession.Identity user) {

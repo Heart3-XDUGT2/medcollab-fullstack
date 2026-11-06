@@ -50,15 +50,17 @@ public class SegmentationService {
     private final DatasetService datasets;
     private final OrthancService orthanc;
     private final DicomSegCodec codec;
+    private final SegmentationStorageGuard storage;
     private final JsonMapper json = JsonMapper.builder().build();
 
     public SegmentationService(JdbcTemplate db, PlatformTransactionManager manager, DatasetService datasets,
-            OrthancService orthanc, DicomSegCodec codec) {
+            OrthancService orthanc, DicomSegCodec codec, SegmentationStorageGuard storage) {
         this.db = db;
         this.transaction = new TransactionTemplate(manager);
         this.datasets = datasets;
         this.orthanc = orthanc;
         this.codec = codec;
+        this.storage = storage;
     }
 
     @PostConstruct
@@ -383,7 +385,7 @@ public class SegmentationService {
     }
 
     private <T> T mutate(Supplier<T> action) {
-        try { return transaction.execute(ignored -> action.get()); }
+        try { return storage.reference(() -> transaction.execute(ignored -> action.get())); }
         catch (PessimisticLockingFailureException | QueryTimeoutException | TransactionTimedOutException exception) {
             throw new ApiException(HttpStatus.LOCKED, "其他用户正在保存此影像集，请稍后重试；当前绘制内容应保留后重试");
         }
@@ -399,6 +401,7 @@ public class SegmentationService {
 
     /** Slow encoding/upload is deliberately outside the operation/lease database transaction. */
     String uploadCollaborativeSnapshot(List<DicomSegCodec.SourceImage> source, DicomSegCodec.Labelmap data) {
+        storage.requireReference();
         data = checkedLabelmap(data, source);
         var uploaded = orthanc.importDicom(codec.encodeLabelmap(source, "医学标注", data));
         var stored = checkedLabelmap(codec.decodeLabelmap(orthanc.file(uploaded.id()), source), source);
@@ -411,6 +414,7 @@ public class SegmentationService {
     /** Caller holds the dataset lock; only the verified snapshot's fixed watermark is registered. */
     long recordCollaborativeSnapshot(String datasetId, String seriesId, long expectedVersion, long throughSeq,
             String orthancId, DemoSession.Identity author, int annotatedSliceCount) {
+        storage.requireReference();
         var previous = latest(datasetId, seriesId);
         if (version(previous) != expectedVersion) throw conflict("归档基线已变化，请重试");
         long next = expectedVersion + 1;

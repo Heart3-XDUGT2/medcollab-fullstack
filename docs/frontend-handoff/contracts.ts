@@ -12,6 +12,7 @@ export type Session = {
   csrfHeaderName: string;
 };
 export type Health = {
+  segmentationStorageGuard?: string; // single-process-rw-v1 after the 2026-11-06 fix
   status: string;
   message: string;
   application: string;

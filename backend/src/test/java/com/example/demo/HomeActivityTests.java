@@ -224,7 +224,7 @@ class HomeActivityTests {
         String url="jdbc:h2:file:"+temp.resolve("activity").toAbsolutePath()+";DB_CLOSE_ON_EXIT=FALSE";
         var ds=new DriverManagerDataSource(url,"sa","");var local=new JdbcTemplate(ds);var localTx=new DataSourceTransactionManager(ds);
         var team=new TeamService(local,localTx,directory,ISSUER);team.initialize();
-        var data=new DatasetService(local,localTx,orthanc,directory,team,ISSUER,false,mock(ImportLimits.class));data.initialize();
+        var data=new DatasetService(local,localTx,orthanc,directory,team,ISSUER,false,mock(ImportLimits.class),new SegmentationStorageGuard());data.initialize();
         var activity=new HomeActivityService(local,localTx,data,90,100,clock);activity.initialize();
         String id=data.create("persistent",A).id();activity.favorite(id,A);
         String generation=activity.recentContext(A).generation();activity.opened(id,UUID.randomUUID().toString(),generation,A);

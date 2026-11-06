@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +61,43 @@ class SegmentationRetentionTests {
     }
     void publish(long base) { segmentations.publishLabelmap(dataset,SERIES,request(base),USER); }
     long deleted() { return db.queryForObject("SELECT COUNT(*) FROM segmentation_publications WHERE storage_deleted_at IS NOT NULL",Long.class); }
+
+    @Test void manualPublicationProtectsStorageThroughEncodingUploadAndCommit() throws Exception {
+        publish(0);publish(1);
+        assertCleanupDefersWhileEncoding(()->publish(2));
+    }
+
+    @Test void automaticArchiveProtectsTheGapBeforeTheUploadedJobIdIsRecorded() throws Exception {
+        publish(0);publish(1);
+        String client="guard-archive-client";
+        String lease=collaboration.lease(dataset,SERIES,new CollaborationService.LeaseRequest(client,null,"acquire"),USER).leaseId();
+        collaboration.commit(dataset,SERIES,new CollaborationService.Batch(client,lease,List.of(
+                new CollaborationService.Operation(UUID.randomUUID().toString(),0,LABELS,DATA.masks()))),USER);
+        assertCleanupDefersWhileEncoding(()->collaboration.archive(dataset,SERIES));
+        assertThat(collaboration.state(dataset,SERIES,client,USER).throughSeq()).isEqualTo(1);
+    }
+
+    void assertCleanupDefersWhileEncoding(Runnable writer) throws Exception {
+        var entered=new CountDownLatch(1);var finish=new CountDownLatch(1);
+        when(codec.encodeLabelmap(anyList(),anyString(),any())).thenAnswer(call->{
+            entered.countDown();
+            if(!finish.await(10,TimeUnit.SECONDS))throw new AssertionError("Encoding gate timed out");
+            return new byte[]{1,2};
+        });
+        try(var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<?> running=executor.submit(writer);
+            try {
+                assertThat(entered.await(10,TimeUnit.SECONDS)).isTrue();
+                retention.cleanupSuperseded();
+                verify(orthanc,never()).deleteSegmentation(anyString());
+            } finally {finish.countDown();}
+            running.get(10,TimeUnit.SECONDS);
+        }
+        assertThat(segmentations.status(dataset,SERIES,USER).publishedVersion()).isEqualTo(3);
+        retention.cleanupSuperseded();
+        verify(orthanc).deleteSegmentation(OLD);verify(orthanc).deleteSegmentation(NEW);
+        verify(orthanc,never()).deleteSegmentation(THIRD);
+    }
 
     @Test void latestOnlyRetainsCurrentPixelsAndIdempotentReceiptsAcrossSeveralReplacements() {
         var first = request(0);
