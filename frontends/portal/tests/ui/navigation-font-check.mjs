@@ -116,18 +116,15 @@ try {
       report.screenshots.push(file);
     };
     const navigation = async (name) => {
-      if (width <= 1100) await page.getByRole('button', { name: '打开导航', exact: true }).click();
-      const nav = page.locator('nav[aria-label="数据集分类"]:visible');
-      const shapes = await nav
-        .locator('svg')
-        .evaluateAll((nodes) => nodes.map((node) => node.innerHTML));
-      await expect(nav.locator('svg')).toHaveCount(4);
+      const nav = page.getByRole('navigation', { name: '主导航', exact: true });
+      const controls = nav.locator('button, a');
+      await expect(controls).toHaveCount(3);
+      const labels = await controls.allTextContents();
+      expect(labels).toEqual(['工作首页', '完整资料库', '团队影像库']);
       await shot(name);
-      if (width <= 1100) {
-        await page.keyboard.press('Escape');
-        await expect(page.getByRole('button', { name: '打开导航', exact: true })).toBeFocused();
-      }
-      return shapes;
+      await controls.first().focus();
+      await expect(controls.first()).toBeFocused();
+      return labels;
     };
     const fonts = async (state) => {
       const sizes = await page
@@ -157,7 +154,7 @@ try {
     await fonts('team-list');
     const teamIcons = await navigation('team-navigation');
     expect(teamIcons).toEqual(homeIcons);
-    report.iconComparisons.push({ width, matchingScopes: 4 });
+    report.iconComparisons.push({ width, matchingPrimaryDestinations: 3 });
     await page.locator('.mc-team-list-row').click();
     await expect(page.locator('.mc-team-data-row')).toHaveCount(1);
     await fonts('team-datasets');
@@ -166,16 +163,10 @@ try {
     await expect(page.locator('.mc-team-member-row')).toHaveCount(2);
     await fonts('team-members');
     await shot('team-members-text');
-    if (width <= 1100) await page.getByRole('button', { name: '打开导航', exact: true }).click();
-    await page
-      .locator('nav[aria-label="数据集分类"]:visible')
-      .getByRole('link', { name: '我创建的', exact: true })
-      .click();
-    await expect(page).toHaveURL(/\/home\?scope=owner$/);
-    await expect(page.locator('[data-cy="home-filter-owner"]')).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
+    await page.locator('.mc-top-primary').getByRole('link', { name: '完整资料库', exact: true }).click();
+    await page.getByTestId('home-scope-owner').click();
+    await expect(page).toHaveURL(/scope=owner/);
+    await expect(page.getByTestId('home-scope-owner')).toHaveAttribute('aria-pressed', 'true');
     await page.close();
   }
 } catch (error) {

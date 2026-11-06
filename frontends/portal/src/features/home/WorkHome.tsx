@@ -1,9 +1,10 @@
 import type { HomeActivity } from './useHomeActivity';
-import { useRef, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
   Clock3,
+  ChevronDown,
   Files,
   Info,
   Star,
@@ -17,7 +18,7 @@ import type { Dataset, Team } from './api';
 import { SourceLabel } from './DatasetCollection';
 import type { DemoActivity } from './demo-work';
 import type { HomeComposition, HomeModule } from './preferences/model';
-import { HOME_MODULE_LABELS } from './preferences/model';
+import { HOME_MODULE_LABELS, homeModuleGroups } from './preferences/model';
 import { MotionRegion, useReflowMotion } from '../../ui/motion';
 
 const moduleIcons = {
@@ -43,10 +44,15 @@ type Props = {
   onOpen: (dataset: Dataset) => void;
   onFavorite: (id: string) => void;
   onRemoveRecent: (id?: string) => void;
-  onLibrary: () => void;
+  onBrowseAll: () => void;
+  onLeaveHome?: (event: MouseEvent<HTMLAnchorElement>) => void;
   renderCoverage?: (dataset: Dataset) => ReactNode;
   collection: ReactNode;
   collectionCount: number;
+  collectionTools?: ReactNode;
+  collectionPresentation?: ReactNode;
+  collectionQuery?: string;
+  onClearCollectionQuery?: () => void;
 };
 const openedDate = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
@@ -60,7 +66,7 @@ export default function WorkHome(props: Props) {
   useReflowMotion(
     sections,
     JSON.stringify([props.composition.order, props.composition.hidden]),
-    ':scope > section'
+    ':scope > .mc-work-lane > section'
   );
   const { datasets, selectedId, composition, demoActivity, renderCoverage } = props;
   const available = props.availableDatasets || datasets;
@@ -80,6 +86,7 @@ export default function WorkHome(props: Props) {
         dataset: item.dataset,
         openedAt: item.lastOpenedAt,
       })) || [];
+  const selectedRecent = recent.find(item => item.dataset.id === selected?.id);
   function record(dataset: Dataset, context: 'favorite' | 'recent', openedAt?: string) {
     return (
       <article
@@ -92,6 +99,7 @@ export default function WorkHome(props: Props) {
           <button
             type="button"
             className="mc-work-name"
+            title={dataset.name}
             data-cy={`work-${context}-detail`}
             onClick={(event) => props.onSelect(dataset.id, event.currentTarget)}
           >
@@ -104,13 +112,13 @@ export default function WorkHome(props: Props) {
               <SourceLabel access={dataset.access} />
             )}
             <span>{dataset.ownerUsername || '未提供'}</span>
-          </div>
           {openedAt && (
             <time className="mc-work-opened" dateTime={openedAt}>
               {demoActivity ? '示例记录 · ' : ''}
               {openedDate.format(new Date(openedAt))}
             </time>
           )}
+          </div>
         </div>
         <div className="mc-work-record-actions">
           <Button
@@ -152,70 +160,35 @@ export default function WorkHome(props: Props) {
   const modules: Record<HomeModule, ReactNode> = {
     continue: (
       <>
-        <div className="mc-work-continue-picker">
-          <label htmlFor="work-continue-dataset">
-            {demoActivity ? '继续示例资料' : '选择数据集'}
-          </label>
-          <select
-            id="work-continue-dataset"
-            value={selected?.id || ''}
-            onChange={(event) => props.onChoose(event.target.value)}
-            data-cy="work-continue-select"
-          >
-            <option value="">选择一份可访问资料</option>
-            {available.map((dataset) => (
-              <option key={dataset.id} value={dataset.id}>
-                {dataset.name}
-              </option>
-            ))}
-          </select>
-        </div>
         {selected ? (
           <article
             className="mc-work-continue-target"
             data-cy="work-continue-target"
             aria-labelledby="work-continue-title"
           >
-            <div>
-              <button
-                type="button"
-                className="mc-work-name"
-                data-cy="work-continue-detail"
-                onClick={(event) => props.onSelect(selected.id, event.currentTarget)}
-              >
+            <div className="mc-work-current-identity">
+              <button type="button" className="mc-work-name" data-cy="work-continue-detail"
+                onClick={(event) => props.onSelect(selected.id, event.currentTarget)}>
                 <strong id="work-continue-title">{selected.name}</strong>
               </button>
               <div className="mc-work-byline">
-                {selected.scope === 'team' ? (
-                  <span>团队 · {selected.teamName || selected.teamId}</span>
-                ) : (
-                  <SourceLabel access={selected.access} />
-                )}
+                {selected.scope === 'team' ? <span>团队 · {selected.teamName || selected.teamId}</span> : <SourceLabel access={selected.access} />}
                 <span>{selected.ownerUsername || '未提供'}</span>
                 <span>{selected.instanceCount.toLocaleString()} 实例</span>
+                <span className="mc-work-return-scope">返回数据集，未恢复序列、视角或本机草稿。</span>
               </div>
-              <p className="mc-work-return-scope">返回数据集，未恢复序列、视角或本机草稿。</p>
-              <Button
-                className="mc-library-primary"
-                onClick={() => props.onOpen(selected)}
-                dataCY="work-continue-open"
-              >
-                打开数据集
-                <ArrowUpRight size={16} />
-              </Button>
             </div>
-            <div className="mc-work-coverage" aria-label={`${selected.name} 的 CT 帧覆盖率`}>
-              {renderCoverage?.(selected)}
-            </div>
+            <div className="mc-work-coverage" aria-label={`${selected.name} 的 CT 帧覆盖率`}>{renderCoverage?.(selected)}</div>
+            <Button variant="outline" className="mc-library-secondary" onClick={() => props.onOpen(selected)} dataCY="work-continue-open">
+              打开数据集<ArrowUpRight size={16} />
+            </Button>
           </article>
         ) : (
           <div className="mc-work-empty">
             <p>{datasets.length ? '选择一份资料，返回它的工作台入口。' : '暂无可继续的数据集。'}</p>
-            {!demoActivity && <small>成功打开 CT 后会记录最近访问；不会恢复上次视角。</small>}
-            <Button variant="ghost" onClick={props.onLibrary}>
-              前往资料库
-              <ArrowRight size={16} />
-            </Button>
+            {!demoActivity && <small>{props.activity?.recent.status === 'unsupported'
+              ? '当前服务未提供最近打开记录；不恢复序列、视角或本机草稿。'
+              : '成功打开 CT 后会记录最近访问；不会恢复上次视角。'}</small>}
           </div>
         )}
       </>
@@ -229,7 +202,7 @@ export default function WorkHome(props: Props) {
         ) : (
           <div className="mc-work-empty">
             <p>{demoActivity ? '还没有收藏的示例资料。' : '还没有收藏的数据集。'}</p>
-            <Button variant="ghost" onClick={props.onLibrary}>
+            <Button variant="ghost" onClick={props.onBrowseAll}>
               去资料库收藏
               <Star size={15} />
             </Button>
@@ -240,14 +213,18 @@ export default function WorkHome(props: Props) {
           <Star size={18} />
           <div>
             <strong>
-              {props.activity?.favorites.status === 'loading'
+              {props.activity?.favorites.status === 'unsupported'
+                ? props.activity.favorites.error
+                : props.activity?.favorites.status === 'loading'
                 ? '正在读取收藏…'
                 : '收藏暂时无法读取'}
             </strong>
-            <p>{props.activity?.favorites.error}</p>
+            {props.activity?.favorites.status !== 'unsupported' && <>
+            {props.activity?.favorites.error && <p>{props.activity.favorites.error}</p>}
             <Button variant="ghost" onClick={props.activity?.refresh}>
               重新读取
             </Button>
+            </>}
           </div>
         </div>
       ),
@@ -268,37 +245,40 @@ export default function WorkHome(props: Props) {
           <Clock3 size={18} />
           <div>
             <strong>
-              {props.activity?.recent.status === 'loading'
+              {props.activity?.recent.status === 'unsupported'
+                ? props.activity.recent.error
+                : props.activity?.recent.status === 'loading'
                 ? '正在读取最近记录…'
                 : '最近记录暂时无法读取'}
             </strong>
-            <p>{props.activity?.recent.error}</p>
+            {props.activity?.recent.status !== 'unsupported' && <>
+            {props.activity?.recent.error && <p>{props.activity.recent.error}</p>}
             <Button variant="ghost" onClick={props.activity?.refresh}>
               重新读取
             </Button>
+            </>}
           </div>
         </div>
       ),
     library: props.collectionCount ? (
-      <div className="mc-work-dataset-preview" data-density="compact">
+      <div className="mc-work-dataset-preview">
+        {props.collectionTools}
         {props.collection}
         <footer>
           <span>
             显示前 {Math.min(6, props.collectionCount)} / {props.collectionCount} 份资料
           </span>
-          <Button variant="ghost" onClick={props.onLibrary}>
-            查看全部
+          {props.collectionCount > 6 && <Button variant="ghost" onClick={props.onBrowseAll} dataCY="work-browse-all">
+            查看此范围全部
             <ArrowRight size={15} />
-          </Button>
+          </Button>}
         </footer>
       </div>
     ) : (
       <div className="mc-work-empty">
-        <p>当前范围还没有数据集。</p>
-        <Button variant="ghost" onClick={props.onLibrary}>
-          前往完整资料库
-          <ArrowRight size={15} />
-        </Button>
+        {props.collectionTools}
+        <p>{props.collectionQuery ? '没有匹配的数据集。' : '当前范围还没有数据集。'}</p>
+        {props.collectionQuery && <Button variant="ghost" onClick={props.onClearCollectionQuery}>清空首页搜索</Button>}
       </div>
     ),
     teams: demoActivity ? (
@@ -316,7 +296,7 @@ export default function WorkHome(props: Props) {
         <Button variant="ghost" onClick={props.onRetryTeams}>
           重试读取
         </Button>
-        <Link to="/teams">
+        <Link to="/teams" onClick={props.onLeaveHome}>
           前往团队影像库
           <ArrowUpRight size={14} />
         </Link>
@@ -324,7 +304,7 @@ export default function WorkHome(props: Props) {
     ) : !props.teams.length ? (
       <div className="mc-work-empty">
         <p>还没有加入团队。</p>
-        <Link to="/teams">
+        <Link to="/teams" onClick={props.onLeaveHome}>
           查找或创建团队
           <ArrowRight size={15} />
         </Link>
@@ -336,6 +316,7 @@ export default function WorkHome(props: Props) {
             key={team.id}
             to={`/teams?team=${encodeURIComponent(team.id)}`}
             className="mc-work-team"
+            onClick={props.onLeaveHome}
           >
             <UsersRound size={18} />
             <div>
@@ -347,7 +328,7 @@ export default function WorkHome(props: Props) {
             <ArrowUpRight size={16} />
           </Link>
         ))}
-        <Link className="mc-work-all-teams" to="/teams">
+        <Link className="mc-work-all-teams" to="/teams" onClick={props.onLeaveHome}>
           全部团队
           <ArrowRight size={15} />
         </Link>
@@ -355,6 +336,21 @@ export default function WorkHome(props: Props) {
     ),
   };
   const visible = composition.order.filter((module) => !composition.hidden.includes(module));
+  const lanes = homeModuleGroups(composition);
+  // Tablet pairs one reference with continuation without reordering either lane.
+  const tabletPositions: Partial<Record<HomeModule, { row: number; column: string }>> = {};
+  let nextRow = 1, nextReference = 0;
+  for (const module of lanes.primary) {
+    tabletPositions[module] = { row: nextRow, column: module === 'continue' && lanes.reference.length ? '1' : '1 / -1' };
+    if (module === 'continue' && lanes.reference.length) {
+      tabletPositions[lanes.reference[0]] = { row: nextRow, column: '2' };
+      nextReference = 1;
+    }
+    nextRow++;
+  }
+  lanes.reference.slice(nextReference).forEach((module, index) => {
+    tabletPositions[module] = { row: nextRow + Math.floor(index / 2), column: String(index % 2 + 1) };
+  });
   return (
     <div className="mc-work-home" data-cy="work-home">
       {demoActivity && (
@@ -377,17 +373,21 @@ export default function WorkHome(props: Props) {
           </Button>
         </p>
       )}
-      <div className="mc-work-modules" ref={sections}>
-        {visible.map((module) => (
+      <div className="mc-work-modules" ref={sections}
+        data-has-primary={!!lanes.primary.length} data-has-reference={!!lanes.reference.length}>
+        {([['primary', lanes.primary], ['reference', lanes.reference]] as const).map(([lane, laneModules]) =>
+          laneModules.length ? <div className={`mc-work-lane mc-work-${lane}`} key={lane}>
+        {laneModules.map((module) => (
           <section
             key={module}
+            style={{ '--desk-tablet-row': tabletPositions[module]?.row, '--desk-tablet-column': tabletPositions[module]?.column } as CSSProperties}
             className={`mc-work-module is-${module} ${
               !demoActivity &&
               ((module === 'favorites' && props.activity?.favorites.status !== 'ready') ||
                 (module === 'recent' && props.activity?.recent.status !== 'ready'))
                 ? 'is-unavailable'
                 : ''
-            }`}
+            } ${!demoActivity && ((module === 'favorites' && props.activity?.favorites.status === 'unsupported') || (module === 'recent' && props.activity?.recent.status === 'unsupported')) ? 'is-unsupported' : ''}`}
             data-cy={`work-module-${module}`}
             aria-label={HOME_MODULE_LABELS[module]}
             data-motion-item={`module:${module}`}
@@ -398,18 +398,28 @@ export default function WorkHome(props: Props) {
                   const Icon = moduleIcons[module];
                   return <Icon size={17} aria-hidden="true" />;
                 })()}
-                {module === 'library' ? '数据集' : HOME_MODULE_LABELS[module]}
+                {module === 'library' ? '数据集' : module === 'continue' ? '继续研究' : HOME_MODULE_LABELS[module]}
+                {module === 'library' && <span className="mc-desk-library-count">{props.collectionCount}</span>}
               </h2>
-              {module === 'library' && (
-                <Button variant="ghost" onClick={props.onLibrary}>
-                  完整资料库
-                  <ArrowRight size={15} />
-                </Button>
-              )}
+              {module === 'continue' && <>
+                {selectedRecent && <time className="mc-desk-continue-date" dateTime={selectedRecent.openedAt}>
+                  {demoActivity ? '示例记录 · ' : '上次访问 · '}{openedDate.format(new Date(selectedRecent.openedAt))}
+                </time>}
+                <div className="mc-work-continue-picker">
+                  <label htmlFor="work-continue-dataset">{demoActivity ? '继续示例资料' : '选择数据集'}</label>
+                  <select id="work-continue-dataset" value={selected?.id || ''} title={selected?.name || '选择一份可访问资料'}
+                    onChange={event => props.onChoose(event.target.value)} data-cy="work-continue-select">
+                    <option value="">选择一份可访问资料</option>
+                    {available.map(dataset => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </div>
+              </>}
               {module === 'favorites' &&
                 (demoActivity || props.activity?.favorites.status === 'ready') && (
                   <span>{props.activity?.favorites.total ?? favorites.length} 份</span>
                 )}
+              {module === 'library' && props.collectionPresentation}
               {module === 'recent' &&
                 (demoActivity || props.activity?.recent.status === 'ready') && (
                   <div>
@@ -437,6 +447,10 @@ export default function WorkHome(props: Props) {
               (() => {
                 const kind = module === 'favorites' ? 'favorite' : 'recent';
                 const list = kind === 'favorite' ? props.activity.favorites : props.activity.recent;
+                if (list.status === 'ready' && list.error) return <div className="mc-work-list-error" role="alert">
+                  <p>{list.error}</p>
+                  <Button variant="ghost" disabled={props.activity.busy} onClick={() => { void props.activity?.loadMore(kind); }}>重试加载</Button>
+                </div>;
                 return list.status === 'ready' && list.items.length < list.total ? (
                   <Button
                     variant="ghost"
@@ -451,6 +465,7 @@ export default function WorkHome(props: Props) {
               })()}
           </section>
         ))}
+        </div> : null)}
       </div>
     </div>
   );

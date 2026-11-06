@@ -7,6 +7,23 @@ const session = { loggedIn: true, username: 'a', ...identity, csrfHeaderName: 'X
 const dataset = { id: 'ct', name: 'CT', access: 'public', scope: 'personal', ownerUsername: null,
   instanceCount: 100, createdAt: '2026-11-04T00:00:00Z', teamId: null, teamName: null };
 const response = (v: unknown, status = 200) => ({ status, json: async () => v });
+test('health explicitly declares activity v1; missing markers and legacy health 404 are unsupported',async()=>{
+  for(const [body,status,expected] of [
+    [{homeActivityApi:'v1'},200,true], [{status:'UP'},200,false], [{homeActivityApi:'v2'},200,false], [{},404,false],
+  ] as const){
+    const fetcher=vi.fn().mockResolvedValue(response(body,status));
+    expect(await createHomeApi(config,fetcher as any).homeActivitySupported()).toBe(expected);
+    expect(fetcher).toHaveBeenCalledWith('/api/health',expect.objectContaining({method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'}));
+  }
+});
+test('failed capability reads do not pretend to be unsupported or successful',async()=>{
+  for(const status of [401,403,503]){
+    const fetcher=vi.fn().mockResolvedValue(response({},status));
+    await expect(createHomeApi(config,fetcher as any).homeActivitySupported()).rejects.toMatchObject({status});
+  }
+  await expect(createHomeApi(config,vi.fn().mockResolvedValue(response([])) as any).homeActivitySupported())
+    .rejects.toMatchObject({kind:'protocol'});
+});
 test('accepts nested activity summaries and paginated totals, normalizes unknown owner', async () => {
   const fetcher = vi.fn().mockResolvedValue(response({ items: [{ dataset, favoritedAt: dataset.createdAt }], total: 45, page: 1, size: 20 }));
   const page = await createHomeApi(config, fetcher as any).listFavorites(1);

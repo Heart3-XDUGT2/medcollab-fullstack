@@ -6,6 +6,7 @@ import DatasetCoverage from './DatasetCoverage';
 import { useAnnotationStatistics } from './hooks';
 import { StatisticsModel } from './store';
 import type { StatisticsOptions } from './store';
+import { makeSyntheticDatasetStatistics } from './contract';
 import {
   dataset,
   deferred,
@@ -62,6 +63,22 @@ class ViewportObserver {
 }
 
 describe('statistics React lifecycle and presentation', () => {
+  test('desk draws current and archive from the same snapshot without inferring pending from counts', async () => {
+    const model = demo(makeSyntheticDatasetStatistics('d', {
+      totalSlices: 10, annotatedSlices: 4, publishedAnnotatedSlices: 3, pendingArchive: false,
+    }));
+    render(<DatasetCoverage model={model} datasetId="d" variant="desk" showArchive active />);
+    await settle();
+    expect((host.querySelector('.mc-desk-coverage-track > span') as HTMLElement).style.width).toBe('40%');
+    expect((host.querySelector('.mc-desk-coverage-track > i') as HTMLElement).style.left).toBe('30%');
+    expect(host.querySelector('summary')!.textContent).toContain('4 / 10 帧');
+    expect(host.querySelector('summary')!.textContent).toContain('已归档 3 / 10 帧');
+    expect(host.querySelector('summary')!.textContent).toContain('无待归档操作');
+    act(() => root.render(<DatasetCoverage model={demo(dataset('d', 0, 0, 0))} datasetId="d" variant="desk" active />));
+    await settle();
+    expect(host.querySelector('.mc-desk-coverage-track')).toBeNull();
+    expect(host.querySelector('summary')!.textContent).toContain('无可标注 CT');
+  });
   test('compact starts with readable coverage summary and opt-in complete details', async () => {
     const fetchImpl = normalFetch();
     function Page() {
@@ -124,8 +141,8 @@ describe('statistics React lifecycle and presentation', () => {
       const model = useAnnotationStatistics(realOptions(fetchImpl));
       return (
         <>
-          <DatasetCoverage model={model} datasetId="d" active />
-          <DatasetCoverage model={model} datasetId="d" active />
+          <DatasetCoverage model={model} datasetId="d" variant="desk" showArchive active />
+          <DatasetCoverage model={model} datasetId="d" variant="desk" active />
         </>
       );
     }

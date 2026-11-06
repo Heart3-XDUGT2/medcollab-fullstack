@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Button, Icons, Input, Label } from '../../ui';
 import type { Dataset, HomeApi, Identity } from './api';
-import { runUpload } from './upload';
+import { runUpload, unsupportedUploadFormat } from './upload';
 import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_LIMIT_LABEL } from './upload-policy';
 import type { UploadProgress } from './upload';
 import './upload-panel.css';
@@ -76,7 +76,8 @@ export default function UploadPanel(props: Props) {
   const selectionDisabled =
     busy || locked || scopeAborted || contextChanged || (mode === 'real' && !enabled);
   const startDisabled =
-    mode === 'demo' || !enabled || !identity || busy || locked || scopeAborted || contextChanged;
+    mode === 'demo' || !enabled || !identity || busy || locked || scopeAborted || contextChanged ||
+    files.some(file => !!unsupportedUploadFormat(file));
   const folderAttributes = { webkitdirectory: '' };
 
   function releaseBusy() {
@@ -170,8 +171,9 @@ export default function UploadPanel(props: Props) {
         openedContext.identity !== identityKey(identity) ||
         openedContext.target !== targetDataset?.id);
     if (!selectionDisabled && !scopeSignal.aborted && !pending.current && !stalePicker) {
-      setFiles(Array.from(event.currentTarget.files || []));
-      setError('');
+      const selected = Array.from(event.currentTarget.files || []);
+      setFiles(selected);
+      setError(selected.map(unsupportedUploadFormat).find(Boolean) || '');
     }
     event.currentTarget.value = '';
   }
@@ -277,7 +279,7 @@ export default function UploadPanel(props: Props) {
       <p className="mc-upload-note">
         {mode === 'demo'
           ? '本机演示不会读取或上传文件。'
-          : `单个文件不超过 ${UPLOAD_SIZE_LIMIT_LABEL}，文件夹按文件逐个导入。不支持 ZIP。`}
+          : `仅支持 DICOM 文件/文件夹（包括无扩展名文件）；单个文件不超过 ${UPLOAD_SIZE_LIMIT_LABEL}，文件夹按文件逐个导入。不支持 NIfTI（.nii/.nii.gz）或 ZIP。`}
       </p>
       {mode === 'real' && !enabled && (
         <p className="mc-upload-access">
@@ -317,7 +319,7 @@ export default function UploadPanel(props: Props) {
             onChange={(event) => {
               setName(event.target.value);
               setNameInvalid(false);
-              setError('');
+              setError(files.map(unsupportedUploadFormat).find(Boolean) || '');
             }}
           />
         </>

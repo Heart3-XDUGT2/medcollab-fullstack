@@ -156,7 +156,7 @@
   gap: 8px;
   color: var(--mc-primary-hover);
 }
-.mc-work-dataset-preview footer {
+.mc-work-dataset-preview > footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -164,7 +164,7 @@
   font-size: 12px;
   color: var(--mc-muted);
 }
-.mc-work-dataset-preview footer > button {
+.mc-work-dataset-preview > footer > button {
   gap: 8px;
   color: var(--mc-primary-hover);
   padding-right: 0;

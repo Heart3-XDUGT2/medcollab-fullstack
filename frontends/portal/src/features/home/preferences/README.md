@@ -20,15 +20,16 @@ const display = useHomePreferences({
 
 ```ts
 {
-  layout: 'list' | 'cards';
+  layout: 'rows' | 'cards' | 'list';
   density: 'comfortable' | 'compact';
   groupBy: 'none' | 'source';
   fields: { owner: boolean; instances: boolean; createdAt: boolean };
 }
 ```
 
-Agreed default: cards ("资料索引"), comfortable, no grouping, all three
-secondary fields shown. List is called "资料清单" in the shared UI.
+Approved A default: rows ("资料清单"), comfortable, no grouping, all three
+secondary fields shown. Existing cards remain "资料索引" (actual cards);
+existing list remains the comparison table, now labeled "对比表格".
 This default applies only to missing/invalid records and explicit reset.
 Valid existing personal list preferences are respected, never overwritten by
 the page during mount. No duplicate settings UI.

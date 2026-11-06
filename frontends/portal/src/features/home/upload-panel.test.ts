@@ -65,6 +65,20 @@ describe('upload panel operation isolation', () => {
     props = { ...props, ...changes };
     await act(async () => root.render(React.createElement(UploadPanel, props)));
   };
+  test('NIfTI selection immediately explains unsupported format and cannot submit a write', async () => {
+    await render();
+    changeName();
+    select([file('scan.NII.GZ')]);
+    expect(container.textContent).toContain('NIfTI');
+    changeName('另一个影像集名称');
+    expect(container.textContent).toContain('NIfTI');
+    expect(start().disabled).toBe(true);
+    await submit();
+    expect(api.createDataset).not.toHaveBeenCalled();
+    expect(api.importFile).not.toHaveBeenCalled();
+    select([file('DICOMDIR')]);
+    expect(start().disabled).toBe(false);
+  });
 
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;

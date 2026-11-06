@@ -43,25 +43,19 @@ async function assertBoundaries(page: Page, width: number) {
     await expect(header).toBeVisible();
     const style = await header.evaluate((element) => ({
       background: getComputedStyle(element).backgroundColor,
-      border: parseFloat(getComputedStyle(element).borderTopWidth),
+      fontSize: parseFloat(getComputedStyle(element.querySelector('h2')!).fontSize),
     }));
-    expect(style.background).not.toBe('rgba(0, 0, 0, 0)');
-    expect(style.border).toBeGreaterThanOrEqual(1);
+    expect(style.background).toBe('rgba(0, 0, 0, 0)');
+    expect(style.fontSize).toBeGreaterThanOrEqual(15);
   }
   const selected = page.getByTestId('work-continue-target');
   await expect(selected).toHaveAttribute('aria-labelledby', 'work-continue-title');
   await expect(selected).toContainText('跨中心腹部影像一致性研究');
   await expect(selected.getByTestId('dataset-coverage')).toHaveCount(1);
   await expect(selected.locator('.mc-resource-card')).toHaveCount(0);
-  const border = await selected.evaluate((element) =>
-    parseFloat(getComputedStyle(element).borderTopWidth)
-  );
-  expect(border).toBeGreaterThanOrEqual(1);
-  const statsBorder = await selected.locator('.mc-work-coverage').evaluate((element) => ({
-    left: parseFloat(getComputedStyle(element).borderLeftWidth),
-    top: parseFloat(getComputedStyle(element).borderTopWidth),
-  }));
-  expect(width > 640 ? statsBorder.left : statsBorder.top).toBeGreaterThanOrEqual(1);
+  await expect(page.getByTestId('work-module-continue')).toHaveCSS('background-color', 'rgb(240, 245, 243)');
+  await expect(selected.locator('summary')).toContainText('共享画布');
+  await expect(selected.locator('summary')).toContainText('已归档');
 }
 async function pauseReflow(page: Page) {
   return page.evaluate(() => {
@@ -100,8 +94,14 @@ for (const width of [1440, 768, 390]) {
     ).toBe(0);
     await shot(page, `${width}-real-ready`);
     await shot(page, `${width}-real-ready-full`, true);
+    const hadVisibleRecords = await page.getByTestId('home-dataset-row').evaluateAll(nodes =>
+      nodes.some(node => {
+        const box = node.getBoundingClientRect();
+        return box.top >= 0 && box.bottom <= innerHeight;
+      })
+    );
     await page.getByTestId('home-scope-owner').click();
-    await expect
+    if (hadVisibleRecords) await expect
       .poll(() =>
         page.evaluate(() => document.getAnimations().filter((a) => a.id === 'mc-reflow').length)
       )
@@ -130,7 +130,10 @@ for (const width of [1440, 768, 390]) {
     await page.getByTestId('home-dataset-more').first().click();
     await expect(page.getByRole('menu')).toBeVisible();
     await shot(page, `${width}-menu`);
-    await page.getByRole('menuitem', { name: '资料概览', exact: true }).focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem').first()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await page.getByTestId('home-dataset-select').first().focus();
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('home-detail')).toBeVisible();
     expect(fixture.calls.every((call) => call.method === 'GET')).toBe(true);
@@ -158,7 +161,7 @@ for (const width of [1440, 768, 390]) {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await motionFixture(page);
     await page.goto('/home?view=library');
-    await page.getByRole('button', { name: '资料清单', exact: true }).click();
+    await page.getByRole('button', { name: '对比表格', exact: true }).click();
     await page.getByTestId('home-display-preferences').click();
     const settings = page.getByTestId('home-display-preferences-panel');
     await settings.getByRole('radio', { name: '紧凑', exact: true }).check();
@@ -325,20 +328,20 @@ test('long summary text and mobile tools are in normal layout rather than overla
   await motionFixture(page);
   await page.goto('/home');
   await ready(page);
-  const geometry = await page.locator('.mc-scope-summary-head').evaluate((element) => {
-    element.querySelector('.mc-scope-total span')!.textContent =
+  const geometry = await page.locator('.mc-library-heading').evaluate((element) => {
+    element.querySelector('p')!.textContent =
       '跨中心研究协作资料库的可访问数据集'.repeat(4);
-    const label = element.querySelector('.mc-scope-total')!.getBoundingClientRect();
+    const label = element.querySelector('p')!.getBoundingClientRect();
     const utilities = element.querySelector('.mc-home-utilities')!;
     const tools = utilities.getBoundingClientRect();
     return {
-      labelRight: label.right,
-      toolsLeft: tools.left,
+      overlaps: label.left < tools.right && label.right > tools.left &&
+        label.top < tools.bottom && label.bottom > tools.top,
       position: getComputedStyle(utilities).position,
     };
   });
   expect(geometry.position).not.toBe('absolute');
-  expect(geometry.labelRight).toBeLessThanOrEqual(geometry.toolsLeft);
+  expect(geometry.overlaps).toBe(false);
 });
 test('low-end devices retain feedback without spatial reflow', async ({ page }) => {
   await page.addInitScript(() =>

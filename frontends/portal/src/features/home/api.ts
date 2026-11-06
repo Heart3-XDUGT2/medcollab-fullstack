@@ -365,6 +365,16 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
 
   return {
     getSession,
+    async homeActivitySupported(signal?: AbortSignal): Promise<boolean> {
+      try {
+        const health = await request('/api/health', { signal });
+        if (!isObject(health)) throw new ApiError('无法确认当前服务的活动功能', 0, 'protocol');
+        return health.homeActivityApi === 'v1';
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return false;
+        throw error;
+      }
+    },
     async listFavorites(page = 0, signal?: AbortSignal) {
       try { return activityPage<FavoriteItem>(await request('/api/me/favorite-datasets?' + new URLSearchParams({page: String(page), size: '20'}), {signal}), 'favorite', page); }
       catch (error) { if (error instanceof ApiError) throw error; throw new ApiError('收藏响应格式不符合约定', 0, 'protocol'); }

@@ -22,13 +22,28 @@ export default function ScopeOverview({
   scope,
   onChange,
   utilities,
+  compact = false,
 }: {
   datasets: readonly Dataset[];
   scope: DatasetScope;
   onChange: (scope: DatasetScope) => void;
   utilities?: ReactNode;
+  compact?: boolean;
 }) {
   const counts = sourceCounts(datasets);
+  if (compact) return (
+    <div className="mc-desk-sources" role="group" aria-label="按来源查看">
+      {[{ value: 'all', label: '全部' }, ...sources].map(source => (
+        <button key={source.value} type="button"
+          aria-pressed={scope === source.value}
+          aria-label={source.value === 'all' ? `全部数据集 ${counts.all} 份` : `${source.label} ${counts[source.value as DatasetScope]}`}
+          data-cy={`home-scope-${source.value}`}
+          onClick={() => onChange(source.value as DatasetScope)}>
+          {source.label}<span>{counts[source.value as DatasetScope].toLocaleString()}</span>
+        </button>
+      ))}
+    </div>
+  );
   return (
     <section className="mc-scope-overview" aria-label="个人资料来源分布">
       <div className="mc-scope-summary-head">

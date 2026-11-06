@@ -1,9 +1,25 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-02",
+  "generatedAt": "2026-11-06",
   "title": "MedCollab Portal Design",
   "extensions": {
+    "homeScope": {
+      "status": "User-adopted Research Desk A; fresh independent review returned Ship at screenshot scope.",
+      "selectors": ".mc-library[data-research-desk], .mc-library-dialog, .mc-library-detail, and the containing home top bar",
+      "boundary": "Home-specific tokens do not replace shared team/login defaults. Existing API/activity/StatisticsModel and identity/CSRF boundaries remain authoritative.",
+      "composition": "Main/reference lanes retain saved relative order and hidden settings without an exact-default gate. Settings sort within explicit lane groups. Existing cards/list values stay actual cards/comparison; new rows default is A's List mode. No stored preference is cleared or rewritten on read.",
+      "sparseCards": "At >=1800px viewport, frame max1600px. One actual card uses one track capped680px; two use two tracks; phone metadata stretches to the card width. Symmetric44px icon targets, no SVG translations.",
+      "activityStates": "Explicit homeActivityApi v1 capability gate; unsupported, collection mismatch, empty, page failure and object-scoped mutation failure are distinct. Independent list results remain visible; unconfirmed favorite states disable writes.",
+      "data": "Real authorized data in real mode; explicit memory-only demo labels synthetic values. No annotation sequence/view/draft recovery.",
+      "coverage": "Current fill and archive tick share the same existing snapshot. Tick only when archive exists. Pending uses server pendingArchive flag, not unequal counts. Zero/error/stale/archive-error states stay distinct.",
+      "queries": "Separate work/library memory-only queries restore through verified same-identity one-shot team-return memory; never query URL/history/storage.",
+      "assets": "Existing brand SVG, locked local Inter dependency and system CJK fonts; no new raster or outside assets.",
+      "verification": "The local refinement was checked with TypeScript, 373 unit tests, 153 browser tests and a 29-test clean-artifact confirmation. Browser fixtures are synthetic protocol evidence, not live backend, authorization or clinical acceptance. See docs/ui/portal-home-refinement-2026-11-06.zh-CN.md for scope and integration limits."
+    },
     "colorMeta": {
+      "home-primary": { "role": "primary", "displayName": "Home Charcoal Command" },
+      "home-primary-hover": { "role": "primary", "displayName": "Home Lake Blue" },
+      "home-continuation": { "role": "secondary", "displayName": "Home Research Mist" },
       "primary": { "role": "primary", "displayName": "Lake Blue" },
       "ground": { "role": "neutral", "displayName": "Cold White" },
       "ink": { "role": "neutral", "displayName": "Near Black" }
@@ -18,10 +34,35 @@
     "breakpoints": [
       { "name": "phone", "value": "640px" },
       { "name": "navigation-fold", "value": "1100px" },
-      { "name": "home-details-drawer", "value": "1200px" }
+      { "name": "home-details-drawer", "value": "1200px" },
+      { "name": "home-compact-desktop", "value": "1180px" },
+      { "name": "home-tablet", "value": "900px" }
     ]
   },
   "components": [
+    {
+      "name": "Home Primary Command",
+      "kind": "button",
+      "refersTo": "home-button-primary",
+      "description": "Home-scoped command; shared primary defaults elsewhere are unchanged.",
+      "html": "<button class=\"ds-home-primary\">上传资料</button>",
+      "css": ".ds-home-primary{min-height:40px;padding:8px 14px;border:1px solid #263a3b;border-radius:5px;background:#263a3b;color:#fff;font:500 14px/1.5 'Microsoft YaHei','PingFang SC',Inter,sans-serif;letter-spacing:0}.ds-home-primary:hover{background:#057d8a}.ds-home-primary:focus-visible{outline:2px solid #057d8a;outline-offset:3px}.ds-home-primary:disabled{background:#edf1f3;color:#69767e;border-color:#dfe5e8}"
+    },
+    {
+      "name": "Home Source Selector",
+      "kind": "nav",
+      "description": "Compact real-source filtering with derived counts, not privacy or progress categories.",
+      "html": "<div class=\"ds-home-sources\" role=\"group\" aria-label=\"按来源查看\"><button aria-pressed=\"true\">全部 <span>12</span></button><button aria-pressed=\"false\">我创建的 <span>4</span></button></div>",
+      "css": ".ds-home-sources{display:flex;gap:20px;flex-wrap:wrap}.ds-home-sources button{display:flex;align-items:center;gap:6px;min-height:44px;padding:10px 0;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:#657072;font:13px 'Microsoft YaHei','PingFang SC',Inter,sans-serif}.ds-home-sources button[aria-pressed=true]{color:#202829;border-bottom-color:#202829}.ds-home-sources button:hover{color:#202829}.ds-home-sources button:focus-visible{outline:2px solid #057d8a;outline-offset:3px}.ds-home-sources span{font-size:12px;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Home Continuation Plane",
+      "kind": "custom",
+      "refersTo": "home-continuation",
+      "description": "Existing accessible object, not annotation recovery; snippet content is illustrative.",
+      "html": "<section class=\"ds-home-continue\"><h2>继续研究</h2><button>跨中心腹部影像一致性研究</button><p>返回数据集，未恢复序列、视角或本机草稿。</p></section>",
+      "css": ".ds-home-continue{padding:22px 26px;border-radius:6px;background:#f0f5f3;color:#202829;font-family:'Microsoft YaHei','PingFang SC',Inter,sans-serif}.ds-home-continue h2{margin:0 0 16px;font-size:15px;font-weight:500;color:#657072}.ds-home-continue button{padding:0;border:0;background:none;color:inherit;text-align:left;font:500 23px/1.6 'Microsoft YaHei','PingFang SC',Inter,sans-serif;overflow-wrap:anywhere}.ds-home-continue button:hover{color:#057d8a}.ds-home-continue button:focus-visible{outline:2px solid #057d8a;outline-offset:3px}.ds-home-continue p{margin:8px 0 0;font-size:12px;color:#657072}"
+    },
     {
       "name": "Primary Button",
       "kind": "button",
@@ -62,7 +103,7 @@
   ],
   "narrative": {
     "northStar": "Research Objects, Clear Connections",
-    "overview": "This is the approved personal-library prototype implemented in the unified application, not the earlier migration freeze. Cold-white working planes, near-black text and a lake-blue accent continue through the account entry, personal library and independent team library. The original connecting mark is a local brand asset, not a competitor image.",
+    "overview": "The unified Portal retains cold-white planes, near-black text, lake-blue shared defaults and its original local connecting mark. The user adopted Research Desk A for personal home on 2026-11-06. Its local expression, Research handoff desk, leads with continuation, aligned objects and quieter references. Home-specific roles describe scoped overrides, not replacements for shared team/login defaults.",
     "keyCharacteristics": ["Name-first continuous lists", "Independent personal and team library semantics", "Light navigation and a shared connecting mark"],
     "rules": [],
     "dos": ["Do preserve the real/demo boundary, fresh CSRF and identity checks.", "Do distinguish empty, unavailable, signed-out, expired and lost-access states.", "Do keep real team libraries separate from personal sharing."],

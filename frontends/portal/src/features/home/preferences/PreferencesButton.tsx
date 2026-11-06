@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Trigger as DialogTrigger } from '@radix-ui/react-dialog';
-import { CalendarDays, Hash, LayoutGrid, LayoutList, List, RotateCcw, Rows2, SlidersHorizontal, UserRound } from 'lucide-react';
+import { CalendarDays, Hash, LayoutGrid, LayoutList, List, RotateCcw, Rows2, SlidersHorizontal, Table2, UserRound } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../ui';
 import type { HomePreferencesModel } from './useHomePreferences';
 import type { HomePreferencePatch, HomePreferences } from './model';
@@ -32,7 +32,7 @@ export function PreferenceControls({ model, className = '' }: ControlsProps) {
     <fieldset className="mc-preference-section">
       <legend>资料呈现</legend>
       <div className="mc-preference-segments">
-        {([{ value: 'list', label: '资料清单', Icon: LayoutList }, { value: 'cards', label: '资料索引', Icon: LayoutGrid }] as const).map(option =>
+        {([{ value: 'rows', label: '资料清单', Icon: LayoutList }, { value: 'cards', label: '资料索引', Icon: LayoutGrid }, { value: 'list', label: '对比表格', Icon: Table2 }] as const).map(option =>
           <label className="mc-preference-choice" key={option.value}>
             <input type="radio" name={`${id}-layout`} value={option.value} checked={values.layout === option.value} onChange={() => change({ layout: option.value })} />
             <span><option.Icon size={18} strokeWidth={1.6} />{option.label}</span>

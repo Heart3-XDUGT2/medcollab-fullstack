@@ -288,18 +288,10 @@ export class HomePageObject {
   }
 
   filterControl(filter: HomeFilter) {
-    return this.page
-      .locator(
-        `[data-cy="home-filter-${filter}"]:visible, [data-cy="home-scope-${filter}"]:visible`
-      )
-      .last();
+    return this.page.getByTestId(`home-scope-${filter}`);
   }
 
   async filterBy(filter: HomeFilter) {
-    if (!(await this.filterControl(filter).isVisible())) {
-      await this.navigationToggle.click();
-      await this.navigationDialog.waitFor({ state: 'visible' });
-    }
     await this.filterControl(filter).click();
   }
 

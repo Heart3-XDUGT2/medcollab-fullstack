@@ -98,7 +98,7 @@ describe('preferences hook and real Radix settings controls', () => {
     await act(async () => { old.update({ density: 'compact' }); old.reset(); });
     expect(values.get(keyA)).toContain('"layout":"list"');
     await act(async () => { slowB.resolve(keyB); await pause(); });
-    expect(model.preferences.layout).toBe('cards');
+    expect(model.preferences.layout).toBe('rows');
     expect(values.has(keyB)).toBe(false);
   });
   test('equivalent account objects keep the same active preference session', async () => {

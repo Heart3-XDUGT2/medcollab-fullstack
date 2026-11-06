@@ -92,7 +92,7 @@ for (const width of [1440, 768, 390]) {
     expect(titleFits).toBe(true);
     if (width === 1440) {
       const edges = await page.evaluate(() => ({
-        bar: document.querySelector('.mc-scope-bar')!.getBoundingClientRect().right,
+        bar: document.querySelector('.mc-desk-collection-tools')!.getBoundingClientRect().right,
         datasets: document.querySelector('.mc-work-dataset-preview')!.getBoundingClientRect().right,
       }));
       expect(Math.abs(edges.bar - edges.datasets)).toBeLessThanOrEqual(1);
@@ -128,10 +128,8 @@ test('empty account has real zero distribution and no fabricated dataset or cove
   await page.goto('/home');
   await expect(page.getByTestId('home-scope-all')).toContainText('0');
   await expect(page.getByTestId('home-dataset-row')).toHaveCount(0);
-  const widths = await page
-    .locator('.mc-scope-bar span')
-    .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).style.width));
-  expect(widths).toEqual(['0%', '0%', '0%']);
+  for (const source of ['owner', 'shared', 'public'])
+    await expect(page.getByTestId(`home-scope-${source}`)).toContainText('0');
   await expect(page.getByTestId('dataset-coverage')).toHaveCount(0);
 });
 
@@ -152,6 +150,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByTestId('work-recent-record')).toHaveCount(1);
     await expect(page.getByTestId('work-continue-target')).toContainText('合成研究数据集 · 002');
     const collection = page.getByTestId('work-module-library');
+    await collection.getByRole('combobox', { name: '首页资料排序', exact: true }).selectOption('name');
     await expect(collection.getByTestId('home-favorite')).toHaveCount(6);
     await expect(collection.getByRole('button', { name: '取消收藏 合成研究数据集 · 001', exact: true })).toBeEnabled();
     await page.evaluate(() => scrollTo(0, 0));

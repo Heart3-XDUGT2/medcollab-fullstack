@@ -8,10 +8,22 @@ import {
   encodePreferences,
   PREFERENCE_STORAGE_PREFIX,
   preferenceScope,
+  homeModuleGroups,
 } from './model';
 
 afterEach(() => vi.unstubAllGlobals());
 describe('strict, content-free display schema', () => {
+  test.each(['rows', 'cards', 'list'] as const)('layout %s is a whitelisted reversible choice without reinterpreting old values', layout => {
+    const value = { ...DEFAULT_HOME_PREFERENCES, layout };
+    expect(decodePreferences(encodePreferences(value)).preferences.layout).toBe(layout);
+  });
+  test('old global order is retained as relative order in each lane without mutation', () => {
+    const home = { defaultEntry: 'work' as const, order: ['library', 'favorites', 'continue', 'recent', 'teams'] as const, hidden: ['teams'] as const };
+    const before = JSON.stringify(home);
+    expect(homeModuleGroups(home)).toEqual({ primary: ['library', 'continue'], reference: ['favorites', 'recent'] });
+    expect(homeModuleGroups(home, true).reference).toEqual(['favorites', 'recent', 'teams']);
+    expect(JSON.stringify(home)).toBe(before);
+  });
   test('missing data means defaults; booleans false survive a round trip', () => {
     expect(decodePreferences(null)).toEqual({
       preferences: DEFAULT_HOME_PREFERENCES,
@@ -156,13 +168,13 @@ describe('strict, content-free display schema', () => {
   });
 });
 describe('account key derivation', () => {
-  test('new work-home default leads with datasets while saved module ordering is unchanged', () => {
-    expect(DEFAULT_HOME_PREFERENCES.home.order[0]).toBe('library');
+  test('new research desk leads with continuation while saved module ordering is unchanged', () => {
+    expect(DEFAULT_HOME_PREFERENCES.home.order).toEqual(['continue', 'library', 'recent', 'favorites', 'teams']);
     const previous = {
       ...DEFAULT_HOME_PREFERENCES,
       home: {
         defaultEntry: 'work',
-        order: ['continue', 'favorites', 'recent', 'library', 'teams'],
+        order: ['library', 'continue', 'favorites', 'recent', 'teams'],
         hidden: ['library'],
       },
     };
