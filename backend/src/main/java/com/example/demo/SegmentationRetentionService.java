@@ -18,11 +18,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class SegmentationRetentionService {
     private static final Logger log = LoggerFactory.getLogger(SegmentationRetentionService.class);
     private static final String ELIGIBLE = "p.storage_deleted_at IS NULL "
+            + "AND EXISTS (SELECT 1 FROM datasets holder WHERE holder.id=p.dataset_id AND holder.deleted_at IS NULL) "
             + "AND EXISTS (SELECT 1 FROM segmentation_publications n WHERE n.dataset_id=p.dataset_id "
             + "AND n.series_id=p.series_id AND n.version>p.version) "
-            + "AND NOT EXISTS (SELECT 1 FROM dataset_instances i WHERE i.instance_id=p.orthanc_id) "
+            + "AND NOT EXISTS (SELECT 1 FROM dataset_instances i JOIN datasets d ON d.id=i.dataset_id WHERE i.instance_id=p.orthanc_id AND d.deleted_at IS NULL) "
             + "AND NOT EXISTS (SELECT 1 FROM mask_snapshot_jobs j WHERE j.orthanc_id=p.orthanc_id AND j.completed=FALSE) "
-            + "AND NOT EXISTS (SELECT 1 FROM segmentation_publications a WHERE a.orthanc_id=p.orthanc_id "
+            + "AND NOT EXISTS (SELECT 1 FROM segmentation_publications a JOIN datasets d ON d.id=a.dataset_id WHERE a.orthanc_id=p.orthanc_id AND d.deleted_at IS NULL "
             + "AND NOT EXISTS (SELECT 1 FROM segmentation_publications b WHERE b.dataset_id=a.dataset_id "
             + "AND b.series_id=a.series_id AND b.version>a.version)) ";
     private final JdbcTemplate db;
@@ -61,7 +62,7 @@ public class SegmentationRetentionService {
                 + ELIGIBLE, Long.class, id) == 0) return;
         // Keep the last usable copy if any current replacement has disappeared.
         var replacements = db.query("SELECT DISTINCT n.orthanc_id FROM segmentation_publications p "
-                + "JOIN segmentation_publications n ON n.dataset_id=p.dataset_id AND n.series_id=p.series_id "
+                + "JOIN datasets d ON d.id=p.dataset_id AND d.deleted_at IS NULL JOIN segmentation_publications n ON n.dataset_id=p.dataset_id AND n.series_id=p.series_id "
                 + "WHERE p.orthanc_id=? AND NOT EXISTS (SELECT 1 FROM segmentation_publications x "
                 + "WHERE x.dataset_id=n.dataset_id AND x.series_id=n.series_id AND x.version>n.version)",
                 (r,n) -> r.getString(1), id);

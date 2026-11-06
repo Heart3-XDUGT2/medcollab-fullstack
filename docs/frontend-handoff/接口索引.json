@@ -587,5 +587,33 @@
       "csrfRequired": true,
       "note": "清空历史并更新 generation"
     }
-  ]
+  ],
+  "personalForwardingDeletion20261106": {
+    "document": "个人删除与转发副本接口.md",
+    "health": {
+      "sharingPolicy": "personal-forward-copy-v1",
+      "datasetDeletionApi": "unreferenced-reclaim-v1",
+      "niftiImport": "unsupported"
+    },
+    "endpoints": [
+      {
+        "method": "DELETE",
+        "path": "/api/datasets/{id}",
+        "success": 200,
+        "semantics": "owner personal deletion; durable asynchronous reclamation"
+      },
+      {
+        "method": "GET",
+        "path": "/api/datasets/{id}/deletion-status",
+        "success": 200,
+        "semantics": "deleted personal dataset owner only"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/datasets/{id}/shares",
+        "success": 200,
+        "semantics": "independent recipient-owned snapshot"
+      }
+    ]
+  }
 }

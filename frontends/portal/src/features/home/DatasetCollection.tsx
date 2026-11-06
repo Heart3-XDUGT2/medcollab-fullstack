@@ -1,5 +1,5 @@
 import { useRef, type ReactNode, type RefCallback } from 'react';
-import { ArrowUpRight, MoreHorizontal, PencilLine, Share2, Star, Upload } from 'lucide-react';
+import { ArrowUpRight, MoreHorizontal, PencilLine, Share2, Star, Upload, Trash2 } from 'lucide-react';
 import {
   Button,
   DropdownMenu,
@@ -11,7 +11,7 @@ import type { Dataset } from './api';
 import { useConfirmedFeedback, useReflowMotion } from '../../ui/motion';
 
 export type ResourceFields = { owner: boolean; instances: boolean; createdAt: boolean };
-type ResourceAction = 'rename' | 'share' | 'upload';
+type ResourceAction = 'rename' | 'share' | 'upload' | 'delete';
 type Props = {
   presentation?: 'standard' | 'desk';
   datasets: Dataset[];
@@ -30,9 +30,9 @@ type Props = {
   renderCoverage?: (dataset: Dataset) => ReactNode;
 };
 
-export const sourceLabels = { owner: '我创建的', shared: '与我共享', public: '公共示例' };
+export const sourceLabels = { owner: '我拥有的', shared: '与我共享', public: '公共示例' };
 const sourceDescriptions = {
-  owner: '由你创建与整理',
+  owner: '包括你上传及收到的独立副本',
   shared: '研究伙伴的协作资料',
   public: '所有登录用户可访问',
 };
@@ -115,6 +115,11 @@ function ResourceMenu({
           >
             <Share2 size={16} />
             按账号共享
+          </DropdownMenuItem>
+        )}
+        {dataset.access === 'owner' && dataset.canDelete === true && dataset.scope !== 'team' && (
+          <DropdownMenuItem onSelect={() => onAction('delete', dataset, origin())} data-cy="home-menu-delete">
+            <Trash2 size={16} />删除个人数据集
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

@@ -1,9 +1,10 @@
 openapi: 3.1.0
 info:
   title: MedCollab Portal Backend Contract
-  version: 0.1.0
+  version: 0.2.0
   description: |
-    登录、数据集首页、单文件导入及共享的协议描述，整理于 2026-11-01。
+    2026-11-06 增量：个人独立转发副本、个人删除与异步回收、明确拒绝 NIfTI。
+    详见 docs/handoff/current-server/个人删除与转发副本接口.md。
     当前 Portal 子集已在统一 8080 入口接入真实 Java/Keycloak/Orthanc。
     本文件不表示 Java 部署了 OpenAPI/Swagger；完整 OHIF、DICOMweb、Labelmap
     与维护契约见 docs/handoff/current-server/前端开发维护与兼容性指南.md。
@@ -12,6 +13,7 @@ info:
     写请求必须先从 /api/session 获取 csrfHeaderName 和 csrfToken，
     使用返回的动态头名。x-csrf-required 只是文档扩展，不会让生成工具自动处理 CSRF。
     未定义密码登录、Bearer JWT、标注编辑、训练、导出、分页或未来 launch 接口。
+    NIfTI 的 .nii/.nii.gz 文件名（大小写不敏感）在导入时返回415，不进行转换。
 servers:
   - url: /
     description: 部署者提供的同源网关，业务 API 不经过 SPA HTML fallback
@@ -25,7 +27,7 @@ tags:
   - name: Datasets
     description: 当前可访问的业务影像集
   - name: Sharing
-    description: 账号搜索与当前全权共享规则
+    description: 账号搜索与个人独立转发副本规则
   - name: Import
     description: 非原子、逐文件 DICOM 导入
 security:
@@ -136,7 +138,7 @@ paths:
       operationId: listDatasets
       summary: 返回本人可访问的全部影像集
       description: |
-        无 page/size/filter 查询参数；只返回公共、本人和共享给本人的集合。
+        无 page/size/filter 查询参数；只返回公共及本人拥有的个人集合（包括收到的转发副本）。
         total 等于 items.length，不是分页总量。前端搜索、分类和排序仅在该数组内执行。
         public 是所有登录用户可访问，不是匿名访问。
       responses:
@@ -207,8 +209,8 @@ paths:
       summary: 重命名一个可访问影像集
       x-csrf-required: true
       description: |
-        只修改名称。owner、shared 和有权访问公共集的登录用户均可执行当前操作；
-        shared 不是只读。没有对应 GET /api/datasets/{id}，详情使用列表项。
+        只修改名称。个人转发副本由接收者以独立 owner ID 修改；公共集仍对登录用户开放编辑。
+        没有对应 GET /api/datasets/{id}，详情使用列表项。
       requestBody:
         required: true
         content:
@@ -228,6 +230,54 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/ApiError'
+    delete:
+      tags: [Datasets]
+      operationId: deletePersonalDataset
+      summary: 删除自己的非公共个人数据集，并持久登记无引用文件回收
+      x-csrf-required: true
+      description: |
+        无请求体。200 表示本人数据集已移除，物理回收在后台进行。
+        仍有个人/公共/团队成员、当前 SEG 或未完成归档引用时保留底层对象。
+        原所有者重复 DELETE 幂等。编辑租约、未归档内容或未完成任务返回409。
+      responses:
+        '200':
+          description: 已移除个人持有关系；计数允许存在待清理项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDeletionResult'
+        '409':
+          description: 仍在编辑或待归档，请关闭工作台并等候保存完成
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ResourceNotFound'
+        default:
+          $ref: '#/components/responses/ApiError'
+  /api/datasets/{id}/deletion-status:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+    get:
+      tags: [Datasets]
+      operationId: getPersonalDatasetDeletionStatus
+      summary: 仅原所有者查询已删除个人集的后台物理回收计数
+      responses:
+        '200':
+          description: 当前回收状态，pendingObjects=0 时结束轮询
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDeletionResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/ResourceNotFound'
         default:
@@ -304,11 +354,10 @@ paths:
     get:
       tags: [Sharing]
       operationId: listShares
-      summary: 返回私有影像集的显式共享名单
+      summary: 返回自己个人数据集的转发历史账号
       description: |
-        不包含所有者；按 username 和 subject 排序。
-        公共集返回 400，因为已经对所有登录用户开放。
-        shared 成员有现有全部共享管理能力，不只 owner 能读取名单。
+        按 username 和 subject 排序，是历史账号记录，不表示对方当前仍持有副本。
+        允许再次选择历史接收者；对方删除后可重新接收。公共/团队集返回400。
       responses:
         '200':
           description: 显式共享者
@@ -331,13 +380,14 @@ paths:
     put:
       tags: [Sharing]
       operationId: addShare
-      summary: 添加一个明确选择的共享账号
+      summary: 向明确选择的账号转发独立归属的快照副本
       x-csrf-required: true
       description: |
-        方法为 PUT，不是 POST。同一用户重复添加是幂等更新，
+        方法为 PUT，不是 POST。同一转发链已有活跃副本则返回它的 ID 且不覆盖其修改，
+        没有活跃副本则创建新的接收者 owner 数据集，之后双方编辑独立；
         但当前客户端不自动重发结果未知的请求。公共集、无效 UUID 或所有者目标返回 400。
         404 既可能是集合不存在/失权，也可能是目标账号不存在/停用；
-        不能一律关闭整个数据集。成功后重新读取共享名单。
+        不能一律关闭整个数据集。成功后可重新读取转发历史；接收者重新读取自己的数据集列表。
       requestBody:
         required: true
         content:
@@ -350,7 +400,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResult'
+                $ref: '#/components/schemas/ForwardResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -384,8 +434,8 @@ paths:
       summary: 已停用，个人共享确认后不可撤销
       x-csrf-required: true
       description: |
-        2026-11-02 起，无请求体，合法访问者一律收到409，既有共享记录保持不变。
-        所有者和接收者均不能移除共享。团队成员移除属于不同接口与授权来源。
+        无请求体，合法来源访问一律409，不能撤回对方副本；对方可删除自己的数据集。
+        个人转发副本与团队成员授权是不同概念。
       responses:
         '409':
           description: 个人共享不可撤销
@@ -569,7 +619,7 @@ components:
           type: string
           enum: [owner, shared, public]
           description: |
-            owner 是归属而非仅本人可见；shared 可编辑和继续共享，个人共享不可撤销；
+            个人收到的副本为 owner 并使用新 ID；个人不再借 shared 访问发送者原 ID；
             public 是所有登录用户可访问，不是匿名全网公开。没有细分只读权限。
         ownerUsername:
           type: string
@@ -582,6 +632,9 @@ components:
           type: string
           format: date-time
           description: 创建时间，不是最近修改/访问/保存
+        canDelete:
+          type: boolean
+          description: 本人的非公共个人集可删；缺失时客户端不得推断支持
     DatasetItems:
       type: object
       required: [items, total]
@@ -680,6 +733,35 @@ components:
         success:
           type: boolean
           const: true
+    ForwardResult:
+      type: object
+      required: [success, recipientDatasetId, alreadyOwned]
+      properties:
+        success:
+          const: true
+        recipientDatasetId:
+          type: string
+        alreadyOwned:
+          type: boolean
+          description: true 表示已有活跃转发链副本，未覆盖其内容
+    DatasetDeletionResult:
+      type: object
+      required: [success, datasetId, deletedObjects, retainedObjects, pendingObjects]
+      properties:
+        success:
+          const: true
+        datasetId:
+          type: string
+        deletedObjects:
+          type: integer
+          minimum: 0
+        retainedObjects:
+          type: integer
+          minimum: 0
+        pendingObjects:
+          type: integer
+          minimum: 0
+          description: 等待检查或失败重试的物理对象数；不是切片进度
     ImportResult:
       type: object
       required: [status, id]

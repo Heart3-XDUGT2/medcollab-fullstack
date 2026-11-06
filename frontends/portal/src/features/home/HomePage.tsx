@@ -28,6 +28,7 @@ import { createDemoLibrary } from './demo';
 import type { DemoLibrary } from './demo';
 import UploadPanel from './UploadPanel';
 import SharePanel from './SharePanel';
+import DeleteDatasetPanel from './DeleteDatasetPanel';
 import DatasetCollection from './DatasetCollection';
 import { PreferencesButton, useHomePreferences } from './preferences';
 import type { HomeEntry } from './preferences/model';
@@ -52,9 +53,9 @@ import './research-desk.css';
 
 type Filter = 'all' | 'owner' | 'shared' | 'public';
 type Phase = 'loading' | 'unconfigured' | 'signed-out' | 'ready' | 'failed' | 'expired';
-type Action = { kind: 'create' | 'rename' | 'share' | 'upload'; dataset?: Dataset };
+type Action = { kind: 'create' | 'rename' | 'share' | 'upload' | 'delete'; dataset?: Dataset };
 const filters = personalNavigation;
-const accessLabels = { owner: '我创建的', shared: '与我共享', public: '公共示例' };
+const accessLabels = { owner: '我拥有的', shared: '与我共享', public: '公共示例' };
 const date = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
   month: '2-digit',
@@ -1243,6 +1244,8 @@ export default function HomePage() {
               <DialogTitle>
                 {action?.kind === 'rename'
                   ? '重命名数据集'
+                  : action?.kind === 'delete'
+                    ? '删除个人数据集'
                   : action?.kind === 'share'
                     ? '按账号共享'
                     : action?.kind === 'upload'
@@ -1313,6 +1316,10 @@ export default function HomePage() {
                   </Button>
                 </div>
               </form>
+            ) : action?.kind === 'delete' && action.dataset && mode === 'real' ? (
+              <DeleteDatasetPanel dataset={action.dataset} api={api} identity={identity.current} scopeSignal={actionSignal}
+                onBusyChange={setOperationBusy} onBlocked={onBlocked} onClose={closeAction}
+                onDeleted={() => { closeAction(); landingNotice.current = '数据集已删除，其他人的副本不受影响。'; void refresh(); }} />
             ) : action?.kind === 'upload' ? (
               <UploadPanel
                 mode={mode}

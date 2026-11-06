@@ -102,7 +102,7 @@ class TeamSystemTests {
     @Test void removedUploaderLosesTeamAccessButFilesRemainAndPersonalSharesStay() throws Exception {
         var t=teams.create("Keep",ALICE);String id=t.team().id();teams.addMember(id,BOB.subject(),ALICE);
         var d=datasets.createTeamDataset(id,"Bob CT",BOB);
-        var personal=datasets.create("Alice personal",ALICE);datasets.share(personal.id(),BOB.subject(),ALICE);
+        var personal=datasets.create("Alice personal",ALICE);String personalCopy=datasets.share(personal.id(),BOB.subject(),ALICE).recipientDatasetId();
         db.update("INSERT INTO dataset_instances VALUES (?,?,?)",d.id(),INSTANCE,"1");
         assertThat(datasets.visibleInstanceCount(BOB)).isEqualTo(1);
         teams.removeMember(id,BOB.subject(),ALICE);
@@ -112,7 +112,7 @@ class TeamSystemTests {
         error(()->datasets.requireDatasetAccess(d.id(),BOB,false),HttpStatus.NOT_FOUND);
         assertThat(datasets.visibleInstanceCount(BOB)).isZero();
         assertThat(datasets.teamDatasets(id,ALICE).items()).extracting(DatasetService.TeamDatasetItem::id).containsExactly(d.id());
-        assertThat(datasets.list(BOB).items()).extracting(DatasetService.DatasetItem::id).containsExactly(personal.id());
+        assertThat(datasets.list(BOB).items()).extracting(DatasetService.DatasetItem::id).containsExactly(personalCopy);
         teams.join(id,t.inviteCode(),BOB);
         assertThat(datasets.teamDatasets(id,BOB).items().getFirst().canDelete()).isTrue();
     }
@@ -169,10 +169,11 @@ class TeamSystemTests {
     }
 
     @Test void personalSharingIsIrrevocableForOwnerAndRecipientsAndIdempotent() throws Exception {
-        var d=datasets.create("Personal",ALICE);datasets.share(d.id(),BOB.subject(),ALICE);datasets.share(d.id(),BOB.subject(),ALICE);
-        datasets.share(d.id(),CAROL.subject(),BOB);
-        for(var u:List.of(ALICE,BOB,CAROL)) mvc.perform(delete("/api/datasets/"+d.id()+"/shares/bob-sub").with(login(u)).with(csrf())).andExpect(status().isConflict());
-        assertThat(datasets.shares(d.id(),ALICE).items()).hasSize(2);
+        var d=datasets.create("Personal",ALICE);String copy=datasets.share(d.id(),BOB.subject(),ALICE).recipientDatasetId();datasets.share(d.id(),BOB.subject(),ALICE);
+        datasets.share(copy,CAROL.subject(),BOB);
+        mvc.perform(delete("/api/datasets/"+d.id()+"/shares/bob-sub").with(login(ALICE)).with(csrf())).andExpect(status().isConflict());
+        mvc.perform(delete("/api/datasets/"+copy+"/shares/carol-sub").with(login(BOB)).with(csrf())).andExpect(status().isConflict());
+        assertThat(datasets.shares(d.id(),ALICE).items()).hasSize(1);
         assertThat(datasets.list(BOB).total()).isEqualTo(1);
     }
 
