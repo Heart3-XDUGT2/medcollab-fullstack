@@ -1,17 +1,7 @@
 import { useHomeActivity } from './useHomeActivity';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
-  LayoutGrid,
-  LayoutList,
-  PanelRight,
-  UserRound,
-  UsersRound,
-  ArrowUpRight,
-  X,
-  Home as HomeIcon,
-  Files,
-} from 'lucide-react';
+import { LayoutGrid, LayoutList, PanelRight, X } from 'lucide-react';
 import PortalShell from '../../ui/PortalShell';
 import { personalNavigation } from '../../ui/navigation';
 import {
@@ -43,6 +33,8 @@ import { PreferencesButton, useHomePreferences } from './preferences';
 import type { HomeEntry } from './preferences/model';
 import WorkHome from './WorkHome';
 import WorkHomeSettings from './WorkHomeSettings';
+import ScopeOverview from './ScopeOverview';
+import { useViewFeedback } from '../../ui/motion';
 import { createDemoActivity, removeDemoRecent, toggleDemoFavorite } from './demo-work';
 import type { DemoActivity } from './demo-work';
 import {
@@ -53,6 +45,8 @@ import {
 import { demoStatistics } from './demo-statistics';
 import './home.css';
 import './work-home.css';
+import './home-top-navigation.css';
+import './section-motion.css';
 
 type Filter = 'all' | 'owner' | 'shared' | 'public';
 type Phase = 'loading' | 'unconfigured' | 'signed-out' | 'ready' | 'failed' | 'expired';
@@ -191,13 +185,24 @@ export default function HomePage() {
   });
   const activity = useHomeActivity({
     enabled: mode === 'real' && phase === 'ready' && config.apiEnabled,
-    api, identity: phase === 'ready' && mode === 'real' ? identity.current : null,
-    signal: scopeSignal, datasetIds: datasets.map(item => item.id), onBlocked,
+    api,
+    identity: phase === 'ready' && mode === 'real' ? identity.current : null,
+    signal: scopeSignal,
+    datasetIds: datasets.map((item) => item.id),
+    onBlocked,
   });
-  const activityDatasets = useMemo(() => [...new Map([
-    ...activity.recent.items.map(item => item.dataset),
-    ...activity.favorites.items.map(item => item.dataset), ...datasets,
-  ].map(item => [item.id, item])).values()], [datasets, activity.recent.items, activity.favorites.items]);
+  const activityDatasets = useMemo(
+    () => [
+      ...new Map(
+        [
+          ...activity.recent.items.map((item) => item.dataset),
+          ...activity.favorites.items.map((item) => item.dataset),
+          ...datasets,
+        ].map((item) => [item.id, item])
+      ).values(),
+    ],
+    [datasets, activity.recent.items, activity.favorites.items]
+  );
   const activeEntry = entry || preferences.home.defaultEntry;
   useEffect(() => {
     const query = new URLSearchParams(location.search);
@@ -424,6 +429,8 @@ export default function HomePage() {
   }, [datasets, filter, search, sort]);
   const selected = activityDatasets.find((item) => item.id === selectedId);
   const ready = phase === 'ready';
+  const contentSurface = useRef<HTMLDivElement>(null);
+  useViewFeedback(contentSurface, ready ? activeEntry : null);
   const authUrl = getAuthUrl(config, 'login');
   const publicSampleUrl = getPublicSampleUrl(config);
 
@@ -454,7 +461,7 @@ export default function HomePage() {
       setNotice('已停止等待操作，已完成的更改不会回滚；请刷新核对服务端状态。');
   }
   function selectDataset(id: string, trigger?: HTMLButtonElement) {
-    const dataset = activityDatasets.find(item => item.id === id);
+    const dataset = activityDatasets.find((item) => item.id === id);
     if (mode === 'real' && dataset?.scope === 'team' && dataset.teamId) {
       window.location.assign('/teams?team=' + encodeURIComponent(dataset.teamId));
       return;
@@ -696,7 +703,23 @@ export default function HomePage() {
         )}
       </div>
     ) : null;
-
+  const utilities = (
+    <div className="mc-home-utilities">
+      <WorkHomeSettings model={display} />
+      {activeEntry === 'work' && (
+        <Button
+          variant="ghost"
+          size="icon"
+          title="刷新真实会话与列表"
+          aria-label="刷新真实会话与列表"
+          dataCY="home-refresh"
+          onClick={mode === 'demo' ? () => setNotice('演示资料已就绪，不改变示例历史。') : refresh}
+        >
+          <Icons.Refresh />
+        </Button>
+      )}
+    </div>
+  );
   return (
     <PortalShell
       activeSection="home"
@@ -706,26 +729,40 @@ export default function HomePage() {
       onLogout={mode === 'demo' || (ready && identity.current) ? logout : undefined}
       busy={busy}
       accountActions={sampleEntry}
+      primaryNavigation={
+        <>
+          <button
+            type="button"
+            aria-current={activeEntry === 'work' ? 'page' : undefined}
+            aria-pressed={activeEntry === 'work'}
+            onClick={() => setEntry('work')}
+            data-cy="home-entry-work"
+          >
+            工作首页
+          </button>
+          <button
+            type="button"
+            aria-current={activeEntry === 'library' ? 'page' : undefined}
+            aria-pressed={activeEntry === 'library'}
+            onClick={() => setEntry('library')}
+            data-cy="home-entry-library"
+          >
+            完整资料库
+          </button>
+          <Link to="/teams">团队影像库</Link>
+        </>
+      }
     >
       <div
         className="mc-library"
         data-cy="medcollab-home"
         data-layout={preferences.layout}
         data-density={preferences.density}
+        data-entry={activeEntry}
+        data-ready={ready}
       >
         <div className="mc-library-body">
           <main className="mc-library-main">
-            <div className="mc-library-space-bar" aria-label="资料空间">
-              <span>
-                <UserRound size={15} />
-                个人资料
-              </span>
-              <Link to="/teams">
-                <UsersRound size={16} />
-                团队影像库
-                <ArrowUpRight size={14} />
-              </Link>
-            </div>
             {mode === 'demo' && (
               <div className="mc-library-demo" role="status" data-cy="home-demo-banner">
                 <Icons.Info aria-hidden="true" />
@@ -788,45 +825,17 @@ export default function HomePage() {
                   <Icons.Upload />
                   上传 DICOM
                 </Button>
+                {!ready && utilities}
               </div>
             </div>
-            <div className="mc-work-navigation">
-              <div role="group" aria-label="个人资料入口">
-                <Button
-                  variant="ghost"
-                  aria-pressed={activeEntry === 'work'}
-                  onClick={() => setEntry('work')}
-                  dataCY="home-entry-work"
-                >
-                  <HomeIcon size={17} />
-                  工作首页
-                </Button>
-                <Button
-                  variant="ghost"
-                  aria-pressed={activeEntry === 'library'}
-                  onClick={() => setEntry('library')}
-                  dataCY="home-entry-library"
-                >
-                  <Files size={17} />
-                  完整资料库
-                </Button>
-              </div>
-              <WorkHomeSettings model={display} />
-              {activeEntry === 'work' && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="刷新真实会话与列表"
-                  aria-label="刷新真实会话与列表"
-                  dataCY="home-refresh"
-                  onClick={
-                    mode === 'demo' ? () => setNotice('演示资料已就绪，不改变示例历史。') : refresh
-                  }
-                >
-                  <Icons.Refresh />
-                </Button>
-              )}
-            </div>
+            {ready && (
+              <ScopeOverview
+                datasets={datasets}
+                scope={filter}
+                onChange={setFilter}
+                utilities={utilities}
+              />
+            )}
             {activeEntry === 'library' && (
               <div className="mc-library-toolbar">
                 <div className="mc-library-search">
@@ -945,6 +954,7 @@ export default function HomePage() {
             )}
             <div
               className={`mc-library-content ${selected && detailOpen && !compactDetail ? 'has-detail' : ''}`}
+              ref={contentSurface}
             >
               <section className="mc-library-files" aria-label="影像列表">
                 {!ready ? (
@@ -1007,13 +1017,62 @@ export default function HomePage() {
                     onOpen={openWorkspace}
                     onFavorite={(id) => {
                       if (mode === 'real') void activity.toggleFavorite(id);
-                      else setDemoActivity(current => current ? toggleDemoFavorite(current, id) : current);
+                      else
+                        setDemoActivity((current) =>
+                          current ? toggleDemoFavorite(current, id) : current
+                        );
                     }}
                     onRemoveRecent={(id) => {
                       if (mode === 'real') void activity.removeRecent(id);
-                      else setDemoActivity(current => current ? removeDemoRecent(current, id) : current);
+                      else
+                        setDemoActivity((current) =>
+                          current ? removeDemoRecent(current, id) : current
+                        );
                     }}
                     onLibrary={() => setEntry('library')}
+                    collectionCount={
+                      datasets.filter((item) => filter === 'all' || item.access === filter).length
+                    }
+                    collection={
+                      <DatasetCollection
+                        datasets={datasets
+                          .filter((item) => filter === 'all' || item.access === filter)
+                          .slice(0, 6)}
+                        layout="cards"
+                        density="compact"
+                        grouped={false}
+                        fields={{ owner: true, instances: true, createdAt: true }}
+                        selectedId={selectedId}
+                        onSelect={selectDataset}
+                        onOpen={openWorkspace}
+                        onAction={openAction}
+                        favoriteIds={
+                          mode === 'demo' ? demoActivity?.favorites : activity.favoriteIds
+                        }
+                        favoriteDisabled={mode === 'real' && activity.favoriteDisabled}
+                        onFavorite={
+                          mode === 'demo'
+                            ? (id) =>
+                                setDemoActivity((current) =>
+                                  current ? toggleDemoFavorite(current, id) : current
+                                )
+                            : (id) => {
+                                void activity.toggleFavorite(id);
+                              }
+                        }
+                        renderCoverage={(dataset) => (
+                          <DatasetCoverage
+                            model={statistics}
+                            datasetId={dataset.id}
+                            variant="compact"
+                          />
+                        )}
+                        registerTrigger={(id, element) => {
+                          if (element) datasetTriggers.current.set(id, element);
+                          else datasetTriggers.current.delete(id);
+                        }}
+                      />
+                    }
                     renderCoverage={(dataset) => (
                       <DatasetCoverage
                         model={statistics}
@@ -1044,7 +1103,14 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
-                    {mode === 'real' && activity.error && <p role="alert">{activity.error} <Button variant="ghost" onClick={activity.refresh}>重新读取</Button></p>}
+                    {mode === 'real' && activity.error && (
+                      <p role="alert">
+                        {activity.error}{' '}
+                        <Button variant="ghost" onClick={activity.refresh}>
+                          重新读取
+                        </Button>
+                      </p>
+                    )}
                     <DatasetCollection
                       datasets={shown}
                       layout={preferences.layout}
@@ -1063,7 +1129,9 @@ export default function HomePage() {
                               setDemoActivity((current) =>
                                 current ? toggleDemoFavorite(current, id) : current
                               )
-                          : (id) => { void activity.toggleFavorite(id); }
+                          : (id) => {
+                              void activity.toggleFavorite(id);
+                            }
                       }
                       renderCoverage={(dataset) => (
                         <DatasetCoverage

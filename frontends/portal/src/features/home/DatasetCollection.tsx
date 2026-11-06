@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
 } from '../../ui';
 import type { Dataset } from './api';
+import { useConfirmedFeedback, useReflowMotion } from '../../ui/motion';
 
 export type ResourceFields = { owner: boolean; instances: boolean; createdAt: boolean };
 type ResourceAction = 'rename' | 'share' | 'upload';
@@ -84,7 +85,11 @@ function ResourceMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="mc-library-menu">
         {onFavorite && (
-          <DropdownMenuItem disabled={favoriteDisabled} onSelect={() => onFavorite(dataset.id)} data-cy="home-menu-favorite">
+          <DropdownMenuItem
+            disabled={favoriteDisabled}
+            onSelect={() => onFavorite(dataset.id)}
+            data-cy="home-menu-favorite"
+          >
             <Star size={16} />
             {favoriteIds?.includes(dataset.id) ? '取消收藏' : '收藏到首页'}
           </DropdownMenuItem>
@@ -160,6 +165,7 @@ function ResourceCard({ dataset, ...props }: { dataset: Dataset } & Props) {
       className={`mc-resource-card ${selected ? 'is-selected' : ''}`}
       data-cy="home-dataset-row"
       data-has-facts={fields.instances || fields.createdAt}
+      data-motion-item={`dataset:${dataset.id}`}
     >
       <div className="mc-resource-card-title">
         <NameButton
@@ -247,8 +253,11 @@ function FavoriteButton({
   onToggle: (id: string) => void;
   disabled?: boolean;
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  useConfirmedFeedback(trigger, active, !disabled);
   return (
     <Button
+      ref={trigger}
       variant="ghost"
       size="icon"
       title={`${active ? '取消收藏' : '收藏'} ${dataset.name}`}
@@ -298,6 +307,7 @@ function ResourceTable({ datasets, ...props }: Props) {
               key={dataset.id}
               className={dataset.id === props.selectedId ? 'is-selected' : ''}
               data-cy="home-dataset-row"
+              data-motion-item={`dataset:${dataset.id}`}
             >
               <td className="mc-resource-name-cell">
                 <NameButton
@@ -355,9 +365,21 @@ function ResourceTable({ datasets, ...props }: Props) {
 }
 
 export default function DatasetCollection(props: Props) {
+  const surface = useRef<HTMLDivElement>(null);
+  useReflowMotion(
+    surface,
+    JSON.stringify([
+      props.layout,
+      props.density,
+      props.grouped,
+      props.fields,
+      props.selectedId,
+      props.datasets.map((dataset) => dataset.id),
+    ])
+  );
   if (props.layout === 'list')
     return (
-      <div className="mc-resource-table-scroll">
+      <div className="mc-resource-table-scroll" ref={surface}>
         <ResourceTable {...props} />
       </div>
     );
@@ -370,7 +392,7 @@ export default function DatasetCollection(props: Props) {
         .filter((group) => group.items.length)
     : [{ access: null, items: props.datasets }];
   return (
-    <div className="mc-resource-index" data-cy="home-datasets">
+    <div className="mc-resource-index" data-cy="home-datasets" ref={surface}>
       {groups.map((group) => (
         <section
           key={group.access || 'all'}

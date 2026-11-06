@@ -128,6 +128,11 @@ async function mockHomeApi(
       json = { items, total: items.length };
     } else if (entry.pathname === '/api/health' && entry.method === 'GET') {
       json = { status: 'UP' };
+    } else if (entry.method === 'GET' &&
+      ['/api/me/favorite-datasets', '/api/me/favorite-datasets/state', '/api/me/recent-datasets'].includes(entry.pathname)) {
+      // Keep activity unavailable in this mutation-safety fixture; real activity has its own tests.
+      status = 503;
+      json = { error: 'Activity intentionally unavailable in this fixture' };
     } else if (entry.pathname === '/api/datasets' && entry.method === 'POST') {
       createWrites++;
       status =
@@ -258,6 +263,7 @@ test.describe('MedCollab home response fixtures', () => {
     await expect(home.upload).toBeDisabled();
     await expect(home.enterDemo).toBeVisible();
     await expect(home.images).toHaveCount(0);
+    await page.getByRole('button', { name: '账号菜单', exact: true }).click();
     await expect(home.sampleUnconfigured).toBeVisible();
     await expect(home.sampleLink).toHaveCount(0);
     expect(
@@ -281,6 +287,7 @@ test.describe('MedCollab home response fixtures', () => {
     );
     await home.visit();
     const portalOrigin = new URL(page.url()).origin;
+    await page.getByRole('button', { name: '账号菜单', exact: true }).click();
     await expect(home.sampleUnconfigured).toHaveCount(0);
     await expect(home.sampleLink).toHaveJSProperty('tagName', 'A');
     await expect(home.sampleLink).toHaveAttribute('href', '/imaging/public-example');
@@ -340,6 +347,9 @@ test.describe('MedCollab home response fixtures', () => {
     expect(requests.map(({ method, pathname }) => ({ method, pathname }))).toEqual([
       { method: 'GET', pathname: '/api/session' },
       { method: 'GET', pathname: '/api/datasets' },
+      { method: 'GET', pathname: '/api/me/favorite-datasets' },
+      { method: 'GET', pathname: '/api/me/recent-datasets' },
+      { method: 'GET', pathname: '/api/me/favorite-datasets/state' },
       { method: 'GET', pathname: '/api/health' },
     ]);
   });
@@ -519,6 +529,9 @@ test.describe('MedCollab home response fixtures', () => {
     expect(requests.map(({ method, pathname, search }) => ({ method, pathname, search }))).toEqual([
       { method: 'GET', pathname: '/api/session', search: '' },
       { method: 'GET', pathname: '/api/datasets', search: '' },
+      { method: 'GET', pathname: '/api/me/favorite-datasets', search: '?page=0&size=20' },
+      { method: 'GET', pathname: '/api/me/recent-datasets', search: '?page=0&size=20' },
+      { method: 'GET', pathname: '/api/me/favorite-datasets/state', search: '?datasetId=fixture-owner-01&datasetId=fixture-shared-02&datasetId=fixture-public-03' },
       { method: 'GET', pathname: '/api/health', search: '' },
     ]);
   });

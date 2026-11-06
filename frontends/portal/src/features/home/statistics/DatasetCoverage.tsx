@@ -6,6 +6,7 @@ import type { AnnotationProgress } from './contract';
 import { useDatasetStatistics } from './hooks';
 import type { StatisticsModel, StatisticsStatus } from './store';
 import './statistics.css';
+import { useDisclosureMotion } from '../../../ui/motion';
 
 const messages: Record<StatisticsStatus, string> = {
   idle: '统计尚未读取',
@@ -48,6 +49,7 @@ export default function DatasetCoverage({
   active?: boolean;
 }) {
   const element = useRef<HTMLDivElement>(null);
+  const disclosure = useDisclosureMotion();
   const [observed, setObserved] = useState<{
     model: StatisticsModel;
     id: string;
@@ -161,7 +163,7 @@ export default function DatasetCoverage({
       aria-busy={loading}
     >
       {variant === 'compact' ? (
-        <details key={datasetId} className="mc-coverage-disclosure">
+        <details key={datasetId} className="mc-coverage-disclosure" onToggle={disclosure}>
           <summary
             data-cy="coverage-summary"
             title="CT 统计详情"

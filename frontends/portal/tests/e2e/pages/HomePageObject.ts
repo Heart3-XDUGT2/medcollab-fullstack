@@ -288,7 +288,11 @@ export class HomePageObject {
   }
 
   filterControl(filter: HomeFilter) {
-    return this.page.locator(`[data-cy="home-filter-${filter}"]:visible`);
+    return this.page
+      .locator(
+        `[data-cy="home-filter-${filter}"]:visible, [data-cy="home-scope-${filter}"]:visible`
+      )
+      .last();
   }
 
   async filterBy(filter: HomeFilter) {

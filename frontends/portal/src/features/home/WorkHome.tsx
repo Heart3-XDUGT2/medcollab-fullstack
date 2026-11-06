@@ -1,6 +1,16 @@
 import type { HomeActivity } from './useHomeActivity';
-import type { ReactNode } from 'react';
-import { ArrowRight, ArrowUpRight, Clock3, Info, Star, Trash2, UsersRound, X } from 'lucide-react';
+import { useRef, type ReactNode } from 'react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Clock3,
+  Files,
+  Info,
+  Star,
+  Trash2,
+  UsersRound,
+  X,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../ui';
 import type { Dataset, Team } from './api';
@@ -8,6 +18,15 @@ import { SourceLabel } from './DatasetCollection';
 import type { DemoActivity } from './demo-work';
 import type { HomeComposition, HomeModule } from './preferences/model';
 import { HOME_MODULE_LABELS } from './preferences/model';
+import { MotionRegion, useReflowMotion } from '../../ui/motion';
+
+const moduleIcons = {
+  library: Files,
+  continue: ArrowUpRight,
+  favorites: Star,
+  recent: Clock3,
+  teams: UsersRound,
+};
 
 type Props = {
   datasets: Dataset[];
@@ -26,6 +45,8 @@ type Props = {
   onRemoveRecent: (id?: string) => void;
   onLibrary: () => void;
   renderCoverage?: (dataset: Dataset) => ReactNode;
+  collection: ReactNode;
+  collectionCount: number;
 };
 const openedDate = new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
@@ -35,19 +56,38 @@ const openedDate = new Intl.DateTimeFormat('zh-CN', {
 });
 
 export default function WorkHome(props: Props) {
+  const sections = useRef<HTMLDivElement>(null);
+  useReflowMotion(
+    sections,
+    JSON.stringify([props.composition.order, props.composition.hidden]),
+    ':scope > section'
+  );
   const { datasets, selectedId, composition, demoActivity, renderCoverage } = props;
   const available = props.availableDatasets || datasets;
-  const selected = available.find((item) => item.id === selectedId) ||
+  const selected =
+    available.find((item) => item.id === selectedId) ||
     (!selectedId ? props.activity?.recent.items[0]?.dataset : undefined);
-  const favorites = demoActivity ? datasets.filter((item) => demoActivity.favorites.includes(item.id)) : (props.activity?.favorites.items.map(item => item.dataset) || []);
+  const favorites = demoActivity
+    ? datasets.filter((item) => demoActivity.favorites.includes(item.id))
+    : props.activity?.favorites.items.map((item) => item.dataset) || [];
   const demoRecent = (demoActivity?.recent || []).flatMap((record) => {
     const dataset = datasets.find((item) => item.id === record.datasetId);
     return dataset ? [{ dataset, openedAt: record.openedAt }] : [];
   });
-  const recent = demoActivity ? demoRecent : (props.activity?.recent.items.map(item => ({ dataset: item.dataset, openedAt: item.lastOpenedAt })) || []);
+  const recent = demoActivity
+    ? demoRecent
+    : props.activity?.recent.items.map((item) => ({
+        dataset: item.dataset,
+        openedAt: item.lastOpenedAt,
+      })) || [];
   function record(dataset: Dataset, context: 'favorite' | 'recent', openedAt?: string) {
     return (
-      <article key={dataset.id} className="mc-work-record" data-cy={`work-${context}-record`}>
+      <article
+        key={dataset.id}
+        className="mc-work-record"
+        data-cy={`work-${context}-record`}
+        data-motion-item={`${context}:${dataset.id}`}
+      >
         <div className="mc-work-record-identity">
           <button
             type="button"
@@ -58,12 +98,17 @@ export default function WorkHome(props: Props) {
             <strong>{dataset.name}</strong>
           </button>
           <div className="mc-work-byline">
-            {dataset.scope === 'team' ? <span>团队 · {dataset.teamName || dataset.teamId}</span> : <SourceLabel access={dataset.access} />}
+            {dataset.scope === 'team' ? (
+              <span>团队 · {dataset.teamName || dataset.teamId}</span>
+            ) : (
+              <SourceLabel access={dataset.access} />
+            )}
             <span>{dataset.ownerUsername || '未提供'}</span>
           </div>
           {openedAt && (
             <time className="mc-work-opened" dateTime={openedAt}>
-              {demoActivity ? '示例记录 · ' : ''}{openedDate.format(new Date(openedAt))}
+              {demoActivity ? '示例记录 · ' : ''}
+              {openedDate.format(new Date(openedAt))}
             </time>
           )}
         </div>
@@ -126,7 +171,11 @@ export default function WorkHome(props: Props) {
           </select>
         </div>
         {selected ? (
-          <article className="mc-work-continue-target" data-cy="work-continue-target">
+          <article
+            className="mc-work-continue-target"
+            data-cy="work-continue-target"
+            aria-labelledby="work-continue-title"
+          >
             <div>
               <button
                 type="button"
@@ -134,10 +183,14 @@ export default function WorkHome(props: Props) {
                 data-cy="work-continue-detail"
                 onClick={(event) => props.onSelect(selected.id, event.currentTarget)}
               >
-                <strong>{selected.name}</strong>
+                <strong id="work-continue-title">{selected.name}</strong>
               </button>
               <div className="mc-work-byline">
-                {selected.scope === 'team' ? <span>团队 · {selected.teamName || selected.teamId}</span> : <SourceLabel access={selected.access} />}
+                {selected.scope === 'team' ? (
+                  <span>团队 · {selected.teamName || selected.teamId}</span>
+                ) : (
+                  <SourceLabel access={selected.access} />
+                )}
                 <span>{selected.ownerUsername || '未提供'}</span>
                 <span>{selected.instanceCount.toLocaleString()} 实例</span>
               </div>
@@ -151,7 +204,9 @@ export default function WorkHome(props: Props) {
                 <ArrowUpRight size={16} />
               </Button>
             </div>
-            <div className="mc-work-coverage">{renderCoverage?.(selected)}</div>
+            <div className="mc-work-coverage" aria-label={`${selected.name} 的 CT 帧覆盖率`}>
+              {renderCoverage?.(selected)}
+            </div>
           </article>
         ) : (
           <div className="mc-work-empty">
@@ -165,55 +220,84 @@ export default function WorkHome(props: Props) {
         )}
       </>
     ),
-    favorites: demoActivity || props.activity?.favorites.status === 'ready' ? (
-      favorites.length ? (
-        <div>{favorites.map((dataset) => record(dataset, 'favorite'))}</div>
+    favorites:
+      demoActivity || props.activity?.favorites.status === 'ready' ? (
+        favorites.length ? (
+          <MotionRegion revision={JSON.stringify(favorites.map((dataset) => dataset.id))}>
+            {favorites.map((dataset) => record(dataset, 'favorite'))}
+          </MotionRegion>
+        ) : (
+          <div className="mc-work-empty">
+            <p>{demoActivity ? '还没有收藏的示例资料。' : '还没有收藏的数据集。'}</p>
+            <Button variant="ghost" onClick={props.onLibrary}>
+              去资料库收藏
+              <Star size={15} />
+            </Button>
+          </div>
+        )
       ) : (
-        <div className="mc-work-empty">
-          <p>{demoActivity ? '还没有收藏的示例资料。' : '还没有收藏的数据集。'}</p>
+        <div className="mc-work-unavailable">
+          <Star size={18} />
+          <div>
+            <strong>
+              {props.activity?.favorites.status === 'loading'
+                ? '正在读取收藏…'
+                : '收藏暂时无法读取'}
+            </strong>
+            <p>{props.activity?.favorites.error}</p>
+            <Button variant="ghost" onClick={props.activity?.refresh}>
+              重新读取
+            </Button>
+          </div>
+        </div>
+      ),
+    recent:
+      demoActivity || props.activity?.recent.status === 'ready' ? (
+        recent.length ? (
+          <MotionRegion revision={JSON.stringify(recent.map((item) => item.dataset.id))}>
+            {recent.map((item) => record(item.dataset, 'recent', item.openedAt))}
+          </MotionRegion>
+        ) : (
+          <div className="mc-work-empty">
+            <p>{demoActivity ? '示例最近记录已清空。' : '暂无最近打开记录。'}</p>
+            <small>清理记录不删除数据集或收藏。</small>
+          </div>
+        )
+      ) : (
+        <div className="mc-work-unavailable">
+          <Clock3 size={18} />
+          <div>
+            <strong>
+              {props.activity?.recent.status === 'loading'
+                ? '正在读取最近记录…'
+                : '最近记录暂时无法读取'}
+            </strong>
+            <p>{props.activity?.recent.error}</p>
+            <Button variant="ghost" onClick={props.activity?.refresh}>
+              重新读取
+            </Button>
+          </div>
+        </div>
+      ),
+    library: props.collectionCount ? (
+      <div className="mc-work-dataset-preview" data-density="compact">
+        {props.collection}
+        <footer>
+          <span>
+            显示前 {Math.min(6, props.collectionCount)} / {props.collectionCount} 份资料
+          </span>
           <Button variant="ghost" onClick={props.onLibrary}>
-            去资料库收藏
-            <Star size={15} />
+            查看全部
+            <ArrowRight size={15} />
           </Button>
-        </div>
-      )
-    ) : (
-      <div className="mc-work-unavailable">
-        <Star size={18} />
-        <div>
-          <strong>{props.activity?.favorites.status === 'loading' ? '正在读取收藏…' : '收藏暂时无法读取'}</strong>
-          <p>{props.activity?.favorites.error}</p>
-          <Button variant="ghost" onClick={props.activity?.refresh}>重新读取</Button>
-        </div>
+        </footer>
       </div>
-    ),
-    recent: demoActivity || props.activity?.recent.status === 'ready' ? (
-      recent.length ? (
-        <div>{recent.map((item) => record(item.dataset, 'recent', item.openedAt))}</div>
-      ) : (
-        <div className="mc-work-empty">
-          <p>{demoActivity ? '示例最近记录已清空。' : '暂无最近打开记录。'}</p>
-          <small>清理记录不删除数据集或收藏。</small>
-        </div>
-      )
     ) : (
-      <div className="mc-work-unavailable">
-        <Clock3 size={18} />
-        <div>
-          <strong>{props.activity?.recent.status === 'loading' ? '正在读取最近记录…' : '最近记录暂时无法读取'}</strong>
-          <p>{props.activity?.recent.error}</p>
-          <Button variant="ghost" onClick={props.activity?.refresh}>重新读取</Button>
-        </div>
-      </div>
-    ),
-    library: (
-      <div className="mc-work-library-entry">
-        <p>
-          <strong>{datasets.length}</strong> 份个人范围资料<span>含我创建的、共享与公共示例</span>
-        </p>
-        <Button variant="outline" className="mc-library-secondary" onClick={props.onLibrary}>
-          完整资料库
-          <ArrowRight size={16} />
+      <div className="mc-work-empty">
+        <p>当前范围还没有数据集。</p>
+        <Button variant="ghost" onClick={props.onLibrary}>
+          前往完整资料库
+          <ArrowRight size={15} />
         </Button>
       </div>
     ),
@@ -285,44 +369,86 @@ export default function WorkHome(props: Props) {
           <small>完整资料库仍可从顶部进入，首页设置可恢复内容。</small>
         </div>
       )}
-      {props.activity?.error && <p role="alert">{props.activity.error} <Button variant="ghost" onClick={props.activity.refresh}>重新读取</Button></p>}
-      <div className="mc-work-modules">
+      {props.activity?.error && (
+        <p role="alert">
+          {props.activity.error}{' '}
+          <Button variant="ghost" onClick={props.activity.refresh}>
+            重新读取
+          </Button>
+        </p>
+      )}
+      <div className="mc-work-modules" ref={sections}>
         {visible.map((module) => (
           <section
             key={module}
-            className={`mc-work-module is-${module}`}
+            className={`mc-work-module is-${module} ${
+              !demoActivity &&
+              ((module === 'favorites' && props.activity?.favorites.status !== 'ready') ||
+                (module === 'recent' && props.activity?.recent.status !== 'ready'))
+                ? 'is-unavailable'
+                : ''
+            }`}
             data-cy={`work-module-${module}`}
+            aria-label={HOME_MODULE_LABELS[module]}
+            data-motion-item={`module:${module}`}
           >
             <header>
-              <h2>{HOME_MODULE_LABELS[module]}</h2>
-              {module === 'favorites' && (demoActivity || props.activity?.favorites.status === 'ready') && <span>{props.activity?.favorites.total ?? favorites.length} 份</span>}
-              {module === 'recent' && (demoActivity || props.activity?.recent.status === 'ready') && (
-                <div>
-                  <span>{props.activity?.recent.total ?? recent.length} 份</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="清空最近记录"
-                    aria-label="清空最近记录"
-                    disabled={!recent.length || props.activity?.busy}
-                    onClick={() => props.onRemoveRecent()}
-                    dataCY="work-clear-recent"
-                  >
-                    <Trash2 size={15} />
-                  </Button>
-                </div>
+              <h2>
+                {(() => {
+                  const Icon = moduleIcons[module];
+                  return <Icon size={17} aria-hidden="true" />;
+                })()}
+                {module === 'library' ? '数据集' : HOME_MODULE_LABELS[module]}
+              </h2>
+              {module === 'library' && (
+                <Button variant="ghost" onClick={props.onLibrary}>
+                  完整资料库
+                  <ArrowRight size={15} />
+                </Button>
               )}
+              {module === 'favorites' &&
+                (demoActivity || props.activity?.favorites.status === 'ready') && (
+                  <span>{props.activity?.favorites.total ?? favorites.length} 份</span>
+                )}
+              {module === 'recent' &&
+                (demoActivity || props.activity?.recent.status === 'ready') && (
+                  <div>
+                    <span>{props.activity?.recent.total ?? recent.length} 份</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="清空最近记录"
+                      aria-label="清空最近记录"
+                      disabled={!recent.length || props.activity?.busy}
+                      onClick={() => props.onRemoveRecent()}
+                      dataCY="work-clear-recent"
+                    >
+                      <Trash2 size={15} />
+                    </Button>
+                  </div>
+                )}
               {module === 'teams' && !demoActivity && props.teamState === 'ready' && (
                 <span>{props.teams.length} 个</span>
               )}
             </header>
             {modules[module]}
-            {props.activity && (module === 'favorites' || module === 'recent') && (() => {
-              const kind = module === 'favorites' ? 'favorite' : 'recent';
-              const list = kind === 'favorite' ? props.activity.favorites : props.activity.recent;
-              return list.status === 'ready' && list.items.length < list.total ?
-                <Button variant="ghost" disabled={props.activity.busy} onClick={() => { void props.activity?.loadMore(kind); }}>加载更多</Button> : null;
-            })()}
+            {props.activity &&
+              (module === 'favorites' || module === 'recent') &&
+              (() => {
+                const kind = module === 'favorites' ? 'favorite' : 'recent';
+                const list = kind === 'favorite' ? props.activity.favorites : props.activity.recent;
+                return list.status === 'ready' && list.items.length < list.total ? (
+                  <Button
+                    variant="ghost"
+                    disabled={props.activity.busy}
+                    onClick={() => {
+                      void props.activity?.loadMore(kind);
+                    }}
+                  >
+                    加载更多
+                  </Button>
+                ) : null;
+              })()}
           </section>
         ))}
       </div>

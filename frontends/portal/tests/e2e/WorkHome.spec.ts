@@ -291,9 +291,9 @@ test('home settings reorder/hide modules, persist enums only, and leave original
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('work-home-settings')).toBeFocused();
   await expect(page.locator('.mc-work-module > header h2')).toHaveText([
+    '数据集',
     '我的收藏',
     '继续工作',
-    '资料库入口',
     '我的团队',
   ]);
   await page.reload();
@@ -345,6 +345,7 @@ for (const width of [1440, 390]) {
     await page.getByTestId('work-clear-recent').click();
     await expect(page.getByTestId('work-recent-record')).toHaveCount(0);
     await page
+      .getByTestId('work-module-favorites')
       .getByRole('button', { name: '取消收藏 腹部 CT · 多器官标注集', exact: true })
       .click();
     await expect(page.getByTestId('work-favorite-record')).toHaveCount(2);
@@ -551,6 +552,9 @@ for (const width of [1440, 768, 390]) {
           element.scrollHeight > element.clientHeight + 1
       );
     expect(clipped).toBe(false);
+    const readsBeforeDetail = calls.filter(
+      (call) => call.path === '/api/datasets/work-b/annotation-stats'
+    ).length;
     await longName.click();
     const detail = page.getByTestId('home-detail');
     await expect(detail.locator('.mc-coverage--detail')).toContainText('60 / 300 帧');
@@ -561,7 +565,7 @@ for (const width of [1440, 768, 390]) {
     await expect(longName).toBeFocused();
     expect(
       calls.filter((call) => call.path === '/api/datasets/work-b/annotation-stats')
-    ).toHaveLength(1);
+    ).toHaveLength(readsBeforeDetail);
     expect(calls.some((call) => /labelmap|\/file$/.test(call.path))).toBe(false);
   });
 }

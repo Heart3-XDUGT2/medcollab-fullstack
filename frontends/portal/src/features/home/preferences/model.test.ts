@@ -156,6 +156,20 @@ describe('strict, content-free display schema', () => {
   });
 });
 describe('account key derivation', () => {
+  test('new work-home default leads with datasets while saved module ordering is unchanged', () => {
+    expect(DEFAULT_HOME_PREFERENCES.home.order[0]).toBe('library');
+    const previous = {
+      ...DEFAULT_HOME_PREFERENCES,
+      home: {
+        defaultEntry: 'work',
+        order: ['continue', 'favorites', 'recent', 'library', 'teams'],
+        hidden: ['library'],
+      },
+    };
+    const decoded = decodePreferences(JSON.stringify({ version: 1, preferences: previous }));
+    expect(decoded.recovered).toBe(false);
+    expect(decoded.preferences.home).toEqual(previous.home);
+  });
   test('SHA-256 separates issuers/subjects and ambiguous concatenations without storing them', async () => {
     const identities = [
       { issuer: 'https://identity.example/realm-a', subject: 'account-A' },

@@ -21,7 +21,7 @@ export type HomeComposition = Readonly<{
 }>;
 export const DEFAULT_HOME_COMPOSITION: HomeComposition = Object.freeze({
   defaultEntry: 'work',
-  order: HOME_MODULES,
+  order: Object.freeze(['library', 'continue', 'favorites', 'recent', 'teams'] as const),
   hidden: Object.freeze([]),
 });
 export type HomePreferences = Readonly<{
