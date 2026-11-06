@@ -239,7 +239,7 @@ export default function SharePanel({
       setNotice(
         mode === 'demo'
           ? '仅更新了本机示例的共享名单，未保存到云端。'
-          : '已确认共享，不可撤销，正在更新名单。'
+          : '转发已确认。对方独立拥有副本，双方后续编辑各自独立；已有副本不会被覆盖。'
       );
       await loadMembers();
     } catch (failure) {
@@ -286,7 +286,7 @@ export default function SharePanel({
       <p className="mc-library-share-dataset">{dataset.name}</p>
       <p className="mc-library-share-warning">
         <Icons.Info aria-hidden="true" />
-        <span>共享成员可编辑影像，并能继续共享。确认共享后不可撤销，请核对账号。</span>
+        <span>共享相当于转发：对方独立拥有当时的影像和标注，可编辑、删除或继续转发。双方后续编辑各自独立，你删除自己的数据不影响对方，转发后不能撤回。已有同一转发链副本时不会覆盖其修改；对方删除后可再次接收。</span>
       </p>
       {(!active || blocked) && mode === 'real' && (
         <div className="mc-library-share-paused" role="status">
@@ -335,12 +335,12 @@ export default function SharePanel({
       </form>
       {results && (
         <div className="mc-library-share-results" aria-label="账号搜索结果">
-          {results.filter((user) => !members.some((member) => member.subject === user.subject))
+          {results.filter((user) => user.subject !== boundIdentity.current?.subject)
             .length === 0 ? (
-            <p>{results.length ? '匹配账号已在共享名单中。' : '没有找到匹配账号。'}</p>
+            <p>{results.length ? '不能向自己转发。' : '没有找到匹配账号。'}</p>
           ) : (
             results
-              .filter((user) => !members.some((member) => member.subject === user.subject))
+              .filter((user) => user.subject !== boundIdentity.current?.subject)
               .map((user) => {
                 return (
                   <button
@@ -365,13 +365,13 @@ export default function SharePanel({
       <div className="mc-library-share-confirm">
         {selected && (
           <p>
-            将向 <strong>{selected.username}</strong> 开放上述权限。
+            将向 <strong>{selected.username}</strong> 转发独立副本。
           </p>
         )}
         <Button
           className="mc-library-primary"
           disabled={
-            !selected || !canWrite || members.some((member) => member.subject === selected.subject)
+            !selected || !canWrite
           }
           onClick={() => selected && changeShare(selected)}
           dataCY="home-share-add"
@@ -381,7 +381,7 @@ export default function SharePanel({
         </Button>
       </div>
       <div className="mc-library-share-members-heading">
-        <h3>共享成员{loaded ? ` (${members.length})` : ''}</h3>
+        <h3>已转发的账号{loaded ? ` (${members.length})` : ''}</h3>
         <Button
           variant="ghost"
           size="icon"
@@ -409,7 +409,7 @@ export default function SharePanel({
                   {user.username}
                   {user.subject === boundIdentity.current?.subject ? '（当前账号）' : ''}
                 </span>
-                <span>已共享，不可撤销</span>
+                <span>已转发；此记录不代表对方仍持有副本</span>
               </li>
             ))}
           </ul>

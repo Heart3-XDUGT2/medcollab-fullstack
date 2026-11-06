@@ -110,8 +110,8 @@ describe('account sharing panel', () => {
     await search();
     expect(api.addShare).not.toHaveBeenCalled();
     await click('home-user-result');
-    expect(container.textContent).toContain('可编辑影像');
-    expect(container.textContent).toContain('确认共享后不可撤销');
+    expect(container.textContent).toContain('对方独立拥有');
+    expect(container.textContent).toContain('转发后不能撤回');
     expect(api.addShare).not.toHaveBeenCalled();
     await click('home-share-add');
     expect(api.addShare).toHaveBeenCalledWith(
@@ -207,7 +207,7 @@ describe('account sharing panel', () => {
     await render();
     expect(control('home-share-remove')).toBeNull();
     expect(control('home-share-remove-confirm')).toBeNull();
-    expect(container.textContent).toContain('已共享，不可撤销');
+    expect(container.textContent).toContain('已转发；此记录不代表对方仍持有副本');
     expect(api.removeShare).not.toHaveBeenCalled();
     expect(props.onResourceLost).not.toHaveBeenCalled();
   });

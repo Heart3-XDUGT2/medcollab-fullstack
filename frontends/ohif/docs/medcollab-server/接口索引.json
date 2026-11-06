@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-02",
+  "version": "2026-11-04",
   "description": "从当前 Java 映射声明核对的路由索引；字段、返回类型及使用限制见开发维护指南；不是 Swagger 服务。",
   "routes": [
     {
@@ -478,6 +478,142 @@
       "loginRequired": true,
       "csrfRequired": true,
       "note": "当前成员删除自己上传的数据集（软删除）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/annotation-stats",
+      "source": "AnnotationStatisticsController.java",
+      "group": "标注统计",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "字段与口径见标注统计接口.md；按当前会话与影像集权限读取，no-store"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/annotation-stats",
+      "source": "AnnotationStatisticsController.java",
+      "group": "标注统计",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "字段与口径见标注统计接口.md；按当前会话与影像集权限读取，no-store"
+    },
+    {
+      "method": "GET",
+      "path": "/api/datasets/{datasetId}/segmentations/{seriesId}/stats",
+      "source": "AnnotationStatisticsController.java",
+      "group": "标注统计",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "字段与口径见标注统计接口.md；按当前会话与影像集权限读取，no-store"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/favorite-datasets",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "分页列表；权限过滤后计数"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/favorite-datasets/state",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "1–200 个 datasetId 的批量状态"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/me/favorite-datasets/{datasetId}",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "幂等收藏"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/favorite-datasets/{datasetId}",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "幂等取消收藏"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/recent-datasets",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "分页历史；90 天、最多 100 个数据集"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/recent-datasets/context",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": false,
+      "note": "成功打开上报的轻量上下文"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/recent-datasets/{datasetId}",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "eventId + generation，成功打开上报"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/recent-datasets/{datasetId}",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "移除历史并更新 generation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/me/recent-datasets",
+      "source": "HomeActivityController.java",
+      "group": "收藏与最近打开",
+      "loginRequired": true,
+      "csrfRequired": true,
+      "note": "清空历史并更新 generation"
     }
-  ]
+  ],
+  "personalForwardingDeletion20261106": {
+    "document": "个人删除与转发副本接口.md",
+    "health": {
+      "sharingPolicy": "personal-forward-copy-v1",
+      "datasetDeletionApi": "unreferenced-reclaim-v1",
+      "niftiImport": "unsupported"
+    },
+    "endpoints": [
+      {
+        "method": "DELETE",
+        "path": "/api/datasets/{id}",
+        "success": 200,
+        "semantics": "owner personal deletion; durable asynchronous reclamation"
+      },
+      {
+        "method": "GET",
+        "path": "/api/datasets/{id}/deletion-status",
+        "success": 200,
+        "semantics": "deleted personal dataset owner only"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/datasets/{id}/shares",
+        "success": 200,
+        "semantics": "independent recipient-owned snapshot"
+      }
+    ]
+  }
 }

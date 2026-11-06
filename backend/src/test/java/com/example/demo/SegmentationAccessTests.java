@@ -84,7 +84,7 @@ class SegmentationAccessTests {
 
     @Test
     void publicationNeedsNoServerDraftAndReadersGetActualOrthancPixels() {
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         var published = segmentations.publish(dataset,SERIES,request(0,MASKS),ALICE);
         assertThat(published.publishedVersion()).isEqualTo(1);
         assertThat(published.orthancId()).isEqualTo(SEG);
@@ -115,7 +115,7 @@ class SegmentationAccessTests {
 
     @Test
     void uploadRetriesAreIdempotentButCannotReuseAnIdForDifferentPixelsOrAccount() {
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         var request = request(0,MASKS);
         segmentations.publish(dataset,SERIES,request,ALICE);
         clearInvocations(orthanc);
@@ -129,7 +129,7 @@ class SegmentationAccessTests {
 
     @Test
     void sharedAndPublicUsersCanPublishButStaleBaseCannotOverwriteAnotherVersion() {
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         segmentations.publish(dataset,SERIES,request(0,MASKS),ALICE);
         clearInvocations(orthanc);
         assertConflict(() -> segmentations.publish(dataset,SERIES,request(0,MASKS),BOB));
@@ -142,7 +142,7 @@ class SegmentationAccessTests {
 
     @Test
     void legacyDraftsArePrivateReadDeleteOnlyAndNeverMixedIntoPublishedWorkspace() {
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         seedLegacy(BOB,7);
         assertThat(segmentations.legacyDraft(dataset,SERIES,BOB).masks()).isEqualTo(MASKS);
         assertThat(segmentations.legacyDraft(dataset,SERIES,ALICE)).isNull();
@@ -254,7 +254,7 @@ class SegmentationAccessTests {
     @Test void labelmapPublishUsesOrthancAndIsIdempotentAcrossRetries() {
         when(codec.encodeLabelmap(anyList(),anyString(),any())).thenReturn(new byte[]{4,5,6});
         when(codec.decodeLabelmap(any(),anyList())).thenReturn(multi());
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         var request=new SegmentationService.LabelmapRequest(0,"Multi",multi(),java.util.UUID.randomUUID().toString());
         assertThat(segmentations.publishLabelmap(dataset,SERIES,request,ALICE).publishedVersion()).isEqualTo(1);
         clearInvocations(orthanc);
@@ -299,5 +299,12 @@ class SegmentationAccessTests {
     }
     private static void assertConflict(Runnable action) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(ApiException.class,e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
+    }
+    // Coediting now belongs to a team; personal forwards have independent IDs.
+    private void enableTeamCoediting() {
+        if(db.queryForObject("SELECT COUNT(*) FROM dataset_teams WHERE dataset_id=?",Integer.class,dataset)>0) return;
+        var team=teams.create("Coediting fixture",ALICE).team().id();
+        teams.addMember(team,BOB.subject(),ALICE);
+        db.update("INSERT INTO dataset_teams VALUES (?,?)",dataset,team);
     }
 }

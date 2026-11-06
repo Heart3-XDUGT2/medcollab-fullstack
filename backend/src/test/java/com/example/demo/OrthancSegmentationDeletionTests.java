@@ -64,4 +64,28 @@ class OrthancSegmentationDeletionTests {
         try { new OrthancService("http://127.0.0.1:"+server.getAddress().getPort()).deleteSegmentation(ID); }
         finally { server.stop(0); }
     }
+
+    @Test void unreferencedInstanceDeletionUsesOnlyItsExactPathAndPropagatesFailure() throws Exception {
+        var requests = new ArrayList<String>();
+        var responses = new java.util.concurrent.ConcurrentLinkedQueue<>(List.of(503,200,404));
+        var present = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/", exchange -> {
+            requests.add(exchange.getRequestMethod()+" "+exchange.getRequestURI().getPath());
+            int code=responses.remove();
+            if(code==200) present.set(false);
+            exchange.sendResponseHeaders(code,-1);exchange.close();
+        });
+        server.start();
+        try {
+            var orthanc=new OrthancService("http://127.0.0.1:"+server.getAddress().getPort());
+            assertThatThrownBy(()->orthanc.deleteUnreferencedInstance(ID)).isInstanceOf(ApiException.class);
+            assertThat(present).isTrue();
+            orthanc.deleteUnreferencedInstance(ID);assertThat(present).isFalse();
+            orthanc.deleteUnreferencedInstance(ID);
+            assertThat(requests).containsExactly("DELETE /instances/"+ID,"DELETE /instances/"+ID,"DELETE /instances/"+ID);
+            assertThatThrownBy(()->orthanc.deleteUnreferencedInstance("../studies")).isInstanceOf(ApiException.class);
+            assertThat(requests).hasSize(3);
+        } finally { server.stop(0); }
+    }
 }

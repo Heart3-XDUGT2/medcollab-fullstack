@@ -35,6 +35,7 @@ function datasetCopy(dataset: Dataset): Dataset {
     ownerUsername: dataset.ownerUsername,
     instanceCount: dataset.instanceCount,
     createdAt: dataset.createdAt,
+    canDelete: dataset.canDelete,
   };
 }
 
@@ -116,6 +117,9 @@ function validate(name: string, files: File[]) {
     throw new Error('请选择至少一个 DICOM 文件');
   }
   for (const file of files) {
+    if (/\.nii(?:\.gz)?$/i.test(file.name)) {
+      throw new Error(`文件“${file.name}”：暂不支持 NIfTI（.nii/.nii.gz）导入，当前仅支持 DICOM 文件或文件夹。`);
+    }
     if (!Number.isFinite(file.size) || file.size <= 0) {
       throw new Error(`文件“${file.name}”为空或大小无效`);
     }

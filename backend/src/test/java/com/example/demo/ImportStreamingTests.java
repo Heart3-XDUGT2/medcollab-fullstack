@@ -84,7 +84,7 @@ class ImportStreamingTests {
         signedIn();
         OrthancService orthanc = mock(OrthancService.class);
         DatasetService datasets = mock(DatasetService.class);
-        var controller = new ImagingController(orthanc, datasets, new ImportLimits(ImportLimits.DEFAULT_MAX_FILE_BYTES));
+        var controller = new ImagingController(orthanc, datasets, new ImportLimits(ImportLimits.DEFAULT_MAX_FILE_BYTES), mock(DatasetReclamationService.class));
         MultipartFile accepted = file(new byte[]{1}, ImportLimits.DEFAULT_MAX_FILE_BYTES);
         var result = new OrthancService.ImportResult("Success", "fixture-id");
         when(datasets.importDicomFile(eq("target"), same(accepted), any())).thenReturn(result);
@@ -100,7 +100,7 @@ class ImportStreamingTests {
 
     @Test void missingIdentityCannotReadOrForwardMultipartData() throws Exception {
         DatasetService datasets = mock(DatasetService.class);
-        var controller = new ImagingController(mock(OrthancService.class), datasets, new ImportLimits(8));
+        var controller = new ImagingController(mock(OrthancService.class), datasets, new ImportLimits(8), mock(DatasetReclamationService.class));
         MultipartFile file = file(new byte[]{1}, 1);
         assertThatThrownBy(() -> controller.importDicom(file, "target", new MockHttpServletRequest()))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.status()).isEqualTo(HttpStatus.UNAUTHORIZED));

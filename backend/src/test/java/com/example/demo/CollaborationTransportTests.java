@@ -40,6 +40,7 @@ class CollaborationTransportTests {
     static final JsonMapper JSON=JsonMapper.builder().build();
     @LocalServerPort int port;
     @Autowired DatasetService datasets;
+    @Autowired TeamService teams;
     @Autowired JdbcTemplate db;
     @Autowired CollaborationService collaboration;
     @MockitoBean DicomSegCodec codec;
@@ -100,7 +101,7 @@ class CollaborationTransportTests {
         assertThat(inbox.next("room-state").path("protocolVersion").asInt()).isEqualTo(2);return peer;
     }
     @Test void sessionAuthenticatedClientsReceiveOnlyTheirRoomsCommittedPixels() throws Exception {
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         String aliceCookie=cookie("alice"),bobCookie=cookie("bob");
         var alice=join(aliceCookie,dataset,"client-alice-001");var bob=join(bobCookie,dataset,"client-bob-001");
         String otherDataset=datasets.create("Separate dataset",ALICE).id();db.update("INSERT INTO dataset_instances VALUES (?,?,?)",otherDataset,INSTANCE,"1");
@@ -129,5 +130,12 @@ class CollaborationTransportTests {
         var crossOrigin=http.newWebSocketBuilder().header("Cookie",cookie("alice")).header("Origin","https://untrusted.example")
                 .buildAsync(URI.create("ws://127.0.0.1:"+port+"/ws/medcollab?datasetId="+dataset+"&seriesId="+SERIES),new Inbox());
         assertThatThrownBy(()->crossOrigin.get(5,TimeUnit.SECONDS)).isInstanceOf(ExecutionException.class);
+    }
+    // Coediting now belongs to a team; personal forwards have independent IDs.
+    private void enableTeamCoediting() {
+        if(db.queryForObject("SELECT COUNT(*) FROM dataset_teams WHERE dataset_id=?",Integer.class,dataset)>0) return;
+        var team=teams.create("Coediting fixture",ALICE).team().id();
+        teams.addMember(team,BOB.subject(),ALICE);
+        db.update("INSERT INTO dataset_teams VALUES (?,?)",dataset,team);
     }
 }

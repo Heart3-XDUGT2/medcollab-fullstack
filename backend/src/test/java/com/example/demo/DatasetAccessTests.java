@@ -134,24 +134,26 @@ class DatasetAccessTests {
     @Test
     void sharedUserCanUploadRenameReshareButCannotRevoke() throws Exception {
         var mine = datasets.create("Private", ALICE);
-        datasets.share(mine.id(), BOB.subject(), ALICE);
-        assertThat(datasets.list(BOB).items().getFirst().access()).isEqualTo("shared");
+        String copy=datasets.share(mine.id(), BOB.subject(), ALICE).recipientDatasetId();
+        assertThat(datasets.list(BOB).items().getFirst().access()).isEqualTo("owner");
         when(orthanc.importDicom(any())).thenReturn(new OrthancService.ImportResult("AlreadyStored", ONE));
         when(orthanc.file(ONE)).thenReturn(new byte[]{1,2,3});
         when(orthanc.importDicomFile(any())).thenReturn(new OrthancService.ImportResult("AlreadyStored", ONE));
         when(orthanc.matchesDicomFile(org.mockito.ArgumentMatchers.eq(ONE), any())).thenReturn(true);
-        mvc.perform(patch("/api/datasets/"+mine.id()).with(login(BOB)).with(csrf())
+        mvc.perform(patch("/api/datasets/"+copy).with(login(BOB)).with(csrf())
                         .contentType("application/json").content("{\"name\":\"Shared edit\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Shared edit"));
-        mvc.perform(multipart("/api/import").file(file()).param("datasetId",mine.id()).with(login(BOB)).with(csrf()))
+        mvc.perform(multipart("/api/import").file(file()).param("datasetId",copy).with(login(BOB)).with(csrf()))
                 .andExpect(status().isOk());
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/preview").with(login(BOB))).andExpect(status().isOk());
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/file").with(login(BOB))).andExpect(status().isOk());
-        mvc.perform(put("/api/datasets/"+mine.id()+"/shares").with(login(BOB)).with(csrf())
+        mvc.perform(get("/api/datasets/"+copy+"/instances/"+ONE+"/preview").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(get("/api/datasets/"+copy+"/instances/"+ONE+"/file").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(put("/api/datasets/"+copy+"/shares").with(login(BOB)).with(csrf())
                         .contentType("application/json").content("{\"subject\":\"carol-sub\"}"))
                 .andExpect(status().isOk());
-        assertThat(datasets.instances(mine.id(),CAROL).total()).isEqualTo(1);
-        mvc.perform(delete("/api/datasets/"+mine.id()+"/shares/carol-sub").with(login(BOB)).with(csrf())).andExpect(status().isConflict());
+        String carolCopy=datasets.list(CAROL).items().getFirst().id();
+        assertThat(datasets.instances(carolCopy,CAROL).total()).isEqualTo(1);
+        assertThat(datasets.instances(mine.id(),ALICE).total()).isZero();
+        mvc.perform(delete("/api/datasets/"+copy+"/shares/carol-sub").with(login(BOB)).with(csrf())).andExpect(status().isConflict());
         assertThat(datasets.list(CAROL).items()).hasSize(1);
         assertThatThrownBy(() -> datasets.revoke(mine.id(), ALICE.subject(), BOB)).isInstanceOf(ApiException.class);
     }
@@ -224,19 +226,20 @@ class DatasetAccessTests {
     void ownerCannotRevokeConfirmedSharingAndRecipientRetainsAccess() throws Exception {
         var mine = datasets.create("Private", ALICE);
         db.update("INSERT INTO dataset_instances VALUES (?,?,?)", mine.id(), ONE, "1");
-        datasets.share(mine.id(),BOB.subject(),ALICE);
+        String copy=datasets.share(mine.id(),BOB.subject(),ALICE).recipientDatasetId();
         assertThatThrownBy(() -> datasets.revoke(mine.id(),BOB.subject(),ALICE)).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT));
         clearInvocations(orthanc,directory);
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances").with(login(BOB))).andExpect(status().isOk());
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/preview").with(login(BOB))).andExpect(status().isOk());
-        mvc.perform(get("/api/datasets/"+mine.id()+"/instances/"+ONE+"/file").with(login(BOB))).andExpect(status().isOk());
-        mvc.perform(patch("/api/datasets/"+mine.id()).with(login(BOB)).with(csrf()).contentType("application/json")
+        mvc.perform(get("/api/datasets/"+copy+"/instances").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(get("/api/datasets/"+copy+"/instances/"+ONE+"/preview").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(get("/api/datasets/"+copy+"/instances/"+ONE+"/file").with(login(BOB))).andExpect(status().isOk());
+        mvc.perform(patch("/api/datasets/"+copy).with(login(BOB)).with(csrf()).contentType("application/json")
                 .content("{\"name\":\"still editable\"}")).andExpect(status().isOk());
-        mvc.perform(put("/api/datasets/"+mine.id()+"/shares").with(login(BOB)).with(csrf()).contentType("application/json")
+        mvc.perform(put("/api/datasets/"+copy+"/shares").with(login(BOB)).with(csrf()).contentType("application/json")
                 .content("{\"subject\":\"carol-sub\"}")).andExpect(status().isOk());
         verify(orthanc, never()).importDicom(any());
-        assertThat(datasets.shares(mine.id(),ALICE).items()).hasSize(2);
+        assertThat(datasets.shares(mine.id(),ALICE).items()).hasSize(1);
+        assertThat(datasets.shares(copy,BOB).items()).hasSize(1);
     }
 
     @Test
@@ -270,10 +273,10 @@ class DatasetAccessTests {
         datasets.seedPublicDatasets();
         var mine = datasets.create("Persist me",ALICE);
         db.update("INSERT INTO dataset_instances VALUES (?,?,?)",mine.id(),ONE,"1");
-        datasets.share(mine.id(),BOB.subject(),ALICE);
+        String copy=datasets.share(mine.id(),BOB.subject(),ALICE).recipientDatasetId();
         datasets.initialize();
         assertThat(datasets.list(BOB).items()).hasSize(3);
-        assertThat(datasets.instances(mine.id(),BOB).items()).extracting(OrthancService.InstanceItem::id).containsExactly(ONE);
+        assertThat(datasets.instances(copy,BOB).items()).extracting(OrthancService.InstanceItem::id).containsExactly(ONE);
         assertThat(datasets.shares(mine.id(),ALICE).items()).extracting(DatasetService.ShareItem::subject).containsExactly("bob-sub");
     }
 

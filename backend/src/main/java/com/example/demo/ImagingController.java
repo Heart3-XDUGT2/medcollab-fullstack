@@ -27,13 +27,15 @@ public class ImagingController {
     private final OrthancService orthanc;
     private final DatasetService datasets;
     private final ImportLimits importLimits;
+    private final DatasetReclamationService reclamation;
     record NameRequest(String name) { }
     record ShareRequest(String subject) { }
 
-    public ImagingController(OrthancService orthanc, DatasetService datasets, ImportLimits importLimits) {
+    public ImagingController(OrthancService orthanc, DatasetService datasets, ImportLimits importLimits, DatasetReclamationService reclamation) {
         this.orthanc = orthanc;
         this.datasets = datasets;
         this.importLimits = importLimits;
+        this.reclamation = reclamation;
     }
 
     @GetMapping("/api/orthanc/status")
@@ -64,6 +66,20 @@ public class ImagingController {
         var changed = datasets.rename(id, body.name(), user);
         log.info("重命名影像集：用户={}，影像集={}", user.username(), id);
         return uncached(changed);
+    }
+
+    @DeleteMapping("/api/datasets/{id}")
+    public ResponseEntity<DatasetReclamationService.DeletionResult> deletePersonal(@PathVariable String id,HttpServletRequest request) {
+        var user=DemoSession.requireIdentity(request);
+        datasets.deletePersonal(id,user);
+        log.info("删除个人影像集：用户={}，影像集={}",user.username(),id);
+        return uncached(reclamation.result(id));
+    }
+
+    @GetMapping("/api/datasets/{id}/deletion-status")
+    public ResponseEntity<DatasetReclamationService.DeletionResult> deletionStatus(@PathVariable String id,HttpServletRequest request) {
+        datasets.requireDeletionOwner(id,DemoSession.requireIdentity(request));
+        return uncached(reclamation.result(id));
     }
 
     @GetMapping("/api/datasets/{id}/instances")
@@ -107,11 +123,11 @@ public class ImagingController {
     }
 
     @PutMapping("/api/datasets/{id}/shares")
-    public ResponseEntity<Map<String,Boolean>> share(@PathVariable String id, @RequestBody ShareRequest body, HttpServletRequest request) {
+    public ResponseEntity<DatasetService.ForwardResult> share(@PathVariable String id, @RequestBody ShareRequest body, HttpServletRequest request) {
         var user = DemoSession.requireIdentity(request);
-        datasets.share(id, body.subject(), user);
+        var result=datasets.share(id, body.subject(), user);
         log.info("共享影像集：用户={}，影像集={}，接收账户={}", user.username(), id, body.subject());
-        return uncached(Map.of("success", true));
+        return uncached(result);
     }
 
     @DeleteMapping("/api/datasets/{id}/shares/{subject}")

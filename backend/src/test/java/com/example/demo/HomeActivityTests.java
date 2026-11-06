@@ -63,20 +63,20 @@ class HomeActivityTests {
     }
 
     @Test void favoritesCoverOwnSharedPublicAndTeamWithCurrentMetadata() {
-        datasets.share(one,B.subject(),A);
-        service.favorite(one,B);
+        String copy=datasets.share(one,B.subject(),A).recipientDatasetId();
+        service.favorite(copy,B);
         String publicId="public-ct";
         db.update("INSERT INTO datasets (id,name,is_public,owner_username,created_at) VALUES (?,?,TRUE,?,?)",publicId,"公共 CT","公共影像",clock.instant().toString());
         service.favorite(publicId,B);
         var team=teams.create("心脏组",A);teams.join(team.team().id(),team.inviteCode(),B);
         var teamData=datasets.createTeamDataset(team.team().id(),"团队 CT",A);
         service.favorite(teamData.id(),B);
-        db.update("INSERT INTO dataset_instances VALUES (?,?,?)",one,"synthetic-instance","1");
-        datasets.rename(one,"更名后的 CT",A);
+        db.update("INSERT INTO dataset_instances VALUES (?,?,?)",copy,"synthetic-instance","1");
+        datasets.rename(copy,"更名后的 CT",B);
         var list=service.favorites(B,0,20);
         assertThat(list.total()).isEqualTo(3);
-        var shared=list.items().stream().filter(i->i.dataset().id().equals(one)).findFirst().orElseThrow().dataset();
-        assertThat(shared.name()).isEqualTo("更名后的 CT");assertThat(shared.instanceCount()).isEqualTo(1);assertThat(shared.access()).isEqualTo("shared");
+        var shared=list.items().stream().filter(i->i.dataset().id().equals(copy)).findFirst().orElseThrow().dataset();
+        assertThat(shared.name()).isEqualTo("更名后的 CT");assertThat(shared.instanceCount()).isEqualTo(1);assertThat(shared.access()).isEqualTo("owner");
         var teamRow=list.items().stream().filter(i->i.dataset().id().equals(teamData.id())).findFirst().orElseThrow().dataset();
         assertThat(teamRow.scope()).isEqualTo("team");assertThat(teamRow.teamId()).isEqualTo(team.team().id());assertThat(teamRow.teamName()).isEqualTo("心脏组");
         assertThat(list.items()).anyMatch(i->i.dataset().access().equals("public"));
@@ -93,9 +93,9 @@ class HomeActivityTests {
     }
 
     @Test void accessLossIsFilteredBeforeCountsPaginationAndBatchState() {
-        datasets.share(one,B.subject(),A);datasets.share(two,B.subject(),A);
+        one=datasets.share(one,B.subject(),A).recipientDatasetId();two=datasets.share(two,B.subject(),A).recipientDatasetId();
         service.favorite(one,B);service.favorite(two,B);open(one,B);open(two,B);
-        db.update("DELETE FROM dataset_grants WHERE dataset_id=?",one);
+        datasets.deletePersonal(one,B);
         var page=service.favorites(B,0,1);
         assertThat(page.total()).isEqualTo(1);assertThat(page.items()).extracting(i->i.dataset().id()).containsExactly(two);
         assertThat(service.favorites(B,1,1).items()).isEmpty();

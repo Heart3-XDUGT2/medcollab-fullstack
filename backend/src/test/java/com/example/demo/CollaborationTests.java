@@ -74,12 +74,12 @@ class CollaborationTests {
         var original=op(0,0,2,1);commit(original);
         var changed=new CollaborationService.Operation(original.clientOpId(),0,SEGMENTS,List.of());
         assertStatus(409,()->commit(changed));
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         assertStatus(409,()->collaboration.commit(dataset,SERIES,new CollaborationService.Batch(CLIENT,lease,List.of(original)),BOB));
         assertThat(collaboration.state(dataset,SERIES,CLIENT,ALICE).seq()).isEqualTo(1);
     }
     @Test void leaseIsPerPageAndExpiredTokenCannotWriteAfterHandoff() {
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         assertStatus(423,()->collaboration.lease(dataset,SERIES,new CollaborationService.LeaseRequest("other-tab-001",null,"acquire"),ALICE));
         db.update("UPDATE mask_rooms SET expires_at=0 WHERE dataset_id=?",dataset);
         var other=collaboration.lease(dataset,SERIES,new CollaborationService.LeaseRequest("other-tab-001",null,"acquire"),BOB);
@@ -162,7 +162,7 @@ class CollaborationTests {
     }
     void useSlices() {
         collaboration.lease(dataset,SERIES,new CollaborationService.LeaseRequest(CLIENT,lease,"release"),ALICE);
-        datasets.share(dataset,BOB.subject(),ALICE);
+        enableTeamCoediting();
         db.update("UPDATE mask_rooms SET data_json=? WHERE dataset_id=?",tools.jackson.databind.json.JsonMapper.builder().build()
                 .writeValueAsString(new DicomSegCodec.Labelmap(SEGMENTS,List.of())),dataset);
     }
@@ -359,5 +359,12 @@ class CollaborationTests {
         clearInvocations(codec,orthanc);
         assertStatus(404,()->statistics.series(dataset,SERIES,BOB));
         verifyNoInteractions(codec,orthanc);
+    }
+    // Coediting now belongs to a team; personal forwards have independent IDs.
+    private void enableTeamCoediting() {
+        if(db.queryForObject("SELECT COUNT(*) FROM dataset_teams WHERE dataset_id=?",Integer.class,dataset)>0) return;
+        var team=teams.create("Coediting fixture",ALICE).team().id();
+        teams.addMember(team,BOB.subject(),ALICE);
+        db.update("INSERT INTO dataset_teams VALUES (?,?)",dataset,team);
     }
 }

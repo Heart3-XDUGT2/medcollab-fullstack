@@ -12,12 +12,15 @@ export type Session = {
   csrfHeaderName: string;
 };
 export type Health = {
+  segmentationStorageGuard?: string; // single-process-rw-v1 after the 2026-11-06 fix
   status: string;
   message: string;
   application: string;
   workspaceApi: string; // current: dicomweb-labelmap-v1
+  datasetDeletionApi?: string; // unreferenced-reclaim-v1
+  niftiImport?: string; // unsupported
   teamApi: string; // team-library-v1
-  sharingPolicy: string; // personal-irrevocable-v1
+  sharingPolicy: string; // personal-forward-copy-v1
   javaVersion: string;
   osName: string;
   osArch: string;
@@ -32,7 +35,8 @@ export type OrthancStatus = {
 export type Dataset = {
   id: string; // Java business ID, not a DICOM UID
   name: string;
-  access: 'owner' | 'shared' | 'public';
+  access: 'owner' | 'shared' | 'public'; // Personal forwarded copies return owner
+  canDelete?: boolean; // missing means unsupported; teams use their separate API
   ownerUsername: string;
   instanceCount: number;
   createdAt: string;
@@ -146,3 +150,58 @@ export interface DatasetWorkspaceUi {
 /** DICOMweb JSON is an array of tag objects, never Items<T>. */
 export type DicomAttribute = { vr: string; Value?: unknown[]; BulkDataURI?: string; InlineBinary?: string };
 export type DicomJson = Record<string, DicomAttribute>;
+
+/** 2026-11-03: lifetime accepted nonempty mask patches, NOT physical mouse gestures. */
+export type PersonalAnnotationStats = {
+  statisticVersion: 1;
+  countingMethod: 'accepted-mask-edit-operation';
+  scope: 'server-accepted-collaboration-history';
+  historyIncluded: boolean;
+  totalStrokes: number;
+  totalAcceptedOperations: number;
+  paintOperations: number;
+  eraseOperations: number;
+  mixedOperations: number;
+  editedSliceCount: number;
+  everPaintedSliceCount: number;
+  editedDatasetCount: number;
+  editedSeriesCount: number;
+  firstEditAt: string | null;
+  lastEditAt: string | null;
+  generatedAt: string;
+};
+export type AnnotationProgress = {
+  totalSlices: number;
+  annotatedSlices: number;
+  unannotatedSlices: number;
+  ratio: number; // [0,1], unrounded
+  percent: number; // [0,100], rounded to two decimal places
+};
+export type SeriesAnnotationStats = {
+  datasetId: string;
+  seriesId: string; // Orthanc ID, NOT SeriesInstanceUID
+  progress: AnnotationProgress;
+  publishedProgress: AnnotationProgress;
+  seq: number;
+  throughSeq: number;
+  publishedVersion: number;
+  pendingArchive: boolean;
+  archiveError: string;
+};
+export type DatasetAnnotationStats = {
+  datasetId: string;
+  completionMethod: 'nonempty-mask-slices/ct-slices';
+  seriesCount: number;
+  progress: AnnotationProgress;
+  publishedProgress: AnnotationProgress;
+  pendingArchive: boolean;
+  series: SeriesAnnotationStats[];
+  generatedAt: string;
+};
+
+// 2026-11-04: account favorites and recent successful opens.
+export type { ActivityDataset, ActivityPage, FavoriteItem, RecentItem, RecentPage, RecentContext, OpenRequest, OpenResult, FavoriteResult, FavoriteState, RecentClearResult, ActivityError } from './home-activity';
+
+/** 2026-11-06: personal sharing is an independent snapshot, not a permission grant. */
+export type ForwardResult = { success: true; recipientDatasetId: string; alreadyOwned: boolean };
+export type DatasetDeletionResult = { success: true; datasetId: string; deletedObjects: number; retainedObjects: number; pendingObjects: number };

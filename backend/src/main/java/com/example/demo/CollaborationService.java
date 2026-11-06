@@ -83,6 +83,9 @@ public class CollaborationService {
                 + "instance_id VARCHAR(100) NOT NULL, holder_issuer VARCHAR(600), holder_subject VARCHAR(200), holder_username VARCHAR(200), "
                 + "client_id VARCHAR(80), lease_id VARCHAR(80), expires_at BIGINT NOT NULL, modified_seq BIGINT NOT NULL, "
                 + "writer_lease VARCHAR(80), PRIMARY KEY(dataset_id,series_id,instance_id))");
+        db.execute("ALTER TABLE mask_rooms ADD COLUMN IF NOT EXISTS baseline_issuer VARCHAR(600)");
+        db.execute("ALTER TABLE mask_rooms ADD COLUMN IF NOT EXISTS baseline_subject VARCHAR(200)");
+        db.execute("ALTER TABLE mask_rooms ADD COLUMN IF NOT EXISTS baseline_username VARCHAR(200)");
     }
 
     void authorize(String datasetId, String seriesId, DemoSession.Identity user) {
@@ -346,6 +349,11 @@ public class CollaborationService {
                 if(room==null||room.seq==room.throughSeq) return null;
                 var authorRows=db.query("SELECT author_issuer,author_subject,author_username FROM mask_ops WHERE dataset_id=? AND series_id=? AND seq=?",
                         (r,n)->new DemoSession.Identity(r.getString(1),r.getString(2),r.getString(3)),datasetId,seriesId,room.seq);
+                if(authorRows.isEmpty() && room.seq==1) {
+                    authorRows=db.query("SELECT baseline_issuer,baseline_subject,baseline_username FROM mask_rooms "
+                            + "WHERE dataset_id=? AND series_id=? AND baseline_issuer IS NOT NULL",
+                            (r,n)->new DemoSession.Identity(r.getString(1),r.getString(2),r.getString(3)),datasetId,seriesId);
+                }
                 if(authorRows.isEmpty()) return null;
                 var author=authorRows.getFirst();
                 datasets.requireDatasetAccess(datasetId,author,true);

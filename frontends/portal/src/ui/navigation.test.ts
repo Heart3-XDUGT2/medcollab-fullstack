@@ -7,7 +7,7 @@ describe('shared personal library navigation', () => {
     expect(personalNavigation.map((item) => item.id)).toEqual(['all', 'owner', 'shared', 'public']);
     expect(personalNavigation.map((item) => item.label)).toEqual([
       '全部数据集',
-      '我创建的',
+      '我拥有的',
       '与我共享',
       '公共示例',
     ]);

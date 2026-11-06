@@ -277,7 +277,7 @@ export default function UploadPanel(props: Props) {
       <p className="mc-upload-note">
         {mode === 'demo'
           ? '本机演示不会读取或上传文件。'
-          : `单个文件不超过 ${UPLOAD_SIZE_LIMIT_LABEL}，文件夹按文件逐个导入。不支持 ZIP。`}
+          : `当前仅支持 DICOM 文件或文件夹，暂不支持 NIfTI（.nii/.nii.gz）及 ZIP。单个文件不超过 ${UPLOAD_SIZE_LIMIT_LABEL}，文件夹按文件逐个导入。`}
       </p>
       {mode === 'real' && !enabled && (
         <p className="mc-upload-access">

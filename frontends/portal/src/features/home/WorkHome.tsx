@@ -209,7 +209,7 @@ export default function WorkHome(props: Props) {
     library: (
       <div className="mc-work-library-entry">
         <p>
-          <strong>{datasets.length}</strong> 份个人范围资料<span>含我创建的、共享与公共示例</span>
+          <strong>{datasets.length}</strong> 份个人范围资料<span>含我拥有的、共享与公共示例</span>
         </p>
         <Button variant="outline" className="mc-library-secondary" onClick={props.onLibrary}>
           完整资料库

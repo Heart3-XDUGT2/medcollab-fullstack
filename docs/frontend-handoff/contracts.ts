@@ -17,8 +17,10 @@ export type Health = {
   message: string;
   application: string;
   workspaceApi: string; // current: dicomweb-labelmap-v1
+  datasetDeletionApi?: string; // unreferenced-reclaim-v1
+  niftiImport?: string; // unsupported
   teamApi: string; // team-library-v1
-  sharingPolicy: string; // personal-irrevocable-v1
+  sharingPolicy: string; // personal-forward-copy-v1
   javaVersion: string;
   osName: string;
   osArch: string;
@@ -33,7 +35,8 @@ export type OrthancStatus = {
 export type Dataset = {
   id: string; // Java business ID, not a DICOM UID
   name: string;
-  access: 'owner' | 'shared' | 'public';
+  access: 'owner' | 'shared' | 'public'; // Personal forwarded copies return owner
+  canDelete?: boolean; // missing means unsupported; teams use their separate API
   ownerUsername: string;
   instanceCount: number;
   createdAt: string;
@@ -198,3 +201,7 @@ export type DatasetAnnotationStats = {
 
 // 2026-11-04: account favorites and recent successful opens.
 export type { ActivityDataset, ActivityPage, FavoriteItem, RecentItem, RecentPage, RecentContext, OpenRequest, OpenResult, FavoriteResult, FavoriteState, RecentClearResult, ActivityError } from './home-activity';
+
+/** 2026-11-06: personal sharing is an independent snapshot, not a permission grant. */
+export type ForwardResult = { success: true; recipientDatasetId: string; alreadyOwned: boolean };
+export type DatasetDeletionResult = { success: true; datasetId: string; deletedObjects: number; retainedObjects: number; pendingObjects: number };

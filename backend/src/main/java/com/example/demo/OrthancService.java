@@ -146,6 +146,14 @@ public class OrthancService {
         exchange("DELETE", "/instances/" + id, null, false);
     }
 
+    /** Internal only: caller must hold the exclusive storage guard and prove zero live references. */
+    void deleteUnreferencedInstance(String instanceId) {
+        try { exchange("DELETE", "/instances/" + checkedId(instanceId), null, false); }
+        catch(ApiException exception) {
+            if(exception.status()!=HttpStatus.NOT_FOUND) throw exception;
+        }
+    }
+
     public Items<SeriesItem> series() {
         JsonNode data = readJson("GET", "/series?expand", null);
         requireArray(data);

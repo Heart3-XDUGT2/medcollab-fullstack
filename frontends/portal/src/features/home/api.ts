@@ -8,6 +8,7 @@ export type Dataset = {
   ownerUsername: string;
   instanceCount: number;
   createdAt: string;
+  canDelete?: boolean;
   scope?: 'personal' | 'team';
   teamId?: string | null;
   teamName?: string | null;
@@ -147,6 +148,7 @@ function isDataset(value: unknown): value is Dataset {
     nonempty(value.name) &&
     ['owner', 'shared', 'public'].includes(value.access as string) &&
     typeof value.ownerUsername === 'string' &&
+    (value.canDelete === undefined || typeof value.canDelete === 'boolean') &&
     Number.isInteger(value.instanceCount) &&
     Number(value.instanceCount) >= 0 &&
     typeof value.createdAt === 'string' &&
@@ -462,6 +464,15 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
     async listInstances(id: string, signal?: AbortSignal): Promise<Instance[]> {
       return items(await request(`${datasetPath(id)}/instances`, { signal }), isInstance);
     },
+    async deleteDataset(id: string, identity: Identity, signal?: AbortSignal): Promise<void> {
+      try {
+        validated(await write(datasetPath(id), 'DELETE', identity, { signal }), success);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409)
+          throw new ApiError('此数据集仍在编辑或等待标注归档，请关闭工作台并等候保存完成后再删除。', 409, 'busy');
+        throw error;
+      }
+    },
     async listUsers(query: string, signal?: AbortSignal): Promise<User[]> {
       const q = query.trim();
       if (q.length < 2 || q.length > 100)
@@ -534,6 +545,8 @@ export function createHomeApi(config: HomeConfig, fetchImpl?: typeof fetch) {
         throw new ApiError('请选择非空 DICOM 文件', 400, 'validation');
       if (file.size > MAX_UPLOAD_BYTES)
         throw new ApiError(`单文件不能超过 ${UPLOAD_SIZE_LIMIT_LABEL}`, 413, 'validation');
+      if (/\.nii(?:\.gz)?$/i.test(file.name))
+        throw new ApiError('暂不支持 NIfTI（.nii/.nii.gz）导入，当前仅支持 DICOM 文件或文件夹。', 415, 'validation');
       const body = new FormData();
       body.append('file', file);
       body.append('datasetId', id);

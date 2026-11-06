@@ -55,7 +55,7 @@ describe('dataset presentation without business-state ownership', () => {
       const values = { ...props(), layout };
       act(() => root.render(<DatasetCollection {...values} />));
       expect(host.querySelectorAll('[data-cy="home-dataset-row"]')).toHaveLength(2);
-      expect(host.textContent).toContain('我创建的');
+      expect(host.textContent).toContain('我拥有的');
       expect(host.textContent).toContain('与我共享');
       expect(host.textContent).toContain('1,248');
       expect(host.textContent).toContain('0');
@@ -108,7 +108,7 @@ describe('dataset presentation without business-state ownership', () => {
     act(() => root.render(<DatasetCollection {...props()} layout="list" grouped />));
     const bodies = [...host.querySelectorAll('tbody')];
     expect(bodies).toHaveLength(2);
-    expect(bodies[0].querySelector('th[scope="rowgroup"]')?.textContent).toContain('我创建的');
+    expect(bodies[0].querySelector('th[scope="rowgroup"]')?.textContent).toContain('我拥有的');
     expect(bodies[1].querySelector('th[scope="rowgroup"]')?.textContent).toContain('与我共享');
     bodies.forEach((body, index) => {
       expect(body.querySelectorAll('[data-cy="home-dataset-row"]')).toHaveLength(1);
