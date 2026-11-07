@@ -42,6 +42,7 @@ describe('real team page context boundaries', () => {
     container = document.createElement('div'); document.body.append(container); root = createRoot(container);
     api = {
       getSession: vi.fn().mockResolvedValue(session),
+      homeActivitySupported: vi.fn().mockResolvedValue(false),
       listTeams: vi.fn().mockResolvedValue([team]),
       getTeam: vi.fn().mockResolvedValue(team),
       listTeamMembers: vi.fn().mockResolvedValue([{ subject: 'me', username: '研究员', role: 'leader', joinedAt: team.createdAt }]),

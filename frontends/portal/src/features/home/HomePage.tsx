@@ -1,7 +1,7 @@
 import { useHomeActivity } from './useHomeActivity';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowDownUp, LayoutGrid, LayoutList, Table2, X } from 'lucide-react';
+import { ArrowDownUp, ChevronDown, LayoutGrid, LayoutList, Table2, UsersRound, X } from 'lucide-react';
 import PortalShell from '../../ui/PortalShell';
 import { personalNavigation } from '../../ui/navigation';
 import {
@@ -35,7 +35,6 @@ import type { HomeEntry } from './preferences/model';
 import WorkHome from './WorkHome';
 import WorkHomeSettings from './WorkHomeSettings';
 import ScopeOverview from './ScopeOverview';
-import { useViewFeedback } from '../../ui/motion';
 import { checkHomeReturnIdentity, clearHomeReturn, rememberHomeReturn, takeHomeReturn } from './home-return';
 import { createDemoActivity, removeDemoRecent, toggleDemoFavorite } from './demo-work';
 import type { DemoActivity } from './demo-work';
@@ -88,6 +87,8 @@ export default function HomePage() {
   const [demoActivity, setDemoActivity] = useState<DemoActivity | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamState, setTeamState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
+  const teamSourceTrigger = useRef<HTMLButtonElement>(null);
   const [teamRead, setTeamRead] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -236,7 +237,7 @@ export default function HomePage() {
       setEntry((current) => current || preferences.home.defaultEntry);
     }
   }, [phase, display.persistence, preferences.home.defaultEntry]);
-  const wantsTeams = activeEntry === 'work' && !preferences.home.hidden.includes('teams');
+  const wantsTeams = teamPickerOpen || (activeEntry === 'work' && !preferences.home.hidden.includes('teams'));
   useEffect(() => {
     if (mode !== 'real' || phase !== 'ready' || !wantsTeams || !identity.current) return;
     const expected = { ...identity.current },
@@ -298,6 +299,7 @@ export default function HomePage() {
     demo.current = null;
     setDemoActivity(null);
     setTeams([]);
+    setTeamPickerOpen(false);
     setDatasets([]);
     setSelectedId(null);
     setDetailOpen(false);
@@ -328,10 +330,13 @@ export default function HomePage() {
       setNotice('登录账号已变化，已清除原账号的资料与待提交操作。请重新读取会话。');
     } else if (status === 401 || status === 403) {
       clearHomeReturn();
+      setTeams([]);
+      setTeamPickerOpen(false);
       generation.current++;
       controller.current?.abort();
       resetScope();
       identity.current = null;
+      setUsername('');
       setDatasets([]);
       setSelectedId(null);
       setDetailOpen(false);
@@ -483,8 +488,6 @@ export default function HomePage() {
     });
     return () => cancelAnimationFrame(frame);
   }, [ready, display.persistence, activeEntry]);
-  const contentSurface = useRef<HTMLDivElement>(null);
-  useViewFeedback(contentSurface, ready ? activeEntry : null);
   const authUrl = getAuthUrl(config, 'login');
   const publicSampleUrl = getPublicSampleUrl(config);
 
@@ -517,7 +520,8 @@ export default function HomePage() {
   function selectDataset(id: string, trigger?: HTMLButtonElement) {
     const dataset = activityDatasets.find((item) => item.id === id);
     if (mode === 'real' && dataset?.scope === 'team' && dataset.teamId) {
-      window.location.assign('/teams?team=' + encodeURIComponent(dataset.teamId));
+      rememberTeamReturn();
+      navigate('/teams?team=' + encodeURIComponent(dataset.teamId));
       return;
     }
     detailTrigger.current = trigger || datasetTriggers.current.get(id) || null;
@@ -761,9 +765,19 @@ export default function HomePage() {
         aria-pressed={preferences.layout === 'list'} onClick={() => display.update({ layout: 'list' })}><Table2 /></Button>
     </div>
   );
+  const teamSourceEntry = (
+    <Button ref={teamSourceTrigger} variant="ghost" className="mc-team-source-trigger"
+      dataCY="home-team-source" aria-haspopup="dialog" aria-expanded={teamPickerOpen}
+      disabled={mode === 'demo'} title={mode === 'demo' ? '演示空间不连接真实团队' : '团队资料'}
+      onClick={() => setTeamPickerOpen(true)}>
+      <UsersRound size={16} aria-hidden="true" />团队资料<ChevronDown size={14} aria-hidden="true" />
+    </Button>
+  );
   return (
     <PortalShell
       activeSection="home"
+      viewKey={`home:${activeEntry}`}
+      contentReady={ready}
       username={username}
       mode={mode}
       onLogout={mode === 'demo' || (ready && identity.current) ? logout : undefined}
@@ -875,6 +889,7 @@ export default function HomePage() {
                 scope={filter}
                 onChange={scope => navigateHome(activeEntry, scope)}
                 utilities={utilities}
+                teamEntry={teamSourceEntry}
               />
             )}
             {activeEntry === 'library' && (
@@ -959,7 +974,6 @@ export default function HomePage() {
             )}
             <div
               className={`mc-library-content ${selected && detailOpen && !compactDetail ? 'has-detail' : ''}`}
-              ref={contentSurface}
             >
               <section className="mc-library-files" aria-label="影像列表">
                 {!ready ? (
@@ -1047,7 +1061,7 @@ export default function HomePage() {
                       <PreferencesButton model={display} />
                     </>}
                     collectionTools={<div className="mc-desk-collection-tools">
-                      <ScopeOverview datasets={datasets} scope={filter} onChange={scope => navigateHome(activeEntry, scope)} compact />
+                      <ScopeOverview datasets={datasets} scope={filter} onChange={scope => navigateHome(activeEntry, scope)} compact teamEntry={teamSourceEntry} />
                       <div className="mc-desk-search">
                         <Icons.Search aria-hidden="true" />
                         <Input aria-label="搜索首页资料" placeholder="搜索名称或创建者" value={workSearch} onChange={event => setWorkSearch(event.target.value)} data-cy="work-search" />
@@ -1199,6 +1213,18 @@ export default function HomePage() {
             </div>
           </main>
         </div>
+        <Dialog open={teamPickerOpen} onOpenChange={setTeamPickerOpen}>
+          <DialogContent className="mc-library-dialog mc-team-source-dialog" data-cy="home-team-picker"
+            onCloseAutoFocus={event => { event.preventDefault(); if (teamSourceTrigger.current?.isConnected) teamSourceTrigger.current.focus({ preventScroll: true }); }}>
+            <DialogHeader><DialogTitle>团队资料</DialogTitle><DialogDescription>团队成员共同访问同一团队资料，与个人拥有的独立副本分开。</DialogDescription></DialogHeader>
+            {teamState === 'loading' ? <p role="status">正在读取本人团队…</p> : teamState === 'failed' ? <div role="alert"><p>团队暂时无法读取。</p><Button variant="outline" onClick={() => setTeamRead(value => value + 1)}>重新读取团队</Button></div> : !teams.length ? <p>还没有加入团队。</p> :
+              <div className="mc-team-source-options">{teams.map(team => <Link key={team.id}
+                to={`/teams?team=${encodeURIComponent(team.id)}`} onClick={rememberTeamReturn}>
+                <span><strong>{team.name}</strong><small>{team.id} · {team.role === 'leader' ? '组长' : '成员'}</small></span><UsersRound size={17} aria-hidden="true" />
+              </Link>)}</div>}
+            <Link className="mc-team-source-all" to="/teams" onClick={rememberTeamReturn}>管理或查找团队</Link>
+          </DialogContent>
+        </Dialog>
         <Dialog
           open={Boolean(selected && ready && compactDetail && detailOpen)}
           onOpenChange={setDetailOpen}

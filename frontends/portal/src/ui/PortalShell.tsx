@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, Outlet } from 'react-router-dom';
 import { UserRound, ChevronDown, LogOut } from 'lucide-react';
 import {
   Button,
@@ -10,6 +10,7 @@ import {
 } from './index';
 import Brand from './Brand';
 import './portal-top.css';
+import { usePortalMotion } from './portal-motion';
 
 export type PortalShellProps = {
   children: ReactNode;
@@ -20,10 +21,15 @@ export type PortalShellProps = {
   onLogout?: () => void;
   busy?: boolean;
   accountActions?: ReactNode;
+  viewKey?: string;
+  contentReady?: boolean;
 };
 
-export default function PortalShell({
-  children,
+type Chrome = Omit<PortalShellProps, 'children'>;
+type Registration = { owner: symbol; chrome: Chrome };
+const RegisterChrome = createContext<((owner: symbol, chrome: Chrome | null) => void) | null>(null);
+
+function PortalHeader({
   activeSection = 'home',
   primaryNavigation,
   username = '',
@@ -31,7 +37,7 @@ export default function PortalShell({
   onLogout,
   busy = false,
   accountActions,
-}: PortalShellProps) {
+}: Chrome) {
   const avatar = (
     <span className="mc-account-avatar" aria-hidden="true">
       {mode === 'demo' ? '研' : username.trim().slice(0, 1) || <UserRound size={17} />}
@@ -73,7 +79,6 @@ export default function PortalShell({
     </DropdownMenu>
   );
   return (
-    <div className="mc-shell mc-shell--top">
       <header className="mc-topbar">
         <div className="mc-topbar-inner">
           <Link to="/home" className="mc-top-brand">
@@ -93,6 +98,39 @@ export default function PortalShell({
           <div className="mc-top-account">{account}</div>
         </div>
       </header>
+  );
+}
+
+/** Keep only the chrome mounted; route-owned private content unmounts immediately. */
+export function PortalLayout() {
+  const [registration, setRegistration] = useState<Registration | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const register = useCallback((owner: symbol, chrome: Chrome | null) => {
+    setRegistration(current => chrome ? { owner, chrome } : current?.owner === owner ? null : current);
+  }, []);
+  const chrome = registration?.chrome;
+  usePortalMotion(root, chrome?.viewKey || '', chrome?.contentReady === true);
+  return (
+    <RegisterChrome.Provider value={register}>
+      <div ref={root} className="mc-shell mc-shell--top">
+        <PortalHeader {...chrome} />
+        <div className="mc-shell-main"><Outlet /></div>
+      </div>
+    </RegisterChrome.Provider>
+  );
+}
+
+export default function PortalShell({ children, ...chrome }: PortalShellProps) {
+  const register = useContext(RegisterChrome);
+  const owner = useRef(Symbol('portal-page'));
+  useLayoutEffect(() => {
+    register?.(owner.current, chrome);
+  });
+  useLayoutEffect(() => () => register?.(owner.current, null), [register]);
+  if (register) return <>{children}</>;
+  return (
+    <div className="mc-shell mc-shell--top">
+      <PortalHeader {...chrome} />
       <div className="mc-shell-main">{children}</div>
     </div>
   );

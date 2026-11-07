@@ -23,6 +23,26 @@ const api = () => ({
 });
 
 describe('upload queue validation', () => {
+  test.each(['application/dicom', 'application/x-dicom', 'image/dicom', 'image/x-dicom', 'application/octet-stream'])(
+    'passes extensionless/unknown-suffix candidates to authoritative validation: %s',
+    async type => {
+      const client = api();
+      await runUpload(client, { name: '影像集', files: [new File(['synthetic bytes'], 'DICOMDIR', { type }), new File(['synthetic bytes'], 'image.123', { type })], identity });
+      expect(client.createDataset).toHaveBeenCalledTimes(1);
+      expect(client.importFile).toHaveBeenCalledTimes(2);
+    }
+  );
+  test.each([
+    ['notes.txt', 'text/plain'], ['notes.TXT', 'application/dicom'],
+    ['report.pdf', 'application/pdf'], ['photo.png', 'image/png'],
+    ['table.csv', 'text/csv'], ['no-extension', 'text/plain'],
+  ])('rejects an obviously unsupported mixed batch before any create/import: %s', async (name, type) => {
+    const client = api();
+    const invalid = new File(['synthetic non-DICOM'], name, { type });
+    await expect(runUpload(client, { name: '影像集', files: [file(), invalid], identity })).rejects.toThrow('不支持');
+    expect(client.createDataset).not.toHaveBeenCalled();
+    expect(client.importFile).not.toHaveBeenCalled();
+  });
   test.each(['scan.nii', 'scan.NII', 'scan.nii.gz', 'scan.NII.GZ'])(
     'rejects unsupported NIfTI %s before creating or importing anything',
     async name => {

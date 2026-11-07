@@ -109,8 +109,10 @@ defaults and its original local connecting mark. The user adopted Research Desk
 A for personal home on 2026-11-06. Its local expression, **"Research handoff
 desk"**, leads with continuation, aligned objects and quieter references.
 
-Home-specific roles describe scoped overrides for home, its dialogs/detail
-surfaces and its top bar. They do not replace shared team/login defaults.
+Home-specific roles describe scoped overrides for home and its dialogs/detail
+surfaces. The 2026-11-07 continuity refinement shares A's chrome, content frame,
+CJK-first navigation and command tone with the team library. Team-specific
+membership/content structure and the login design remain independent.
 Existing authorized datasets, activity and StatisticsModel supply this adopted
 surface, not standalone-preview synthetic arrays.
 
@@ -127,7 +129,9 @@ describe different readings; neither means medical quality or approval.
 
 Inter remains self-hosted from the locked Fontsource dependency. Shared roles
 retain system CJK fallbacks; shared object names are 14px semibold and page
-titles 24px. Letter spacing is zero and comparable figures are tabular.
+titles 24px. Portal team titles now follow home's 26px/500 desktop and 24px phone
+hierarchy; a long team-detail name uses 22px on phones. Account pages keep their
+existing roles. Letter spacing is zero and comparable figures are tabular.
 
 Home is CJK-first: Microsoft YaHei, PingFang SC, then Inter. Its medium hierarchy
 uses a 26px title (24px phones), 23px continuation identity (21px at 1180px;
@@ -137,9 +141,13 @@ font or viewport-scaled type is introduced.
 
 ## Layout
 
-Home retains the existing three top destinations and URL/back behavior. Its
-frame is at most 1440px (1600px at viewports of 1800px or wider), with 44px
-desktop horizontal padding and a 76px top bar.
+Home retains the existing three top destinations and URL/back behavior. Home,
+personal library and teams now share one mounted Portal header and a frame of
+at most 1440px (1600px at viewports of 1800px or wider), with 44px desktop
+horizontal padding and a 76px top row plus its 1px boundary. At 641-900px the
+shared top row is 66px; phones use the same 64px brand row and 46px navigation
+row on every Portal destination. Shared frame tokens own the gutters and
+content start, without route-specific `:has()` overrides.
 Default document order is continuation, library, recent, favorites, teams.
 The desktop 3:1 main/reference grid no longer depends on an exact default
 composition. Each lane keeps its saved relative order and hidden choices.
@@ -175,7 +183,8 @@ zero history. Independent list failures do not hide the other list; unconfirmed
 favorite states keep mutations disabled. CT unsupported/stale states remain
 owned by the existing statistics model.
 
-Team libraries retain their existing frame, membership and ownership semantics.
+Team libraries share the Portal frame and title/command hierarchy while retaining
+their membership, dataset layout and ownership semantics.
 Shared shell/sidebar defaults remain available elsewhere. Login retains its
 split brand/authentication composition and structural phone stacking.
 
@@ -184,7 +193,10 @@ split brand/authentication composition and structural phone stacking.
 Working planes are flat; rules and tone separate content. Home detail uses a
 tonal plane without shadow. Shared menus/dialogs/drawers retain floating-layer
 shadows. Existing feedback/reflow motion remains functional and respects reduced
-motion; no decorative animation is introduced.
+motion; no decorative animation is introduced. Navigation adds a bounded 240ms
+underline handoff and 180ms current-content tonal arrival (90/80ms without spatial
+motion). It keeps no outgoing DOM, screenshot, or private-content snapshot, and
+does not delay route unmount, cancellation or identity checks.
 
 ## Shapes
 
@@ -231,7 +243,7 @@ are labeled.
 - Do honor saved composition and all existing display controls.
 - Do distinguish empty, unavailable, signed-out, expired and lost-access states.
 - Do keep team libraries independent from personal sharing.
-- Don't promote home colors/type into a team/login redesign.
+- Don't replace team task structure or the login world when sharing Portal chrome.
 - Don't equate instance count, creation date or coverage with medical completion.
 - Don't infer pending operations from current/archive count differences.
 - Don't claim annotation recovery or live correctness from screenshots.

@@ -20,7 +20,7 @@ test('source changes participate in history instead of leaving a stale scope dee
   await expect(page).toHaveURL(/scope=shared/);
   await page.goBack();
   await expect(page.getByTestId('home-scope-owner')).toHaveAttribute('aria-pressed', 'true');
-  for (const row of await page.getByTestId('home-dataset-row').all()) await expect(row).toContainText('我创建的');
+  for (const row of await page.getByTestId('home-dataset-row').all()) await expect(row).toContainText('我拥有的');
 });
 
 test('returning from teams restores the verified account library search, sort and selection without putting them in the URL', async ({ page }) => {
