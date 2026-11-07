@@ -112,9 +112,13 @@ export class DatasetWorkspace {
   private stopped = true;
   private blocked = false;
   private originalCommands = new Map<string, any>();
+  private originalHistoryCommands = new Map<string, any>();
   private lastSignature = '';
   private segmentColors = new Map<number, number[]>();
   private realtime?: RealtimeClient;
+  private realtimeTransition = 0;
+  private realtimeStopping = false;
+  private realtimeSaveFailed = false;
   private statsTimer?: ReturnType<typeof setInterval>;
   private reliable?: ReliableCollaboration;
   private overlay?: CollaborationOverlay;
@@ -129,6 +133,12 @@ export class DatasetWorkspace {
   };
   private realtimePreferenceHandler = (event: Event) => {
     const enabled = Boolean((event as CustomEvent).detail);
+    const transition = ++this.realtimeTransition;
+    if (!enabled) {
+      void this.disableRealtime(this.generation, transition);
+      return;
+    }
+    this.realtimeStopping = false;
     if (enabled && this.state.dirty && !this.reliable) {
       const generation = this.generation;
       this.setReadOnly(true);
@@ -137,8 +147,7 @@ export class DatasetWorkspace {
       this.saveDraft()
         .then(() => this.startRealtime(generation))
         .catch(error => this.fail(error));
-    } else if (enabled) this.startRealtime(this.generation);
-    else this.stopRealtime();
+    } else this.startRealtime(this.generation);
   };
 
   constructor(private runtime: any) {
@@ -202,7 +211,7 @@ export class DatasetWorkspace {
   }
   setReadOnly(value: boolean) {
     this.guard.setReadOnly(
-      value || (isRealtimeEnabled() && (!this.state.collaborationReady || !this.state.canEdit))
+      value || this.realtimeStopping || this.realtimeSaveFailed || (isRealtimeEnabled() && (!this.state.collaborationReady || !this.state.canEdit))
     );
   }
 
@@ -377,6 +386,32 @@ export class DatasetWorkspace {
     this.syncPresence();
   }
 
+  private async disableRealtime(generation: number, transition: number) {
+    this.realtimeStopping = true;
+    this.setReadOnly(true);
+    this.emit();
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    const client = this.reliable;
+    let failure: any;
+    try {
+      if (this.state.dirty) await this.saveDraft();
+      if (this.saving) await this.saving;
+      await client?.waitForPersistence();
+    } catch (error) {
+      failure = error;
+    }
+    if (this.stopped || generation !== this.generation || transition !== this.realtimeTransition) return;
+    this.realtimeStopping = false;
+    this.realtimeSaveFailed = !!failure;
+    this.stopRealtime();
+    if (failure) {
+      this.update({ dirty: true, local: true,
+        error: `关闭实时协作时本机保存失败，请先导出当前标注：${failure.message || failure}` });
+      this.setReadOnly(true);
+    }
+  }
+
   private stopRealtime() {
     this.sliceGate?.destroy();
     this.sliceGate = undefined;
@@ -394,9 +429,18 @@ export class DatasetWorkspace {
         realtimeError: '',
         collaborationReady: false,
         canEdit: false,
+        pendingOps: 0,
         sliceEditing: false,
+        sliceLeaseCount: 0,
       });
+      this.setReadOnly(!this.state.ready || this.blocked || this.state.busy || !!this.currentDraft?.publishAttempted);
     }
+  }
+
+  canEditHistory() {
+    return this.state.ready && !this.state.busy && !this.realtimeStopping && !this.realtimeSaveFailed && !this.stopped && !this.blocked &&
+      !this.currentDraft?.publishAttempted &&
+      (!isRealtimeEnabled() || (this.state.collaborationReady && this.state.canEdit && !this.state.collabConflict));
   }
 
   private async collaborationRequest(tail: string, body?: unknown) {
@@ -428,10 +472,10 @@ export class DatasetWorkspace {
   }
 
   private async startReliable(generation: number) {
-    if (this.stopped || generation !== this.generation) return;
+    if (this.stopped || generation !== this.generation || !isRealtimeEnabled()) return;
     if (!this.reliable) {
       if (this.saving) await this.saving;
-      if (this.stopped || generation !== this.generation) return;
+      if (this.stopped || generation !== this.generation || !isRealtimeEnabled()) return;
       this.reliable = new ReliableCollaboration({
         clientId: this.clientId,
         journal: this.currentDraft?.collaboration,
@@ -450,6 +494,7 @@ export class DatasetWorkspace {
           if (this.stopped || generation !== this.generation) return;
           this.revision = record.revision;
           this.currentDraft = record.draft;
+          this.realtimeSaveFailed = false;
           this.update({ local: journal.pending.length > 0, savedAt: record.draft.updatedAt });
         },
         replace: async data => {
@@ -675,11 +720,23 @@ export class DatasetWorkspace {
         this.originalCommands.set(name, manager.getCommand(name, 'SEGMENTATION'));
       manager.registerCommand('SEGMENTATION', name, { commandFn: action, options: {} });
     }
+    for (const name of ['undo', 'redo']) {
+      const definition = manager.getCommand(name, 'CORNERSTONE');
+      if (!definition?.commandFn || this.originalHistoryCommands.has(name)) continue;
+      this.originalHistoryCommands.set(name, definition);
+      manager.registerCommand('CORNERSTONE', name, {
+        ...definition,
+        commandFn: options => {
+          if (this.canEditHistory()) return definition.commandFn(options);
+        },
+      });
+    }
   }
   async bind() {
     this.close();
     this.stopped = false;
     this.blocked = false;
+    this.realtimeSaveFailed = false;
     this.installCommands();
     const generation = ++this.generation;
     const query = new URLSearchParams(location.search);
@@ -1075,7 +1132,7 @@ export class DatasetWorkspace {
     this.syncPresence();
     this.update({ dirty: true, local: true, message: '正在自动保存到本机…' });
     clearTimeout(this.timer);
-    if (!this.state.error)
+    if (!this.state.error && !this.state.busy)
       this.timer = setTimeout(() => this.saveDraft().catch(error => this.fail(error)), 700);
   }
   private hasUnqueuedChanges() {
@@ -1132,12 +1189,17 @@ export class DatasetWorkspace {
       if (generation !== this.generation) return;
       this.revision = record.revision;
       this.currentDraft = record.draft;
+      const recoveredPersistence = this.realtimeSaveFailed;
+      this.realtimeSaveFailed = false;
       this.update({
         dirty: serial !== this.serial,
         local: true,
         savedAt: record.draft.updatedAt,
         message: '草稿已保存到本机，尚未发布',
+        ...(recoveredPersistence ? { error: '' } : {}),
       });
+      if (recoveredPersistence)
+        this.setReadOnly(this.blocked || this.state.busy || !!this.currentDraft?.publishAttempted);
     })();
     try {
       await this.saving;
@@ -1183,15 +1245,33 @@ export class DatasetWorkspace {
         }),
       });
       if (this.stopped || generation !== this.generation) return;
-      const cleared = await this.store().write(this.key, this.revision, null);
-      this.revision = cleared.revision;
-      this.currentDraft = undefined;
+      // A command/plugin can still mutate pixels while the request is in flight.
+      // Confirm the published snapshot, but never acknowledge a newer canvas as saved.
+      const serial = this.serial;
+      const data = this.capture();
+      const hasLaterChanges = this.signature(data) !== this.signature(attempted.data);
+      const nextDraft: Draft | null = hasLaterChanges ? {
+        data,
+        label: attempted.label,
+        baseVersion: result.publishedVersion,
+        sourceFingerprint: this.fingerprint,
+        publicationId: crypto.randomUUID(),
+      } : null;
+      const saved = await this.store().write(this.key, this.revision, nextDraft);
+      if (this.stopped || generation !== this.generation) return;
+      this.revision = saved.revision;
+      this.currentDraft = saved.draft || undefined;
+      this.realtimeSaveFailed = false;
+      const dirty = serial !== this.serial;
       this.update({
         version: result.publishedVersion,
-        local: false,
-        dirty: false,
+        local: hasLaterChanges || dirty,
+        dirty,
+        savedAt: saved.draft?.updatedAt || this.state.savedAt,
         newerVersion: 0,
-        message: `已发布版本 ${result.publishedVersion}，有权限的用户可读取`,
+        message: hasLaterChanges || dirty
+          ? `已发布版本 ${result.publishedVersion}；发布期间的新修改保留在本机，尚未发布`
+          : `已发布版本 ${result.publishedVersion}，有权限的用户可读取`,
         error: '',
       });
     } catch (error) {
@@ -1210,6 +1290,10 @@ export class DatasetWorkspace {
       if (generation === this.generation && !this.stopped) {
         this.update({ busy: false });
         this.setReadOnly(this.blocked || !!this.currentDraft?.publishAttempted);
+        if (this.state.dirty && !this.blocked && !this.currentDraft?.publishAttempted) {
+          clearTimeout(this.timer);
+          this.timer = setTimeout(() => this.saveDraft().catch(error => this.fail(error)), 700);
+        }
       }
     }
   }
@@ -1283,6 +1367,7 @@ export class DatasetWorkspace {
       this.currentDraft = undefined;
       await this.restore(published.data);
       this.lastSignature = this.signature(this.capture());
+      this.realtimeSaveFailed = false;
       this.update({
         version: published.status.publishedVersion,
         dirty: false,
@@ -1320,6 +1405,8 @@ export class DatasetWorkspace {
     }
   }
   close() {
+    this.realtimeTransition++;
+    this.realtimeStopping = false;
     this.recentOpen?.close();
     this.recentOpen = undefined;
     window.removeEventListener('beforeunload', this.beforeUnload);
@@ -1343,6 +1430,9 @@ export class DatasetWorkspace {
       if (definition)
         this.runtime.commandsManager.registerCommand('SEGMENTATION', name, definition);
     this.originalCommands.clear();
+    for (const [name, definition] of this.originalHistoryCommands)
+      this.runtime.commandsManager.registerCommand('CORNERSTONE', name, definition);
+    this.originalHistoryCommands.clear();
     this.currentDraft = undefined;
     this.segmentationId = undefined;
     this.segmentColors.clear();

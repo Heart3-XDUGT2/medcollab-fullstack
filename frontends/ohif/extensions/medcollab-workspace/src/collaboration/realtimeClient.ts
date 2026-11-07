@@ -189,7 +189,8 @@ export class RealtimeClient {
     if (!['ws:', 'wss:', 'http:', 'https:'].includes(url.protocol)) {
       throw new Error('invalid protocol');
     }
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (url.protocol === 'http:') url.protocol = 'ws:';
+    else if (url.protocol === 'https:') url.protocol = 'wss:';
     url.searchParams.set('datasetId', this.options.datasetId);
     url.searchParams.set('seriesId', this.options.seriesId);
     return url;

@@ -1,7 +1,10 @@
 /** Pause a brush's initial mouse events until the server grants all affected CT slices. */
 export class SliceEditGate {
   private replaying = false;
-  private pending?: { events: MouseEvent[]; target: Element; scope: string; generation: number };
+  private pending?: { events: MouseEvent[]; target: Element; scope: string; generation: number; finished: boolean };
+  // A gesture discarded while a lease is pending must stay discarded even if
+  // the response arrives before its mouseup. Never deliver half a gesture.
+  private discardingGesture = false;
   private generation = 0;
   constructor(private options: {
     scope: (event: MouseEvent) => string[] | null;
@@ -15,7 +18,15 @@ export class SliceEditGate {
     document.addEventListener('mouseup', this.capture, true);
   }
   private down = (event: MouseEvent) => {
-    if (this.replaying || event.button !== 0 || this.pending) return;
+    if (this.replaying || event.button !== 0) return;
+    if (this.pending || this.discardingGesture) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      // Preserve the first stroke only. Later strokes cannot be appended to
+      // its replay, and must not leak a down whose up we will swallow.
+      if (this.pending?.finished || !this.pending) this.discardingGesture = true;
+      return;
+    }
     const ids = this.options.scope(event);
     if (!ids) return;
     this.options.touch();
@@ -23,7 +34,7 @@ export class SliceEditGate {
     event.preventDefault();
     event.stopImmediatePropagation();
     const pending = { events: [event], target: event.target as Element,
-      scope: JSON.stringify(ids), generation: this.generation };
+      scope: JSON.stringify(ids), generation: this.generation, finished: false };
     this.pending = pending;
     this.options.acquire(ids).then(() => {
       if (this.pending !== pending || pending.generation !== this.generation) return;
@@ -41,17 +52,26 @@ export class SliceEditGate {
     }).catch(error => {
       if (pending.generation !== this.generation) return;
       this.pending = undefined;
+      // If acquisition fails while the first button is still held, its down
+      // was never delivered. Suppress the remainder through the matching up.
+      if (!pending.finished) this.discardingGesture = true;
       this.options.error(error);
     });
   };
   private capture = (event: MouseEvent) => {
     if (this.replaying) return;
     if (event.buttons === 1) this.options.touch();
-    if (!this.pending) return;
+    if (!this.pending && !this.discardingGesture) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    // Preserve the first stroke while waiting for the HTTP lease, with bounded memory.
+    if (this.discardingGesture) {
+      if (event.type === 'mouseup' && event.button === 0) this.discardingGesture = false;
+      return;
+    }
+    if (!this.pending || this.pending.finished) return;
+    // Preserve only the first stroke while waiting for HTTP, with bounded memory.
     if (this.pending.events.length < 512 || event.type === 'mouseup') this.pending.events.push(event);
+    if (event.type === 'mouseup' && event.button === 0) this.pending.finished = true;
   };
   destroy() {
     this.generation++;

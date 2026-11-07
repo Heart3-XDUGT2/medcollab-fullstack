@@ -69,10 +69,12 @@ export class ReliableCollaboration {
   private offline = false;
   private sliceEditing = false;
   private sliceLeases: SliceLease[] = [];
+  private sliceLeaseRejected = false;
   private touchedAt = 0;
   private wasEditor = false;
   private syncing?: Promise<void>;
   private flushing?: Promise<void>;
+  private acquiringSlices: Promise<void> = Promise.resolve();
   private writes: Promise<void> = Promise.resolve();
   private rendering: Promise<void> = Promise.resolve();
   private buffer = new Map<number, Committed>();
@@ -120,6 +122,16 @@ export class ReliableCollaboration {
     if ([409, 423].includes(error.status)) {
       this.lease = null;
       this.wasEditor = false;
+      // A stale token must never be submitted again on the next poll. A 423
+      // can be recovered by reacquiring, whereas 409 requires explicit reload.
+      if (this.sliceEditing) {
+        this.sliceLeases = [];
+        this.sliceLeaseRejected = true;
+      }
+      if (error.status === 409 && !this.conflict) {
+        this.conflict = true;
+        this.persist().catch(() => {});
+      }
     }
     if ([401, 403, 404].includes(error.status)) {
       this.conflict = true;
@@ -252,7 +264,12 @@ export class ReliableCollaboration {
       data,
       last ? last.baseSeq + 1 : this.seq
     );
-    if (!operations.length) return;
+    if (!operations.length) {
+      // Saving an unchanged restored canvas is also an explicit request to
+      // resume its durable outbox, not an excuse to retain an expired token.
+      await this.flush();
+      return;
+    }
     // Display events can request a save without changing pixels. Only mutations need a lease.
     // Preserve the last stroke even when a lease expires between drawing and the local save timer.
     if (!this.canEdit && !this.wasEditor) throw new Error(EDIT_LEASE_REQUIRED_MESSAGE);
@@ -277,7 +294,16 @@ export class ReliableCollaboration {
     this.flushing = (async () => {
       while (this.journal.pending.length && !this.stopped && !this.conflict && !this.offline) {
         await this.writes;
+        if (this.sliceEditing) {
+          // Acquire for every queued operation (metadata edits reserve the
+          // whole source), then replay receipts under those leases. Never
+          // rebase an immutable operation's baseSeq: the server still checks
+          // modified_seq/writer_lease and rejects changed slices with 409.
+          await this.ensureSliceLeases(() => this.pendingSliceIds());
+          if (this.stopped || this.conflict || this.offline) return;
+        }
         const batch = this.journal.pending.slice(0, 4);
+        if (!batch.length) return;
         const receipts = await this.options.request('/ops/batch', {
           clientId: this.options.clientId,
           leaseId: this.journal.leaseId,
@@ -294,6 +320,11 @@ export class ReliableCollaboration {
     })();
     try {
       await this.flushing;
+    } catch (error) {
+      // Explicit save/archive callers also need the same invalidation as the
+      // background poller; otherwise a rejected cached token can be reused.
+      this.fail(error);
+      throw error;
     } finally {
       this.flushing = undefined;
     }
@@ -348,6 +379,11 @@ export class ReliableCollaboration {
   }
   async catchup() {
     if (!this.initialized || this.syncing || this.stopped) return;
+    await this.pullUpdates();
+    this.flush().catch(error => this.fail(error));
+  }
+  /** Read/replay only. Lease acquisition must not recursively trigger flush. */
+  private async pullUpdates() {
     let more = true;
     while (more && !this.stopped) {
       const page = await this.options.request(
@@ -364,7 +400,6 @@ export class ReliableCollaboration {
       more = page.operations.length > 0 && this.seq < page.highWatermark;
     }
     this.emit();
-    this.flush().catch(error => this.fail(error));
   }
   async acquire() {
     if (this.sliceEditing) throw new Error('切片编辑权会在开始绘制时自动获取');
@@ -421,29 +456,69 @@ export class ReliableCollaboration {
     this.emit();
   }
   holdsSlices(ids: string[]) {
-    return ids.length > 0 && ids.every(id => this.sliceLeases.some(s => s.instanceId === id && s.heldBySelf
+    return ids.length > 0 && !this.sliceLeaseRejected && !!this.journal.leaseId && ids.every(id => this.sliceLeases.some(s =>
+      s.instanceId === id && s.heldBySelf && s.leaseId === this.journal.leaseId
       && Date.parse(s.expiresAt || '') > Date.now()));
   }
   touch() { this.touchedAt = Date.now(); }
   get queuedData() { return this.journal.queued; }
+  private pendingSliceIds(): string[] {
+    const ids = new Set<string>();
+    let definitions = this.data.segments;
+    for (const operation of this.journal.pending) {
+      if (JSON.stringify(definitions) !== JSON.stringify(operation.segments)) {
+        const sources = this.options.sourceIds?.();
+        if (!sources?.length) throw new Error('源切片清单未就绪，不能恢复标签定义修改');
+        sources.forEach(id => ids.add(id));
+      }
+      operation.masks.forEach(mask => ids.add(mask.instanceId));
+      definitions = operation.segments;
+    }
+    return [...ids];
+  }
+  /** Serialize brush acquisitions with outbox recovery, without calling catchup/flush recursively. */
+  private ensureSliceLeases(getIds: () => string[]) {
+    const acquiring = this.acquiringSlices.catch(() => {}).then(async () => {
+      if (this.stopped || this.offline || this.conflict) return;
+      let ids = getIds();
+      if (!ids.length || this.holdsSlices(ids)) return;
+      await this.pullUpdates();
+      if (this.stopped || this.offline || this.conflict) return;
+      ids = getIds(); // Lost receipts may have acknowledged part/all of the queue.
+      if (!ids.length || this.holdsSlices(ids)) return;
+      const leases = await this.options.request('/slice-lease', {
+        clientId: this.options.clientId, leaseId: this.journal.leaseId,
+        action: 'acquire', instanceIds: ids,
+      });
+      if (this.stopped) return;
+      this.sliceLeases = leases;
+      this.sliceLeaseRejected = false;
+      this.journal.leaseId = this.sliceLeases.find(s => s.heldBySelf)?.leaseId || null;
+      this.wasEditor = true;
+      // A peer may have committed between our read and the atomic lease grant.
+      // Replay it before sending, preserving conflicts and original baseSeqs.
+      await this.pullUpdates();
+      await this.rendering;
+      if (this.stopped || this.offline || this.conflict) return;
+      if (!this.holdsSlices(ids)) throw Object.assign(new Error('切片编辑权已变化，修改保留在本机'), { status: 423 });
+      this.touchedAt = Date.now();
+      this.error = '';
+      await this.persist();
+      this.emit();
+    });
+    this.acquiringSlices = acquiring;
+    return acquiring;
+  }
   async acquireSlices(ids: string[]) {
     if (!this.sliceEditing || !this.canEdit || this.offline) throw new Error('连接未就绪，暂不能获取切片编辑权');
     this.touchedAt = Date.now();
-    if (this.holdsSlices(ids)) return;
-    await this.catchup();
-    if (this.conflict) throw new Error('请先处理本机草稿差异');
-    this.sliceLeases = await this.options.request('/slice-lease', {
-      clientId: this.options.clientId, leaseId: this.journal.leaseId, action: 'acquire', instanceIds: ids,
-    });
-    this.journal.leaseId = this.sliceLeases.find(s => s.heldBySelf)?.leaseId || null;
-    this.wasEditor = true;
-    await this.catchup();
+    await this.ensureSliceLeases(() => ids);
     // Catch-up queues the render. Do not start a brush on a stale canvas.
     await this.rendering;
-    if (this.conflict) throw new Error('请先处理本机草稿差异');
-    await this.persist();
-    this.emit();
+    if (this.stopped || this.offline || this.conflict) throw new Error('请先处理本机草稿差异或重新连接');
   }
+  /** Await locally queued writes before a mode switch stops this client. */
+  async waitForPersistence() { await this.writes; }
   async archive() {
     await this.flush();
     if (this.journal.pending.length || this.options.hasUnqueuedChanges() || this.conflict)
