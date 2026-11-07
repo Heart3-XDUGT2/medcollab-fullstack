@@ -28,6 +28,8 @@ public class DatasetService {
                               long instanceCount, String createdAt, boolean canDelete) { }
     public record ShareItem(String subject, String username) { }
     public record ForwardResult(boolean success, String recipientDatasetId, boolean alreadyOwned) { }
+    public record TeamDissolutionResult(boolean success, String teamId, long deletedDatasets,
+                                        long deletedObjects, long retainedObjects, long pendingObjects) { }
     public record TeamDatasetItem(String id, String name, String access, String ownerUsername,
                                   long instanceCount, String createdAt, String scope, String teamId,
                                   String uploaderSubject, boolean canDelete) { }
@@ -367,6 +369,48 @@ public class DatasetService {
             if(!isOwner(rows.getFirst(),user)) throw new ApiException(HttpStatus.FORBIDDEN,"只能删除自己上传的团队数据集");
             db.update("UPDATE datasets SET deleted_at=COALESCE(deleted_at,?) WHERE id=?",Instant.now().toString(),id);
         });
+    }
+
+    /** Explicit leader action clears the entire team library, including other uploaders'
+     * accepted masks. Keep the team association as an inaccessible tombstone, never as
+     * a personal owner fallback. Originals held by other datasets remain protected. */
+    public TeamDissolutionResult dissolveTeam(String teamId,DemoSession.Identity user) {
+        validateIdentity(user);
+        return storage.exclusive(() -> transaction.execute(ignored -> {
+            Long previous=teams.lockDissolution(teamId,user);
+            if(previous!=null) return dissolutionResult(teamId,previous);
+            var rows=db.query("SELECT d.id,d.deleted_at FROM datasets d JOIN dataset_teams dt ON dt.dataset_id=d.id "
+                    +"WHERE dt.team_id=? ORDER BY d.id FOR UPDATE",(r,n)->new String[]{r.getString(1),r.getString(2)},teamId);
+            long active=rows.stream().filter(row->row[1]==null).count();
+            String deletedAt=Instant.now().toString();
+            for(var row:rows) {
+                String id=row[0];
+                var objects=db.query("SELECT instance_id FROM dataset_instances WHERE dataset_id=? UNION SELECT orthanc_id FROM segmentation_publications WHERE dataset_id=? "
+                        +"UNION SELECT orthanc_id FROM mask_snapshot_jobs WHERE dataset_id=? AND orthanc_id IS NOT NULL",(r,n)->r.getString(1),id,id,id);
+                db.update("UPDATE datasets SET deleted_at=COALESCE(deleted_at,?) WHERE id=?",deletedAt,id);
+                for(String object:objects) {
+                    db.update("MERGE INTO dataset_deletion_objects KEY(dataset_id,instance_id) VALUES (?,?)",id,object);
+                    db.update("MERGE INTO storage_reclamation (instance_id,state,requested_at,attempts) KEY(instance_id) VALUES (?,'pending',?,0)",object,deletedAt);
+                }
+                for(String table:List.of("mask_slice_leases","mask_ops","mask_rooms","mask_snapshot_jobs","segmentation_drafts","dataset_favorites","dataset_recent_opens"))
+                    db.update("DELETE FROM "+table+" WHERE dataset_id=?",id);
+            }
+            teams.finishDissolution(teamId,active);
+            return dissolutionResult(teamId,active);
+        }));
+    }
+
+    public TeamDissolutionResult dissolutionStatus(String teamId,DemoSession.Identity user) {
+        return dissolutionResult(teamId,teams.requireDissolutionOwner(teamId,user));
+    }
+
+    private TeamDissolutionResult dissolutionResult(String teamId,long deletedDatasets) {
+        return db.queryForObject("SELECT COUNT(DISTINCT CASE WHEN r.state='deleted' THEN o.instance_id END),"
+                +"COUNT(DISTINCT CASE WHEN r.state='retained' THEN o.instance_id END),"
+                +"COUNT(DISTINCT CASE WHEN r.state='pending' THEN o.instance_id END) "
+                +"FROM dataset_teams dt JOIN dataset_deletion_objects o ON o.dataset_id=dt.dataset_id "
+                +"JOIN storage_reclamation r ON r.instance_id=o.instance_id WHERE dt.team_id=?",
+                (r,n)->new TeamDissolutionResult(true,teamId,deletedDatasets,r.getLong(1),r.getLong(2),r.getLong(3)),teamId);
     }
 
     private StoredDataset requirePrivateAccess(String id, DemoSession.Identity user, boolean lock) {

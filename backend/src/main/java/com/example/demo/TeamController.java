@@ -25,6 +25,10 @@ public class TeamController {
     public ResponseEntity<?> join(@RequestBody JoinRequest b,HttpServletRequest r){return ok(teams.join(b.teamId(),b.inviteCode(),DemoSession.requireIdentity(r)));}
     @GetMapping("/api/teams/{id}")
     public ResponseEntity<?> get(@PathVariable String id,HttpServletRequest r){return ok(teams.get(id,DemoSession.requireIdentity(r)));}
+    @DeleteMapping("/api/teams/{id}")
+    public ResponseEntity<?> dissolve(@PathVariable String id,HttpServletRequest r){return ok(datasets.dissolveTeam(id,DemoSession.requireIdentity(r)));}
+    @GetMapping("/api/teams/{id}/dissolution-status")
+    public ResponseEntity<?> dissolutionStatus(@PathVariable String id,HttpServletRequest r){return ok(datasets.dissolutionStatus(id,DemoSession.requireIdentity(r)));}
     @PatchMapping("/api/teams/{id}")
     public ResponseEntity<?> rename(@PathVariable String id,@RequestBody NameRequest b,HttpServletRequest r){return ok(teams.rename(id,b.name(),DemoSession.requireIdentity(r)));}
     @GetMapping("/api/teams/{id}/members")

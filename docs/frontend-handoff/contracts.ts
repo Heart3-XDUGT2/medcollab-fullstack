@@ -12,6 +12,9 @@ export type Session = {
   csrfHeaderName: string;
 };
 export type Health = {
+  datasetLibraryApi?: string; // v1
+  teamDissolutionApi?: string; // clear-library-v1
+  dicomImportFormatPolicy?: string; // known-nondicom-reject-v1
   segmentationStorageGuard?: string; // single-process-rw-v1 after the 2026-11-06 fix
   status: string;
   message: string;
@@ -205,3 +208,5 @@ export type { ActivityDataset, ActivityPage, FavoriteItem, RecentItem, RecentPag
 /** 2026-11-06: personal sharing is an independent snapshot, not a permission grant. */
 export type ForwardResult = { success: true; recipientDatasetId: string; alreadyOwned: boolean };
 export type DatasetDeletionResult = { success: true; datasetId: string; deletedObjects: number; retainedObjects: number; pendingObjects: number };
+
+export type { LibraryDataset, LibrarySource, LibraryQuery, LibraryPage, TeamDissolutionResult } from './dataset-library-teams';

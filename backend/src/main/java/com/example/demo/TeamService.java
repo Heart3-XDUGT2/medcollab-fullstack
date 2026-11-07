@@ -24,7 +24,7 @@ public class TeamService {
     public record MemberItem(String subject, String username, String role, String joinedAt) { }
     public record InviteResult(TeamItem team, String inviteCode) { }
     private record Team(String id, String name, String issuer, String leader, String leaderName,
-                        String inviteHash, String created) { }
+                        String inviteHash, String created, String dissolvedAt, long dissolvedDatasets) { }
     private final JdbcTemplate db;
     private final TransactionTemplate tx;
     private final KeycloakDirectoryService directory;
@@ -45,12 +45,14 @@ public class TeamService {
                 + "user_issuer VARCHAR(600) NOT NULL, user_subject VARCHAR(200) NOT NULL, username VARCHAR(200) NOT NULL, "
                 + "joined_at VARCHAR(40) NOT NULL, PRIMARY KEY(team_id,user_issuer,user_subject))");
         db.execute("CREATE INDEX IF NOT EXISTS team_member_lookup ON team_members(user_issuer,user_subject)");
+        db.execute("ALTER TABLE teams ADD COLUMN IF NOT EXISTS dissolved_at VARCHAR(40)");
+        db.execute("ALTER TABLE teams ADD COLUMN IF NOT EXISTS dissolved_dataset_count BIGINT NOT NULL DEFAULT 0");
     }
 
     public OrthancService.Items<TeamItem> mine(DemoSession.Identity user) {
         validate(user);
         var items = db.query("SELECT t.* FROM teams t JOIN team_members m ON m.team_id=t.id "
-                + "WHERE m.user_issuer=? AND m.user_subject=? ORDER BY t.created_at DESC,t.id", (r,n) -> item(team(r),user), user.issuer(),user.subject());
+                + "WHERE m.user_issuer=? AND m.user_subject=? AND t.dissolved_at IS NULL ORDER BY t.created_at DESC,t.id", (r,n) -> item(team(r),user), user.issuer(),user.subject());
         return new OrthancService.Items<>(items,items.size());
     }
 
@@ -58,7 +60,7 @@ public class TeamService {
         validate(user);
         String q=query==null?"":query.strip();
         if(q.length()<2 || q.length()>100) throw bad("请输入 2 至 100 个字符的队名或完整团队 ID");
-        var items=db.query("SELECT * FROM teams WHERE user_issuer=? AND (UPPER(id)=UPPER(?) OR LOCATE(LOWER(?),LOWER(name))>0) "
+        var items=db.query("SELECT * FROM teams WHERE user_issuer=? AND dissolved_at IS NULL AND (UPPER(id)=UPPER(?) OR LOCATE(LOWER(?),LOWER(name))>0) "
                 + "ORDER BY CASE WHEN UPPER(id)=UPPER(?) THEN 0 ELSE 1 END,created_at DESC,id LIMIT 20",
                 (r,n)->item(team(r),user),issuer,q,q,q);
         return new OrthancService.Items<>(items,items.size());
@@ -68,7 +70,7 @@ public class TeamService {
         validate(user); String clean=name(name); String id="TM-"+HexFormat.of().formatHex(random(8)).toUpperCase(java.util.Locale.ROOT);
         String code=code(), created=Instant.now().toString();
         return tx.execute(ignored->{
-            db.update("INSERT INTO teams VALUES (?,?,?,?,?,?,?)",id,clean,issuer,user.subject(),user.username(),hash(code),created);
+            db.update("INSERT INTO teams (id,name,user_issuer,leader_subject,leader_username,invite_hash,created_at) VALUES (?,?,?,?,?,?,?)",id,clean,issuer,user.subject(),user.username(),hash(code),created);
             add(id,user.subject(),user.username());
             return new InviteResult(get(id,user),code);
         });
@@ -142,6 +144,31 @@ public class TeamService {
     /** Lock the team before dataset rows to serialize membership changes with writes. */
     public void requireMembership(String id, DemoSession.Identity user, boolean lock) { requireMember(id,user,lock); }
 
+    /** Null means active; a count means this original leader's DELETE already committed. */
+    Long lockDissolution(String id, DemoSession.Identity user) {
+        validate(user);
+        Team t=loadIncludingDissolved(id,true);
+        if(!issuer.equals(t.issuer())) throw unavailable();
+        if(!t.leader().equals(user.subject())) {
+            if(t.dissolvedAt()==null && member(id,user))
+                throw new ApiException(HttpStatus.FORBIDDEN,"只有本队组长可以解散团队");
+            throw unavailable();
+        }
+        return t.dissolvedAt()==null?null:t.dissolvedDatasets();
+    }
+
+    void finishDissolution(String id, long datasets) {
+        db.update("UPDATE teams SET dissolved_at=?,dissolved_dataset_count=? WHERE id=?",Instant.now().toString(),datasets,id);
+        db.update("DELETE FROM team_members WHERE team_id=?",id);
+    }
+
+    long requireDissolutionOwner(String id,DemoSession.Identity user) {
+        validate(user);
+        Team t=loadIncludingDissolved(id,false);
+        if(t.dissolvedAt()==null || !issuer.equals(t.issuer()) || !t.leader().equals(user.subject())) throw unavailable();
+        return t.dissolvedDatasets();
+    }
+
     private Team requireMember(String id, DemoSession.Identity user, boolean lock) {
         validate(user); Team t=load(id,lock);
         if(!issuer.equals(t.issuer()) || !member(id,user)) throw unavailable();
@@ -159,6 +186,11 @@ public class TeamService {
         return db.queryForObject("SELECT COUNT(*) FROM team_members WHERE team_id=? AND user_issuer=? AND user_subject=?",Integer.class,id,user.issuer(),user.subject())>0;
     }
     private Team load(String id,boolean lock) {
+        Team t=loadIncludingDissolved(id,lock);
+        if(t.dissolvedAt()!=null) throw unavailable();
+        return t;
+    }
+    private Team loadIncludingDissolved(String id,boolean lock) {
         var rows=db.query("SELECT * FROM teams WHERE id=?"+(lock?" FOR UPDATE":""),(r,n)->team(r),id);
         if(rows.isEmpty()) throw unavailable();return rows.getFirst();
     }
@@ -167,7 +199,7 @@ public class TeamService {
                 t.leader().equals(user.subject())?"leader":member(t.id(),user)?"member":"none",t.created());
     }
     private static Team team(java.sql.ResultSet r) throws java.sql.SQLException {
-        return new Team(r.getString("id"),r.getString("name"),r.getString("user_issuer"),r.getString("leader_subject"),r.getString("leader_username"),r.getString("invite_hash"),r.getString("created_at"));
+        return new Team(r.getString("id"),r.getString("name"),r.getString("user_issuer"),r.getString("leader_subject"),r.getString("leader_username"),r.getString("invite_hash"),r.getString("created_at"),r.getString("dissolved_at"),r.getLong("dissolved_dataset_count"));
     }
     private void add(String id,String subject,String username) {
         if(db.queryForObject("SELECT COUNT(*) FROM team_members WHERE team_id=? AND user_issuer=? AND user_subject=?",Integer.class,id,issuer,subject)==0)

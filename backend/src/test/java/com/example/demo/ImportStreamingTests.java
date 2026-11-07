@@ -141,4 +141,24 @@ class ImportStreamingTests {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.error").value(
                         "上传超过当前服务的单文件或整请求大小上限，请拆分后重试"));
     }
+
+    @Test void knownUnsupportedFormatsFailBeforeReadingOrSendingAnyFile() throws Exception {
+        for(String name:List.of("notes.txt","scan.PDF","scan.jpg","report.docx","data.csv","archive.zip","volume.nrrd","mesh.stl","scan.nii.gz")) {
+            MultipartFile file=file(new byte[]{1},1);
+            when(file.getOriginalFilename()).thenReturn(name);
+            assertThatThrownBy(()->StagedDicom.copy(file,new ImportLimits(8),directory))
+                    .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.status()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE));
+            verify(file,never()).getInputStream();
+        }
+        try(var paths=Files.list(directory)) {assertThat(paths.count()).isZero();}
+    }
+    @Test void missingOrDicomSuffixAndMisleadingMimeStillReachAuthoritativeValidation() throws Exception {
+        for(String name:List.of("IM0001","image.dcm","image.DICOM","slice.ima","slice.001")) {
+            MultipartFile file=file(new byte[]{1,2,3},3);
+            when(file.getOriginalFilename()).thenReturn(name);when(file.getContentType()).thenReturn("text/plain");
+            try(StagedDicom staged=StagedDicom.copy(file,new ImportLimits(8),directory)) {
+                assertThat(Files.readAllBytes(staged.path())).containsExactly(1,2,3);
+            }
+        }
+    }
 }

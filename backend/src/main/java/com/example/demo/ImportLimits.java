@@ -25,6 +25,11 @@ public final class ImportLimits {
         String name=file.getOriginalFilename();
         if(name!=null && name.toLowerCase(java.util.Locale.ROOT).matches(".*\\.nii(?:\\.gz)?$"))
             throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,"暂不支持 NIfTI（.nii/.nii.gz）导入，当前仅支持 DICOM 文件或文件夹");
+        // Known non-DICOM names fail before staging/Orthanc. Missing/unknown suffixes
+        // remain eligible for authoritative content validation, irrespective of MIME.
+        String lower=name==null?"":name.strip().toLowerCase(java.util.Locale.ROOT);
+        if(lower.matches(".*\\.(txt|md|csv|json|xml|ya?ml|pdf|png|jpe?g|gif|webp|bmp|tiff?|svg|docx?|xlsx?|pptx?|rtf|html?|zip|7z|rar|tar|gz|nrrd|nhdr|mha|mhd|npy|npz|stl|obj|ply|vtp|vti|mp4|avi|exe|dll)$"))
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,"不支持此文件格式；当前仅支持 DICOM 文件或文件夹，不支持文本、普通图片、文档、压缩包及其他影像格式");
     }
 
     public ApiException tooLarge() {

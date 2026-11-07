@@ -33,6 +33,26 @@ public class SegmentationStorageGuard {
         }
     }
 
+    /** Destructive bulk mutations wait for complete in-flight snapshot uploads,
+     * before acquiring team/dataset rows, and retain the barrier through commit. */
+    public <T> T exclusive(Supplier<T> action) {
+        if (lock.getReadHoldCount()!=0) throw new IllegalStateException("Acquire exclusive storage barrier before references");
+        var write=lock.writeLock();
+        write.lock();
+        boolean deferred=false;
+        try {
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                if (!TransactionSynchronizationManager.isSynchronizationActive())
+                    throw new IllegalStateException("Storage mutations require transaction synchronization");
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override public void afterCompletion(int status) { write.unlock(); }
+                });
+                deferred=true;
+            }
+            return action.get();
+        } finally { if(!deferred) write.unlock(); }
+    }
+
     /** A busy upload makes this cleanup tick yield; it never holds dataset locks while waiting. */
     public boolean cleanupIfIdle(Runnable action) {
         if (lock.getReadHoldCount() != 0 || !lock.writeLock().tryLock()) return false;

@@ -42,6 +42,11 @@ public class ApiErrorHandler {
         return error(HttpStatus.BAD_REQUEST, "请求格式不正确，请选择有效的 DICOM 文件或刷新页面后重试");
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> invalidParameter() {
+        return error(HttpStatus.BAD_REQUEST,"查询参数格式不正确，请检查 page、size 等参数");
+    }
+
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Map<String, String>> unsupportedContentType() {
         return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "请求内容类型不正确，请通过页面提交");

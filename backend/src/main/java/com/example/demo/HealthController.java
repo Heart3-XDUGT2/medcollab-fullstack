@@ -12,6 +12,9 @@ public class HealthController {
 	@GetMapping("/api/health")
 	public Map<String, String> health() {
 		return Map.ofEntries(
+				Map.entry("datasetLibraryApi", "v1"),
+				Map.entry("teamDissolutionApi", "clear-library-v1"),
+				Map.entry("dicomImportFormatPolicy", "known-nondicom-reject-v1"),
 				Map.entry("homeActivityApi", "v1"),
 				Map.entry("annotationStatsApi", "v1"),
 				Map.entry("teamApi", "team-library-v1"),
