@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -51,6 +51,17 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
   };
 
   const isDatasetWorkspace = new URLSearchParams(location.search).has('datasetId');
+  const datasetWorkspace = (servicesManager.services as any).datasetWorkspaceService;
+  const [historyAllowed, setHistoryAllowed] = useState(() =>
+    !isDatasetWorkspace || !!datasetWorkspace?.canEditHistory?.()
+  );
+  useEffect(() => {
+    const sync = () => setHistoryAllowed(
+      !isDatasetWorkspace || !!datasetWorkspace?.canEditHistory?.()
+    );
+    sync();
+    if (isDatasetWorkspace) return datasetWorkspace?.subscribe(sync);
+  }, [datasetWorkspace, isDatasetWorkspace]);
   const homeButtonLabel = isDatasetWorkspace ? '首页' : '工作台';
   const onClickHomeButton = async () => {
     if (!isDatasetWorkspace) {
@@ -170,6 +181,7 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
               variant="ghost"
               className="hover:bg-muted"
               data-cy="undo-btn"
+              disabled={!historyAllowed}
               title={t('UserPreferencesModal:Undo')}
               aria-label={t('UserPreferencesModal:Undo')}
               onClick={() => {
@@ -182,6 +194,7 @@ function ViewerHeader({ appConfig }: withAppTypes<{ appConfig: AppTypes.Config }
               variant="ghost"
               className="hover:bg-muted"
               data-cy="redo-btn"
+              disabled={!historyAllowed}
               title={t('UserPreferencesModal:Redo')}
               aria-label={t('UserPreferencesModal:Redo')}
               onClick={() => {
