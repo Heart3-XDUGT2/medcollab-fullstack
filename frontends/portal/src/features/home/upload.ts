@@ -110,9 +110,19 @@ function uploadFailureMessage(failure: Failure) {
 }
 
 export function unsupportedUploadFormat(file: Pick<File, 'name' | 'type'>): string | null {
-  if (/\.nii(?:\.gz)?$/i.test(file.name)) return '.nii/.nii.gz（NIfTI）暂不支持导入；当前仅支持 DICOM 文件/文件夹。';
-  if (/\.zip$/i.test(file.name) || ['application/zip', 'application/x-zip-compressed'].includes(file.type.toLowerCase()))
+  const name = file.name.trim(), mime = file.type.toLowerCase().split(';')[0].trim();
+  const dicomMime = ['application/dicom', 'application/x-dicom', 'image/dicom', 'image/x-dicom'].includes(mime);
+  if (/\.nii(?:\.gz)?$/i.test(name)) return '.nii/.nii.gz（NIfTI）暂不支持导入；当前仅支持 DICOM 文件/文件夹。';
+  if (/\.zip$/i.test(name) || ['application/zip', 'application/x-zip-compressed'].includes(mime))
     return '暂不支持 ZIP，请选择 DICOM 文件或文件夹';
+  // This is negative preflight, not a claim that any other file contains valid DICOM.
+  if (/\.(?:txt|csv|tsv|json|xml|ya?ml|pdf|png|jpe?g|gif|bmp|webp|tiff?|svg|docx?|xlsx?|pptx?|mp[34]|wav|avi|mov|html?|js|exe|nrrd|mha|mhd)$/i.test(name) ||
+      (!dicomMime && /^(?:text|image|audio|video)\//.test(mime)) ||
+      ['application/pdf', 'application/json', 'application/xml', 'application/msword',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mime)) {
+    return `文件“${file.name}”的格式暂不支持导入；请提供 DICOM 文件，实际内容仍由服务端校验。`;
+  }
   return null;
 }
 

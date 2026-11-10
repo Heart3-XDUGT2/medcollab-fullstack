@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Copy, Files, LogOut, MoreHorizontal, Plus, RefreshCw, Search, Upload, UserRound, UsersRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Copy, Files, LogOut, MoreHorizontal, Plus, RefreshCw, Search, Star, Upload, UserRound, UsersRound } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Input, Label } from '../../ui';
 import { ApiError, buildWorkspaceUrl, createHomeApi, getAuthUrl, getHomeConfig, identityOf } from '../home/api';
 import type { Dataset, HomeApi, HomeConfig, Identity, Session, Team, TeamDataset, TeamInvite, TeamMember, User } from '../home/api';
 import UploadPanel from '../home/UploadPanel';
 import PortalShell from '../../ui/PortalShell';
 import { checkHomeReturnIdentity, clearHomeReturn } from '../home/home-return';
+import { useHomeActivity } from '../home/useHomeActivity';
 import './teams.css';
 
 type Props = { config?: HomeConfig; api?: HomeApi };
@@ -55,6 +56,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
   const indexSequence = useRef(0);
   const detailSequence = useRef(0);
   const selectedRef = useRef<string | null>(null);
+  const datasetIds = useRef<string[]>([]);
   const teamTitle = useRef<HTMLHeadingElement>(null);
   const loginUrl = getAuthUrl(config, 'login');
 
@@ -63,6 +65,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
     teamScope.current = new AbortController();
     detailSequence.current++;
     selectedRef.current = null;
+    datasetIds.current = [];
     setSelected(null); setTeam(null); setMembers([]); setDatasets([]);
     setInvite(null); setAction(null); setUploadBusy(false); setDetailLoading(false);
   }
@@ -125,6 +128,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
       await verify(expected, signal);
       if (signal.aborted || !mounted.current || selectedRef.current !== id || sequence !== detailSequence.current) return;
       setTeam(nextTeam); setMembers(nextMembers); setDatasets(nextDatasets);
+      datasetIds.current = nextDatasets.map(item => item.id);
       setTeams(previous => previous.map(t => t.id === id ? nextTeam : t));
       if (nextTeam.role !== 'leader') setAction(previous => previous && ['add', 'rename', 'rotate', 'transfer', 'remove'].includes(previous.kind) ? null : previous);
     } catch (failure) {
@@ -226,6 +230,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
       await verify(expected, signal);
       if (signal.aborted) return;
       setDatasets(list);
+      datasetIds.current = list.map(item => item.id);
       const current = list.find(d => d.id === dataset.id);
       if (!current) { setError('该数据集已删除或不可访问，请从当前列表重新选择。'); return; }
       const url = buildWorkspaceUrl(config, current, 'annotate');
@@ -246,6 +251,29 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
   const hasIndex = indexRead === 'ready' || indexRead === 'stale';
   const visibleDatasets = datasets.filter(d => `${d.name} ${d.ownerUsername}`.toLowerCase().includes(query.trim().toLowerCase()));
   const enabled = !!identityOf(session || { loggedIn: false } as Session) && !!account.current;
+  const favoriteApi = useMemo<HomeApi>(() => ({
+    ...api,
+    setFavorite: async (id, value, identity, signal) => {
+      if (!selected || selectedRef.current !== selected || teamScope.current.signal.aborted ||
+        !datasetIds.current.includes(id) || !sameIdentity(account.current, identity))
+        throw new ApiError('团队上下文已变化，请重新选择资料。', 0, 'aborted');
+      try { return await api.setFavorite(id, value, identity, signal); }
+      catch (failure) {
+        if (mounted.current && !signal?.aborted && selectedRef.current === selected &&
+          sameIdentity(account.current, identity) && failure instanceof ApiError && failure.status === 404) {
+          reloadTeam();
+          setNotice('收藏操作未完成，正在重新核对团队资料；不会自动重试。');
+        }
+        throw failure;
+      }
+    },
+  }), [api, selected]);
+  const activity = useHomeActivity({
+    api: favoriteApi, enabled: enabled && !!team && !detailLoading,
+    identity: enabled && team && !detailLoading ? account.current : null,
+    signal: teamScope.current.signal, datasetIds: datasets.map(item => item.id),
+    onBlocked: () => invalidate('会话或访问权限已变化，已停止原团队的收藏操作，请重新读取团队。'),
+  });
   const activeScope = selected ? teamScope.current.signal : pageScope.current.signal;
   const closeAction = () => { if (!uploadBusy) setAction(null); };
   async function logout() {
@@ -262,7 +290,7 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
     } finally { if (mounted.current) setLogoutBusy(false); }
   }
 
-  return <PortalShell activeSection="teams" username={session?.username || ''} onLogout={enabled ? () => void logout() : undefined} busy={uploadBusy || logoutBusy}><div className="mc-teams">
+  return <PortalShell activeSection="teams" viewKey={`teams:${selected || 'index'}:${tab}`} contentReady={enabled && hasIndex && (!selected || (!!team && !detailLoading))} username={session?.username || ''} onLogout={enabled ? () => void logout() : undefined} busy={uploadBusy || logoutBusy || activity.busy}><div className="mc-teams">
     <main className="mc-teams-main">
       <div className="mc-teams-content">
         {error && <div role="alert" className="mc-team-error">{error}<Button variant="link" onClick={() => selected ? reloadTeam() : void loadIndex()}>重新读取</Button>{!enabled && loginUrl && <a href={loginUrl}>前往登录</a>}</div>}
@@ -285,8 +313,21 @@ export default function TeamsPage({ config: providedConfig, api: providedApi }: 
             </header>
             <div className="mc-team-tabs" role="tablist" aria-label="团队内容"><button role="tab" id="team-datasets-tab" aria-controls="team-datasets-panel" aria-selected={tab === 'datasets'} onClick={() => { setTab('datasets'); setQuery(''); }}>数据集 <span>{datasets.length}</span></button><button role="tab" id="team-members-tab" aria-controls="team-members-panel" aria-selected={tab === 'members'} onClick={() => { setTab('members'); setQuery(''); }}>成员 <span>{members.length}</span></button><Button variant="ghost" size="icon" title="刷新团队资料" aria-label="刷新团队资料" onClick={reloadTeam} disabled={detailLoading || uploadBusy}><RefreshCw size={17} /></Button></div>
             {tab === 'datasets' ? <section role="tabpanel" aria-labelledby="team-datasets-tab" id="team-datasets-panel">
+              {(activity.error || activity.favorites.error) && <div className="mc-team-favorite-status" role={activity.favorites.status === 'unsupported' ? 'status' : 'alert'} data-cy="team-favorite-status">
+                <span>{activity.error || activity.favorites.error}</span>
+                {activity.favorites.status !== 'unsupported' && <Button variant="ghost" onClick={activity.refresh} disabled={activity.busy}>重新核对收藏</Button>}
+              </div>}
               <div className="mc-team-toolbar"><div className="mc-team-search"><Search size={17} /><Input placeholder="搜索名称或上传者" aria-label="搜索团队数据集" value={query} onChange={e => setQuery(e.target.value)} /></div><div className="mc-team-actions"><Button variant="outline" onClick={() => setAction({ kind: 'upload', team })}><Upload size={16} />上传</Button><Button onClick={() => setAction({ kind: 'dataset', team })}><Plus size={16} />新建数据集</Button></div></div>
-              {!visibleDatasets.length ? <Empty title={query ? '没有匹配的数据集' : '团队还没有数据集'}>{!query && <Button variant="outline" onClick={() => setAction({ kind: 'dataset', team })}>新建数据集</Button>}</Empty> : <div className="mc-team-datasets"><div className="mc-team-data-head"><span>名称 / 上传者</span><span>实例数</span><span>创建时间</span><span>操作</span></div>{visibleDatasets.map(d => <div className="mc-team-data-row" key={d.id}><div className="mc-team-data-name"><button onClick={() => void openDataset(d)}>{d.name}</button><small>{d.ownerUsername}{d.uploaderSubject === account.current?.subject && <span className="mc-team-tag">我创建的</span>}</small></div><span className="mc-team-num">{d.instanceCount.toLocaleString()}<small className="mc-team-mobile-unit"> 实例</small></span><time dateTime={d.createdAt}>{dateLabel(d.createdAt)}</time><div className="mc-team-row-actions"><Button variant="ghost" onClick={() => void openDataset(d)}>{d.instanceCount ? '进入标注' : '打开'}<ArrowRight size={14} /></Button><DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" title="数据集操作" aria-label={`${d.name} 数据集操作`}><MoreHorizontal size={18} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setAction({ kind: 'upload', team, dataset: d })}>追加文件</DropdownMenuItem><DropdownMenuItem onSelect={() => setAction({ kind: 'renameDataset', team, dataset: d })}>重命名</DropdownMenuItem>{d.canDelete && d.uploaderSubject === account.current?.subject && <DropdownMenuItem className="mc-team-danger" onSelect={() => setAction({ kind: 'delete', team, dataset: d })}>删除数据集</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div></div>)}</div>}
+              {!visibleDatasets.length ? <Empty title={query ? '没有匹配的数据集' : '团队还没有数据集'}>{!query && <Button variant="outline" onClick={() => setAction({ kind: 'dataset', team })}>新建数据集</Button>}</Empty> : <div className="mc-team-datasets"><div className="mc-team-data-head"><span>名称 / 上传者</span><span>实例数</span><span>创建时间</span><span>操作</span></div>{visibleDatasets.map(d => <div className="mc-team-data-row" key={d.id}><div className="mc-team-data-name"><button onClick={() => void openDataset(d)}>{d.name}</button><small>{d.ownerUsername}{d.uploaderSubject === account.current?.subject && <span className="mc-team-tag">我创建的</span>}</small></div><span className="mc-team-num">{d.instanceCount.toLocaleString()}<small className="mc-team-mobile-unit"> 实例</small></span><time dateTime={d.createdAt}>{dateLabel(d.createdAt)}</time><div className="mc-team-row-actions">
+                <Button variant="ghost" size="icon" className="mc-team-favorite" dataCY="team-favorite"
+                  disabled={activity.favoriteDisabled || uploadBusy || logoutBusy}
+                  aria-pressed={activity.favoriteDisabled && !activity.busy ? 'mixed' : activity.favoriteIds.includes(d.id)}
+                  aria-label={`${activity.favoriteDisabled && !activity.busy ? '收藏状态未确认' : activity.favoriteIds.includes(d.id) ? '取消收藏' : '收藏'} ${d.name}`}
+                  title={activity.favoriteDisabled ? activity.error || activity.favorites.error || '正在核对收藏状态' : `${activity.favoriteIds.includes(d.id) ? '取消收藏' : '收藏'} ${d.name}`}
+                  onClick={() => { void activity.toggleFavorite(d.id); }}>
+                  <Star size={17} fill={activity.favoriteIds.includes(d.id) ? 'currentColor' : 'none'} />
+                </Button>
+                <Button variant="ghost" onClick={() => void openDataset(d)}>{d.instanceCount ? '进入标注' : '打开'}<ArrowRight size={14} /></Button><DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" title="数据集操作" aria-label={`${d.name} 数据集操作`}><MoreHorizontal size={18} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setAction({ kind: 'upload', team, dataset: d })}>追加文件</DropdownMenuItem><DropdownMenuItem onSelect={() => setAction({ kind: 'renameDataset', team, dataset: d })}>重命名</DropdownMenuItem>{d.canDelete && d.uploaderSubject === account.current?.subject && <DropdownMenuItem className="mc-team-danger" onSelect={() => setAction({ kind: 'delete', team, dataset: d })}>删除数据集</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div></div>)}</div>}
             </section> : <section role="tabpanel" aria-labelledby="team-members-tab" id="team-members-panel">
               <div className="mc-team-toolbar"><span>当前团队成员</span>{team.role === 'leader' && <Button onClick={() => setAction({ kind: 'add', team })}><Plus size={16} />添加成员</Button>}</div>
               <div className="mc-team-members">{members.map(member => <div className="mc-team-member-row" key={member.subject}><Avatar name={member.username} /><div><strong>{member.username}{member.subject === account.current?.subject && <small>我</small>}</strong><small>加入于 {dateLabel(member.joinedAt)}</small></div><span className="mc-team-tag">{member.role === 'leader' ? '组长' : '成员'}</span>{team.role === 'leader' && member.subject !== account.current?.subject && <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" title="成员操作" aria-label={`${member.username} 成员操作`}><MoreHorizontal size={18} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setAction({ kind: 'transfer', team, member })}>移交组长</DropdownMenuItem><DropdownMenuItem className="mc-team-danger" onSelect={() => setAction({ kind: 'remove', team, member })}>移除成员</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}</div>)}</div>

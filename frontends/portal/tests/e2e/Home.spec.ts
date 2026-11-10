@@ -500,7 +500,7 @@ test.describe('MedCollab home response fixtures', () => {
     await page.getByRole('button', { name: '对比表格', exact: true }).click();
     await expect(home.tableHeadings).toHaveText(['数据集', '创建者', '实例数', '创建时间', 'CT 共享画布', '操作']);
     await expect(home.row('Alpha fixture')).not.toContainText('fixture-owner-01');
-    await expect(home.row('Alpha fixture')).toContainText('我创建的');
+    await expect(home.row('Alpha fixture')).toContainText('我拥有的');
     await expect(home.row('Alpha fixture')).toContainText('fixture-account-a');
     await expect(home.row('Alpha fixture')).toContainText('12');
     await expect(home.datasetCreationTime('Alpha fixture')).toHaveAttribute(
@@ -878,13 +878,15 @@ test.describe('MedCollab home response fixtures', () => {
     await home.moreForDataset(datasetName).click();
     await home.shareMenuItem.click();
     await expect(home.shareMember(username)).toBeVisible();
-    await expect(home.shareMember(username)).toContainText('不可撤销');
+    await expect(home.shareMember(username)).toContainText('已转发；此记录不代表对方仍持有副本');
     await expect(home.shareRemove(username)).toHaveCount(0);
     await expect(home.shareRemoveConfirm).toHaveCount(0);
     await expect(home.shareMembers).toHaveCount(1);
     await home.shareSearch.fill('示例');
     await home.shareSearchSubmit.click();
-    await expect(home.userResult(username)).toHaveCount(0);
+    await expect(home.userResult(username)).toBeVisible();
+    await expect(home.userResult(username)).toHaveAttribute('aria-pressed', 'false');
+    await expect(home.shareAdd).toBeDisabled();
     expect(requests).toEqual([]);
   });
 

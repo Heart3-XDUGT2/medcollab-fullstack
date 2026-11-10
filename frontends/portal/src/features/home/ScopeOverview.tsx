@@ -12,7 +12,7 @@ export function sourceCounts(datasets: readonly Dataset[]) {
   );
 }
 const sources = [
-  { value: 'owner', label: '我创建的' },
+  { value: 'owner', label: '我拥有的' },
   { value: 'shared', label: '与我共享' },
   { value: 'public', label: '公共示例' },
 ] as const;
@@ -23,12 +23,14 @@ export default function ScopeOverview({
   onChange,
   utilities,
   compact = false,
+  teamEntry,
 }: {
   datasets: readonly Dataset[];
   scope: DatasetScope;
   onChange: (scope: DatasetScope) => void;
   utilities?: ReactNode;
   compact?: boolean;
+  teamEntry?: ReactNode;
 }) {
   const counts = sourceCounts(datasets);
   if (compact) return (
@@ -42,6 +44,7 @@ export default function ScopeOverview({
           {source.label}<span>{counts[source.value as DatasetScope].toLocaleString()}</span>
         </button>
       ))}
+      {teamEntry}
     </div>
   );
   return (
@@ -86,6 +89,7 @@ export default function ScopeOverview({
               <strong>{counts[source.value].toLocaleString()}</strong>
             </button>
           ))}
+          {teamEntry}
         </div>
       </div>
     </section>
