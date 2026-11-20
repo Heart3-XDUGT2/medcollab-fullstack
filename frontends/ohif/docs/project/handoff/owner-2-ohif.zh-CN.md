@@ -11,7 +11,7 @@
 
 目前交接给你的是：
 
-- OHIF 本机源码：`C:\Users\35775\Desktop\Viewers-3.13.13`，清单自报 3.13.13；core/tools 为 5.6.8。
+- OHIF 本机源码：`<ohif-source>`，清单自报 3.13.13；core/tools 为 5.6.8。
 - 常用界面第一轮汉化，保留英语切换；见 [汉化交付](../research/ohif-zh-localization-delivery-2026-10-31.zh-CN.md) 和完整 68 项清单。
 - ROI 历史修复的受控补丁、测试与维护记录；见 [ROI 修复](../research/ohif-roi-history-fix-2026-10-31.zh-CN.md)。请读取最新状态，不直接另下原版 ZIP 覆盖。
 - [本机能力清单](../research/ohif-capability-inventory-2026-10-31.zh-CN.md) 与 [源码审计](../research/ohif-source-audit-2026-10-31.zh-CN.md)。

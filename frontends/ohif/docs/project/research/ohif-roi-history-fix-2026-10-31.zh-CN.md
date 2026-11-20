@@ -10,7 +10,7 @@
 
 ## 1. 隔离阶段范围与现场保护
 
-- 源码：`C:\Users\35775\Desktop\Viewers-3.13.13`。
+- 源码：`<ohif-source>`。
 - 实装依赖：`@cornerstonejs/core@5.6.8`、`@cornerstonejs/tools@5.6.8`。
 - 报错：`Last item should be an array for grouped memos.`，调用链经过 `HistoryMemo.pushGrouped`、`AnnotationTool.createAnnotationMemo` 和 `LivewireContourTool`。
 - 未直接编辑源项目的 `node_modules`，未抑制错误或关闭错误遮罩，未禁用 ROI，未全局清空用户历史。
@@ -112,7 +112,7 @@ Arrow 单测使用实际发包的 Arrow 类和 HistoryMemo，但对外部渲染�
 ## 5. 交付文件
 
 证据根目录：
-`C:\Users\35775\Desktop\医学标注\docs\research\ohif-roi-evidence-20261031`
+`<medcollab-workspace>\docs\research\ohif-roi-evidence-20261031`
 
 正式待应用补丁位于其中的 `staged-patches`：
 
@@ -133,7 +133,7 @@ Arrow 单测使用实际发包的 Arrow 类和 HistoryMemo，但对外部渲染�
 - `service-status-final.json`：仅原 3000 监听，3335 已停止。
 
 原文件与工作副本：
-`C:\Users\35775\Desktop\医学标注\backups\ohif-roi-history-20261031-01`
+`<medcollab-workspace>\backups\ohif-roi-history-20261031-01`
 
 隔离 E2E 可复现入口：
 `work\viewer\playwright.roi-isolated.config.ts` 与
@@ -170,13 +170,13 @@ Arrow 单测使用实际发包的 Arrow 类和 HistoryMemo，但对外部渲染�
 
 维护前再次核对 19 个目标与 68 个本地化文件，全部匹配基线；新建非破坏备份：
 
-`C:\Users\35775\Desktop\医学标注\backups\ohif-roi-apply-20261031-01`
+`<medcollab-workspace>\backups\ohif-roi-apply-20261031-01`
 
 该目录保存 86 个当前文件及 `baseline.json`。先前隔离备份仍保留。
 
 ### 实际应用命令
 
-工作目录为源项目 `C:\Users\35775\Desktop\Viewers-3.13.13`。
+工作目录为源项目 `<ohif-source>`。
 
 1. 对 `application.patch`、`pnpm-integration.patch`、`regression-tests-pending.patch` 执行 `git apply --check`；对两个依赖补丁分别在实际已安装包目录仅执行 `git apply --check`，全部通过。
 2. 核对端口与进程命令行后，仅停止原 OHIF 监听 PID `47496`；没有关闭或刷新用户已有浏览器标签页。
@@ -193,7 +193,7 @@ Arrow 单测使用实际发包的 Arrow 类和 HistoryMemo，但对外部渲染�
 未设置 `CS_HISTORY_MODULE`、`CS_ARROW_MODULE`、`OHIF_INPUT_DIALOG_MODULE` 隔离覆盖，直接运行源项目实际模块：
 
 ```powershell
-node node_modules/jest/bin/jest.js --config extensions/cornerstone/jest.config.js --runInBand --runTestsByPath extensions/cornerstone/src/utils/historyRecordingRegression.test.ts extensions/cornerstone/src/utils/arrowHistoryRecordingRegression.test.ts extensions/cornerstone/src/utils/inputDialogCancellationRegression.test.ts --no-cache --json --outputFile C:\Users\35775\Desktop\医学标注\docs\research\ohif-roi-evidence-20261031\maintenance-unit-installed.json
+node node_modules/jest/bin/jest.js --config extensions/cornerstone/jest.config.js --runInBand --runTestsByPath extensions/cornerstone/src/utils/historyRecordingRegression.test.ts extensions/cornerstone/src/utils/arrowHistoryRecordingRegression.test.ts extensions/cornerstone/src/utils/inputDialogCancellationRegression.test.ts --no-cache --json --outputFile <medcollab-workspace>\docs\research\ohif-roi-evidence-20261031\maintenance-unit-installed.json
 ```
 
 结果：**3 个测试文件、22 项测试全部通过**。日志为 `maintenance-unit-installed.log`。
@@ -203,7 +203,7 @@ node node_modules/jest/bin/jest.js --config extensions/cornerstone/jest.config.j
 使用独立 Edge 测试进程，运行源项目 `tests/ROIHistoryRegression.spec.ts`；测试配置的 `baseURL` 为 **`http://127.0.0.1:3000`**，没有启动 3335，没有把隔离版测试结果当作部署验收。
 
 ```powershell
-node node_modules/@playwright/test/cli.js test --config C:\Users\35775\Desktop\医学标注\docs\research\ohif-roi-evidence-20261031\playwright.maintenance.config.cjs
+node node_modules/@playwright/test/cli.js test --config <medcollab-workspace>\docs\research\ohif-roi-evidence-20261031\playwright.maintenance.config.cjs
 ```
 
 首次运行的交互断言均完成，但两个截图断言因原 dev 配置显示“仅供研究使用”提示条而与隔离 e2e 配置不同。保留了真实首次失败记录：

@@ -55,3 +55,16 @@ Thumbs.db
 .claude/
 .codex/
 CLAUDE.md
+
+# Local design-tool metadata; the checked-in .impeccable/design.json remains
+# the shared design record, while questions and skill rerolls are machine-local.
+frontends/portal/.impeccable/questions/
+frontends/portal/.taste-skill/
+
+# Local design previews and merge-debug archives excluded from the release baseline.
+frontends/portal/design-preview.html
+frontends/portal/src/design-preview/
+frontends/portal/tests/ui/research-desk-check.mjs
+docs/ui/research-desk-preview/
+docs/ui/return-merge-debug-2026-11-05.zh-CN.md
+docs/ui/upstream-merge-2026-11-05.zh-CN.md

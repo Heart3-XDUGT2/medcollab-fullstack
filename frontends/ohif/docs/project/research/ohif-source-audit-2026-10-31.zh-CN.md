@@ -4,7 +4,7 @@
 
 
 日期：2026-10-31（Asia/Shanghai）  
-对象：`C:\Users\35775\Desktop\Viewers-3.13.13`；交付目录不在 OHIF 源码内。  
+对象：`<ohif-source>`；交付目录不在 OHIF 源码内。
 附表：[扩展、模式与能力/所有权矩阵](./ohif-capability-inventory-2026-10-31.zh-CN.md)。
 
 **边界**：本轮只读源码、包清单、已安装依赖代码和现有测试文本；未写测试，未运行构建、测试、漏洞扫描或性能采样，未请求本地 3000 服务、刷新浏览器、修改依赖/配置/锁文件、启动或停止服务。此前自造工作台保持停工，其测试结果不作为 OHIF 的验证证据。
@@ -21,10 +21,10 @@
 
 **证据链（C）**：
 
-1. privateLabelmap.js:56（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/tools/dist/esm/stateManagement/segmentation/labelmapModel/privateLabelmap.js:56`） 的 `moveSegmentToPrivateLabelmap` 创建独立层；第 79、105 行把目标体素写为 **1**，第 119–123 行将全局 segment 绑定为 `{labelmapId, labelValue: 1}`。
-2. labelmapEditTransaction.js:73（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/tools/dist/esm/stateManagement/segmentation/labelmapModel/labelmapEditTransaction.js:73`） 在保护其他标签并遇到冲突时调用上述移动；不是所有画笔操作都会触发。overwrite 策略、锁和实际编辑路径影响可达条件。
+1. privateLabelmap.js:56（本机参考：`<ohif-source>/node_modules/@cornerstonejs/tools/dist/esm/stateManagement/segmentation/labelmapModel/privateLabelmap.js:56`） 的 `moveSegmentToPrivateLabelmap` 创建独立层；第 79、105 行把目标体素写为 **1**，第 119–123 行将全局 segment 绑定为 `{labelmapId, labelValue: 1}`。
+2. labelmapEditTransaction.js:73（本机参考：`<ohif-source>/node_modules/@cornerstonejs/tools/dist/esm/stateManagement/segmentation/labelmapModel/labelmapEditTransaction.js:73`） 在保护其他标签并遇到冲突时调用上述移动；不是所有画笔操作都会触发。overwrite 策略、锁和实际编辑路径影响可达条件。
 3. [SEG commandsModule.ts:132](../../../extensions/cornerstone-dicom-seg/src/commandsModule.ts#L132) 直接读取 `segImage.getPixelData()`，按原像素值填 `segmentsOnLabelmap`；第 194 行的 metadata 按**全局** `segmentIndex` 编号。第 242 行对各层调用同一 builder，未传该层绑定或进行 `labelValue → segmentIndex` 转换。
-4. Segmentation_4X.js:121（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/adapters/dist/esm/adapters/Cornerstone/Segmentation_4X.js:121`） 用输入的 segment 值索引 metadata，第 172 行将该编号交给 DICOM 写入。因此上例中的局部值 1 会被当成全局 segment 1，而不是 2。
+4. Segmentation_4X.js:121（本机参考：`<ohif-source>/node_modules/@cornerstonejs/adapters/dist/esm/adapters/Cornerstone/Segmentation_4X.js:121`） 用输入的 segment 值索引 metadata，第 172 行将该编号交给 DICOM 写入。因此上例中的局部值 1 会被当成全局 segment 1，而不是 2。
 
 **影响**：可能导出结构完整但 segment 身份错误的 SEG；“重叠时自动改用 binary SEG”解决的是编码能否表示重叠，**不解决这个编号映射问题**。只有所有层的值都恰好等于全局 segment 编号时，当前假设才成立。
 
@@ -54,7 +54,7 @@
 
 ### F4 · 发行前许可门槛 · OHIF MIT 不代表所有运行依赖均 MIT
 
-**C**：本机 `shepherd.js` 为 **15.3.0**，package.json:16（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/shepherd.js/package.json:16`） 标 `AGPL-3.0`，LICENSE.md:3（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/shepherd.js/LICENSE.md:3`） 自述 AGPL/Commercial 双许可。
+**C**：本机 `shepherd.js` 为 **15.3.0**，package.json:16（本机参考：`<ohif-source>/node_modules/shepherd.js/package.json:16`） 标 `AGPL-3.0`，LICENSE.md:3（本机参考：`<ohif-source>/node_modules/shepherd.js/LICENSE.md:3`） 自述 AGPL/Commercial 双许可。
 
 不是只存在一个未使用的开发包：[Onboarding.tsx:2](../../../platform/ui-next/src/components/Onboarding/Onboarding.tsx#L2) 运行时导入 Shepherd，[ViewerLayout:220](../../../extensions/default/src/ViewerLayout/index.tsx#L220) 使用 Onboarding。
 
@@ -189,16 +189,16 @@ app-config.js/window.config
 
 | 代码事实 | 含义与边界 |
 |---|---|
-| TrackballRotateTool:16（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/tools/dist/esm/tools/TrackballRotateTool.js:16`） 默认 rotateSampleDistanceFactor=2；mousedown 调 sampleDistance，document mouseup 恢复并 render | 已有交互降质，不应重复宣称“没有降采样”；它对默认 actor mapper 起作用，不保证所有 actor 都同步降质 |
-| 同文件约 180–198 行一次拖拽调用两次 rotateCamera 并请求 render；VolumeViewport3D:107（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/core/dist/esm/RenderingEngine/VolumeViewport3D.js:107`） setCamera 也请求 render | 请求次数≠实际完整绘制次数；但 camera/事件/UI 工作不一定全部被引擎 rAF 合并 |
-| BaseRenderingEngine:282（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/core/dist/esm/RenderingEngine/BaseRenderingEngine.js:282`） 用 Set 去重，第 294 行只安排一个 rAF | 不可建议“先加 rAF”却忽略现有合并；需要量实际 frames 和 handler 成本 |
-| VTK Texture:47（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js:47`）、VolumeMapper:742（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js:742`） 有 mtime/资源句柄检查 | 没证据说每个 mousemove 都重解码/重传整卷或重新生成表面；首次上传、data modified、actor/mapper 变更仍可能有大成本 |
+| TrackballRotateTool:16（本机参考：`<ohif-source>/node_modules/@cornerstonejs/tools/dist/esm/tools/TrackballRotateTool.js:16`） 默认 rotateSampleDistanceFactor=2；mousedown 调 sampleDistance，document mouseup 恢复并 render | 已有交互降质，不应重复宣称“没有降采样”；它对默认 actor mapper 起作用，不保证所有 actor 都同步降质 |
+| 同文件约 180–198 行一次拖拽调用两次 rotateCamera 并请求 render；VolumeViewport3D:107（本机参考：`<ohif-source>/node_modules/@cornerstonejs/core/dist/esm/RenderingEngine/VolumeViewport3D.js:107`） setCamera 也请求 render | 请求次数≠实际完整绘制次数；但 camera/事件/UI 工作不一定全部被引擎 rAF 合并 |
+| BaseRenderingEngine:282（本机参考：`<ohif-source>/node_modules/@cornerstonejs/core/dist/esm/RenderingEngine/BaseRenderingEngine.js:282`） 用 Set 去重，第 294 行只安排一个 rAF | 不可建议“先加 rAF”却忽略现有合并；需要量实际 frames 和 handler 成本 |
+| VTK Texture:47（本机参考：`<ohif-source>/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js:47`）、VolumeMapper:742（本机参考：`<ohif-source>/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js:742`） 有 mtime/资源句柄检查 | 没证据说每个 mousemove 都重解码/重传整卷或重新生成表面；首次上传、data modified、actor/mapper 变更仍可能有大成本 |
 | [quality 配置:8](../../../extensions/cornerstone/src/customizations/volumeRenderingCustomization.ts#L8) 为 1–4；[Legacy quality:203](../../../extensions/cornerstone/src/services/ViewportService/backends/LegacyViewportOperations.ts#L203) 按质量平方缩小 sampleDistance | q=4 的步距约为 q=1 的 1/8；是射线采样量级关系，不是测得 CPU/FPS 倍数。该设置当前只取 actor[0] |
-| core init:17（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/core/dist/esm/init.js:17`） 默认 ContextPool、webGlContextCount=7；OHIF 可选 legacy/兼容 generic/direct next | 这些是源码默认，不证明用户当前 session 后端；配置和 URL 可覆盖 |
+| core init:17（本机参考：`<ohif-source>/node_modules/@cornerstonejs/core/dist/esm/init.js:17`） 默认 ContextPool、webGlContextCount=7；OHIF 可选 legacy/兼容 generic/direct next | 这些是源码默认，不证明用户当前 session 后端；配置和 URL 可覆盖 |
 | core init 识别 softwareRasterizer；CPU rendering 与软件 WebGL 是不同维度 | 高 CPU 不等于一定走 Cornerstone CPU fallback，也可能是软件光栅器执行 WebGL；本轮未读取 chrome://gpu |
 | [orientation marker:25](../../../extensions/cornerstone/src/Viewport/Overlays/ViewportOrientationMarkers.tsx#L25) 监听 camera modified 并 setState；scale overlay 有 parallelScale 改变检查 | 存在需要 profile 的 JS/React 通知工作；不能仅凭监听器就量化其为瓶颈或断言每事件一次 React commit |
 | [worker init:24](../../../extensions/cornerstone/src/initWADOImageLoader.js#L24) 按硬件并发和 app worker 上限取最小；polySeg Worker 上限 1 | 解码/表面转换可以在 Worker；不代表所有渲染或 metadata/统计都离开主线程 |
-| cache:16（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/node_modules/@cornerstonejs/core/dist/esm/cache/cache.js:16`） image cache 默认 3 GiB；OHIF init 可覆盖 | 不是整个浏览器内存上限；压缩 Part10 registry、JS、WASM、GPU textures、model cache另算 |
+| cache:16（本机参考：`<ohif-source>/node_modules/@cornerstonejs/core/dist/esm/cache/cache.js:16`） image cache 默认 3 GiB；OHIF init 可覆盖 | 不是整个浏览器内存上限；压缩 Part10 registry、JS、WASM、GPU textures、model cache另算 |
 
 有清理代码：模式退出清空请求池、metadata cache、presentation stores、segmentations；工具也有 ResizeObserver/event 的移除逻辑。**不能据此宣称不存在泄漏，也不能泛称“没有清理所以持续重建”**。Trackball 的 mouseup 恢复在窗口失焦/工具切换等边界是否总执行仍待测试，不列为已确认 CPU 根因。
 

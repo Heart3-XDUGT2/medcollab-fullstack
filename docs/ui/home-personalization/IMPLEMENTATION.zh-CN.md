@@ -43,7 +43,7 @@ pnpm dev --host 127.0.0.1 --port 60833 --strictPort
 | live `dist` 保护                                                   | 构建前记录 21 个文件 SHA-256；构建后全部未变                                                     |
 
 隔离构建目录：
-`C:\Users\35775\Desktop\医学标注\medcollab-fullstack\frontends\portal\.runtime\home-personalization-dist`。
+`<repo-root>\frontends\portal\.runtime\home-personalization-dist`。
 
 构建前后记录为 `frontends/portal/.runtime/home-personalization/dist-before.json`。本轮未执行会覆盖正式目录的 `pnpm build`；上述隔离产物不自动接入 8080。
 
