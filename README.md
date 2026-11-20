@@ -58,29 +58,29 @@ node scripts/start-gateway.mjs
 
 初始化会在本机生成独立凭据；包中没有原电脑的账户或密码。首次启动是空数据库、空影像库，在页面注册账户并上传自己有权使用的影像后开始标注。当前开发配置固定使用 `127.0.0.1`，请不要混用 `localhost`；域名、HTTPS、备份和生产权限配置需部署时另行设置。
 
-## 发布到 GitHub
+## 参与开发
 
-本目录已经是 Git 仓库时，不要重新执行 `git init`，也不要直接 `git add .`。先阅读 [开源发布前检查清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.zh-CN.md)，从已审核的基线建立发布分支，只选择确认要公开的文件。
+本项目已公开发布。参与开发时，请从最新 `main` 创建功能分支，只提交与当前改动相关的文件，并先阅读 [贡献指南](CONTRIBUTING.md)。
 
 ```bash
 git status --short --branch
 git switch main
 git pull --ff-only
-git switch -c chore/open-source-release
+git switch -c feat/your-change
 git diff --check
 git diff --stat
 ```
 
-确认许可证、第三方归属、路径脱敏和干净克隆验证都完成后，再由仓库管理员提交并推送：
+提交前请确认没有凭据、真实账号、患者数据、医学影像、运行目录或构建产物：
 
 ```bash
 git add <reviewed-files-only>
 git diff --cached --check
-git commit -m "chore: prepare full-stack source for open-source release"
-git push -u origin chore/open-source-release
+git commit -m "describe your change"
+git push -u origin feat/your-change
 ```
 
-不要使用 `git push --force` 覆盖团队分支。根 `.gitignore` 已覆盖凭据、运行数据、依赖、编译产物和常见医学影像；推送前仍必须检查 `git status --short` 和暂存区差异。OHIF 上游文档有图片资源，相关许可证和归属必须保留。
+请通过 Pull Request 合并改动。不要使用 `git push --force` 覆盖团队分支。根 `.gitignore` 已覆盖凭据、运行数据、依赖、编译产物和常见医学影像；OHIF 上游文档、字体和图标的许可证与归属必须保留。
 
 ## 开发资料与许可
 
@@ -88,4 +88,4 @@ git push -u origin chore/open-source-release
 
 根目录 `LICENSE` 现在为 MedCollab 原创代码和未带更具体声明的文档提供 MIT 授权；`LICENSE-SCOPE.md` 说明适用范围。OHIF、字体、图标和其他第三方组件继续保留各自的许可证与归属，见 [第三方来源](THIRD_PARTY_NOTICES.md)。
 
-公开发布前请先阅读 [开源发布前检查清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.zh-CN.md)。当前源码包仍处于发布准备阶段：第三方归属、发布文件筛选和发布分支需要最后复核。安全问题请按 [SECURITY.md](SECURITY.md) 报告；贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+项目已公开发布。许可证范围见 [LICENSE-SCOPE.md](LICENSE-SCOPE.md)，安全问题请按 [SECURITY.md](SECURITY.md) 报告，贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。维护者仍可参考 [开源发布检查清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.zh-CN.md) 进行后续审计。
