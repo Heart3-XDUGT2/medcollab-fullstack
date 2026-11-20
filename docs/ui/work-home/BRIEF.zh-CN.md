@@ -22,7 +22,7 @@
 
 ## 资料依据
 
-先读本机 `C:\Users\35775\Desktop\医学标注\docs\research\homepage-density-personalization-2026-11-03\REPORT.zh-CN.md` 及相关国内/国际条目。借鉴收藏、最近、工作入口和可逆定制的机制，不照搬 Office 文件模型或标注任务体系。
+先读本机 `<medcollab-workspace>\docs\research\homepage-density-personalization-2026-11-03\REPORT.zh-CN.md` 及相关国内/国际条目。借鉴收藏、最近、工作入口和可逆定制的机制，不照搬 Office 文件模型或标注任务体系。
 
 实现事实以当前合入 `5cf877c` 的源码为准，先读：
 

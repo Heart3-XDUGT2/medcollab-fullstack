@@ -47,8 +47,8 @@
 | 项目 | 当前事实 |
 | --- | --- |
 | 产品方向 | 中文、云端多人医学标注；科研与术前工程是需求方向，临床可用性未获验证或认证 |
-| 工作目录 | `C:\Users\35775\Desktop\医学标注` |
-| 正在使用的 OHIF | `C:\Users\35775\Desktop\Viewers-3.13.13`；原为 ZIP，现已建立 Git 并推送到团队仓库 |
+| 工作目录 | `<medcollab-workspace>` |
+| 正在使用的 OHIF | `<ohif-source>`；原为 ZIP，现已建立 Git 并推送到团队仓库 |
 | 团队源码仓库 | [Heart3-XDUGT2/medcollab-ohif](https://github.com/Heart3-XDUGT2/medcollab-ohif)，`main` 为当前共同基线；仓库为私有，需要访问权限 |
 | 版本 | OHIF 清单自报 3.13.13；Cornerstone core/tools 5.6.8；React 18.3.1 |
 | 本机体验入口 | [中文 OHIF](http://127.0.0.1:3000/?lng=zh)、[本地导入](http://127.0.0.1:3000/local?lng=zh) |

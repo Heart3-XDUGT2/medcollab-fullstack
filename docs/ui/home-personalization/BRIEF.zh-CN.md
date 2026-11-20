@@ -25,7 +25,7 @@
 
 ## 参考材料
 
-调研目录：`C:\Users\35775\Desktop\医学标注\docs\research\homepage-density-personalization-2026-11-03`。
+调研目录：`<medcollab-workspace>\docs\research\homepage-density-personalization-2026-11-03`。
 
 先读 `REPORT.zh-CN.md`，其余包括国内/国际产品、学术文献与官方图板。参考的是机制、完成度和适用条件，不照抄竞品，不将旧图或摘要冒充实测结论。只使用本地适用设计技能，不向外部设计生成服务上传项目、截图或医学资料。
 

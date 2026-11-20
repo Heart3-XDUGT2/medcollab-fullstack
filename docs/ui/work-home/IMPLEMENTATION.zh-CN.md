@@ -98,4 +98,4 @@ manifest 保存完整前 12 条行高、可见操作几何及长名称检查。�
 
 确认后不再改代码或新截图循环。最终 DESIGN / sidecar 保留，由主审与独立 documenter 协调，不与其并行改写；BRIEF 最终状态及其他副作用核对由主审负责。
 
-最终隔离产物为 `C:\Users\35775\Desktop\医学标注\medcollab-fullstack\frontends\portal\.runtime\work-home-dist`；构建前已核对位于 Portal 内且不是 live `dist`，构建后 21 个 live 文件 SHA-256 再次全部一致。未执行普通 `pnpm build`、主题生成、替换 live dist、提交 / 推送 / 部署。视觉已按首批交审、集中修正、一次确认收口。
+最终隔离产物为 `<repo-root>\frontends\portal\.runtime\work-home-dist`；构建前已核对位于 Portal 内且不是 live `dist`，构建后 21 个 live 文件 SHA-256 再次全部一致。未执行普通 `pnpm build`、主题生成、替换 live dist、提交 / 推送 / 部署。视觉已按首批交审、集中修正、一次确认收口。

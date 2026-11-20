@@ -62,7 +62,7 @@ node --test gateway/theme/contract.test.mjs
 - 共享 Portal：[http://127.0.0.1:60827/teams](http://127.0.0.1:60827/teams)。没有真实服务时呈现真实不可用状态，不回退虚构资料。
 - 隔离主题：[http://127.0.0.1:5188/fixtures/login.html](http://127.0.0.1:5188/fixtures/login.html)，另有 `register.html`、`reset.html`。仅本机静态服务器，未安装主题。
 - 浏览器复验：从 `frontends/portal` 执行 `node src/features/teams/browser-check.mjs`；默认写入 Portal 内被 Git 忽略的 `.runtime/ui-screens/teams-auth`，`TEAM_SCREENSHOTS` 可覆盖。浏览器优先使用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`，未配置时使用 Playwright 默认浏览器，不再要求固定开发者 Chrome 路径。所有业务响应仍被拦截。本次便携性修改只做 `node --check`，通过；确认默认目录命中根 `.gitignore` 的 `.runtime/`，未重跑视觉轮。
-- 最终截图与 `verification.json`：`C:\Users\35775\.codex\visualizations\2026\11\02\01a19b5e-a40b-73e3-9a47-092e8fd00b74\teams-auth-confirm`。
+- 最终截图与 `verification.json`：`<local-verification-artifact>\2026\11\02\01a19b5e-a40b-73e3-9a47-092e8fd00b74\teams-auth-confirm`。
 
 当前源码稳定，等待主任务审查与原执行官统一构建。真实权限、邀请码加入 / 轮换、DICOM 导入、工作台访问拒绝和 SSO 的端到端联调仍须在受控服务环境另验。
 

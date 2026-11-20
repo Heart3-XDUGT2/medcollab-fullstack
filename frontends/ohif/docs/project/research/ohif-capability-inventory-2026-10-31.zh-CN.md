@@ -4,7 +4,7 @@
 
 
 日期：2026-10-31。主报告：[源码审计](./ohif-source-audit-2026-10-31.zh-CN.md)。  
-对象仅为本机 `C:\Users\35775\Desktop\Viewers-3.13.13`。本轮全部只读、未运行测试或服务；依赖表不是穷尽 SBOM。
+对象仅为本机 `<ohif-source>`。本轮全部只读、未运行测试或服务；依赖表不是穷尽 SBOM。
 
 ## 1. 清点口径
 
@@ -12,7 +12,7 @@
 
 - **14 个扩展包、9 个模式包，全部自报 3.13.13 / MIT**。这个声明不覆盖其全部依赖/模型/WASM，也不证明来源 tag。
 - **A**＝pluginConfig 默认入口自动登记；**D**＝配置已声明，但 `default:false` 不进默认入口，可由模式/配置按需加载。D 不是“不存在/不能启用”。当前用户页面实际注册了哪些模块，本轮没有查询。
-- 本包 A 扩展 3 个，A 模式 7 个；生成的 pluginImports.js:11（本机参考：`C:/Users/35775/Desktop/Viewers-3.13.13/platform/app/src/pluginImports.js:11`） 与此一致，loader 还包含全部已声明模块。
+- 本包 A 扩展 3 个，A 模式 7 个；生成的 pluginImports.js:11（本机参考：`<ohif-source>/platform/app/src/pluginImports.js:11`） 与此一致，loader 还包含全部已声明模块。
 - pluginConfig 中的部分 `version:"3.0.0"` 为描述字段，不是构建依赖选择器；真实声明/安装为 3.13.13 和下述固定依赖。
 - 重要共同 peer：React/React DOM 18.3.1、OHIF workspace 包；医学扩展常用 dcmjs 0.52.0、dicom-parser 1.8.21。表内仅突出职责相关差异。
 

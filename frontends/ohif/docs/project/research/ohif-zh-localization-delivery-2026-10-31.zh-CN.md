@@ -4,7 +4,7 @@
 
 
 日期：2026-10-31（Asia/Shanghai）  
-源码：`C:\Users\35775\Desktop\Viewers-3.13.13`，本机 ZIP 目录，未执行 git init。
+源码：`<ohif-source>`，本机 ZIP 目录，未执行 git init。
 
 ## 1. 使用入口
 
@@ -57,7 +57,7 @@
 
 编辑前非破坏性备份：
 
-`C:\Users\35775\Desktop\医学标注\backups\ohif-zh-20261031-01`
+`<medcollab-workspace>\backups\ohif-zh-20261031-01`
 
 其中 `baseline-manifest.json` 记录原件哈希。新增文件没有原件，清单明确标为 `added`。根 package.json、pnpm-lock.yaml、原 i18n 检测配置与备份哈希一致；未修改构建脚本/配置。
 
@@ -70,7 +70,7 @@
 沿用项目已有 Jest/Babel 机制，新增 i18n 包的轻量配置与两个测试文件；未安装测试依赖、未运行全量测试或生产构建。
 
 ```powershell
-Set-Location 'C:\Users\35775\Desktop\Viewers-3.13.13'
+Set-Location '<ohif-source>'
 node node_modules/jest/bin/jest.js --config platform/i18n/jest.config.js --runInBand --no-cache
 ```
 

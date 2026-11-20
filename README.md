@@ -45,24 +45,34 @@ node scripts/start-gateway.mjs
 
 初始化会在本机生成独立凭据；包中没有原电脑的账户或密码。首次启动是空数据库、空影像库，在页面注册账户并上传自己有权使用的影像后开始标注。当前开发配置固定使用 `127.0.0.1`，请不要混用 `localhost`；域名、HTTPS、备份和生产权限配置需部署时另行设置。
 
-## 上传 GitHub
+## 发布到 GitHub
 
-解压后进入包含本 README 的 `medcollab` 文件夹，上传整个源码目录。不要把压缩包本身作为仓库源码。
-
-先在 GitHub 创建空仓库，然后把下面最后一条命令的地址替换成你的仓库地址：
+本目录已经是 Git 仓库时，不要重新执行 `git init`，也不要直接 `git add .`。先阅读 [开源发布前检查清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.zh-CN.md)，从已审核的基线建立发布分支，只选择确认要公开的文件。
 
 ```bash
-git init -b main
-git add .
-git commit -m "Initial MedCollab full-stack source"
-git remote add origin https://github.com/YOUR_NAME/YOUR_REPO.git
-git push -u origin main
+git status --short --branch
+git switch main
+git pull --ff-only
+git switch -c chore/open-source-release
+git diff --check
+git diff --stat
 ```
 
-上传前可用 `git status --short` 检查文件。根 `.gitignore` 已覆盖凭据、运行数据、依赖、编译产物和医学影像。OHIF 上游文档有图片资源，建议使用 Git 命令或 GitHub Desktop 推送。
+确认许可证、第三方归属、路径脱敏和干净克隆验证都完成后，再由仓库管理员提交并推送：
+
+```bash
+git add <reviewed-files-only>
+git diff --cached --check
+git commit -m "chore: prepare full-stack source for open-source release"
+git push -u origin chore/open-source-release
+```
+
+不要使用 `git push --force` 覆盖团队分支。根 `.gitignore` 已覆盖凭据、运行数据、依赖、编译产物和常见医学影像；推送前仍必须检查 `git status --short` 和暂存区差异。OHIF 上游文档有图片资源，相关许可证和归属必须保留。
 
 ## 开发资料与许可
 
 接口改动先看 [前端交接文档](docs/frontend-handoff/README.md)，工作台行为见 [工作台接入说明](docs/workspace-integration.md)，后端配置见 [backend/README.md](backend/README.md)。历史文档中的本机部署与验证结果只描述原项目，不能代替本包的部署和测试结果。
 
-原组件的 `LICENSE`、`THIRD_PARTY_NOTICES` 和字体/图标许可均保留。Java 后端和新增集成文件未另行指定开源许可证；本包没有擅自为整仓库授予统一 MIT 许可，公开发布时可由项目所有者决定这些文件的授权方式。见 [第三方来源](THIRD_PARTY_NOTICES.md)。
+根目录 `LICENSE` 现在为 MedCollab 原创代码和未带更具体声明的文档提供 MIT 授权；`LICENSE-SCOPE.md` 说明适用范围。OHIF、字体、图标和其他第三方组件继续保留各自的许可证与归属，见 [第三方来源](THIRD_PARTY_NOTICES.md)。
+
+公开发布前请先阅读 [开源发布前检查清单](docs/OPEN_SOURCE_RELEASE_CHECKLIST.zh-CN.md)。当前源码包仍处于发布准备阶段：第三方归属、发布文件筛选和发布分支需要最后复核。安全问题请按 [SECURITY.md](SECURITY.md) 报告；贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。

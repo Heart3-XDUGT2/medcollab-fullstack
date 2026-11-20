@@ -5,8 +5,8 @@
 ## 版本与目录
 
 - 远端：`https://github.com/Heart3-XDUGT2/medcollab-fullstack.git`。
-- 原工作目录：`C:\Users\35775\Desktop\医学标注\medcollab-fullstack`。
-- 独立审查克隆：`C:\Users\35775\Desktop\医学标注\medcollab-fullstack-upstream-20261103`。它用于隔离合并验证，不是新的主开发目录。
+- 原工作目录：`<repo-root>`。
+- 独立审查克隆：`<repo-root>-upstream-20261103`。它用于隔离合并验证，不是新的主开发目录。
 - 原分支：`feat/portal-team-ui`，原 HEAD：`fb2ce39`。
 - 已取得并合入的远端 main：`5cf877cb67b7b388ae42610e7a639cddf6544246`。
 - 远端已通过 `1a4cc79` 合入之前的 Portal PR；本次在原分支 fast-forward 到新版主分支，没有新建本地合并提交，也没有推送。

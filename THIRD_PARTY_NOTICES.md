@@ -1,5 +1,6 @@
 # 组件来源与许可
 
+- 根目录 `LICENSE` 仅授予未带更具体许可证声明的 MedCollab 原创代码和文档使用权；完整范围见 `LICENSE-SCOPE.md`。
 - `frontends/ohif`：基于 OHIF Viewers 的完整定制工作区，版本与依赖以其中 `package.json`、`pnpm-lock.yaml` 为准；原 MIT LICENSE、NOTICE/引用说明、依赖补丁和上游文档保留。
 - `frontends/portal`：MedCollab Portal，保留原 `LICENSE`、`THIRD_PARTY_NOTICES.md` 与 `public/licenses/`。
 - `gateway/theme/medcollab-portal`：保留 Portal 派生样式许可 `PORTAL-LICENSE`，并附 Inter 的 `inter-OFL.txt` 和 Lucide 的 `lucide-LICENSE.txt`。
