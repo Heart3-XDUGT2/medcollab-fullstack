@@ -55,3 +55,8 @@ Thumbs.db
 .claude/
 .codex/
 CLAUDE.md
+
+# Local design-tool metadata; the checked-in .impeccable/design.json remains
+# the shared design record, while questions and skill rerolls are machine-local.
+frontends/portal/.impeccable/questions/
+frontends/portal/.taste-skill/
